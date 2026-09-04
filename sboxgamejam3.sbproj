@@ -1,0 +1,14 @@
+{
+  "Title": "SBoxGameJam3",
+  "Type": "game",
+  "Org": "local",
+  "Ident": "sboxgamejam3",
+  "Schema": 1,
+  "IncludeSourceFiles": false,
+  "Resources": null,
+  "PackageReferences": [],
+  "EditorReferences": null,
+  "Mounts": null,
+  "IsStandaloneOnly": false,
+  "Metadata": {}
+}
