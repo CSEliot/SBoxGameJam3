@@ -76,6 +76,8 @@ Game Over: The game has twp endings:
 1. You stop dirking to cash-in your current score.
 2. Your drunkenness level reach 0 which will make you lose all your score
 
+Hit: Anything that causes player to go into KnockedDown state. Ex: Tilting too much left or right is a 'hit'. Colliding is a 'hit'. Running into wall is a 'hit'.
+
 ### Networking
 
 ### Session-Scope
