@@ -174,8 +174,12 @@
           "CreateAttachments": false,
           "LodOverride": null,
           "MaterialGroup": null,
-          "MaterialOverride": "materials/default.vmat",
-          "Materials": null,
+          "MaterialOverride": "materials/shine.vmat",
+          "Materials": {
+            "indexed": {
+              "0": "dev/helper/testgrid.vmat"
+            }
+          },
           "Model": "models/dev/plane.vmdl",
           "OnComponentDestroy": null,
           "OnComponentDisabled": null,
@@ -215,7 +219,7 @@
           "RollingResistance": null,
           "Scale": "100,100,10",
           "Static": false,
-          "Surface": null,
+          "Surface": "frictionless.surface",
           "SurfaceVelocity": "0,0,0"
         }
       ],
@@ -226,8 +230,8 @@
       "__version": 2,
       "Flags": 0,
       "Name": "Camera",
-      "Position": "-267.451996,-379.653015,297.790314",
-      "Rotation": "-0.144858196,0.286023915,0.427963108,0.845017076",
+      "Position": "231.101654,-641.675049,251.391068",
+      "Rotation": "0.115449868,-0.00541898608,-0.781126022,-0.613582492",
       "Scale": "1,1,1",
       "Tags": "",
       "Enabled": true,
@@ -325,7 +329,7 @@
       "__version": 2,
       "Flags": 0,
       "Name": "Player Controller",
-      "Position": "-9.35069275,-97.1584625,14.9740782",
+      "Position": "-101.125511,-97.1584625,14.9740782",
       "Rotation": "0,0,-0.707106769,-0.707106769",
       "Scale": "1,1,1",
       "Tags": "",
@@ -522,8 +526,8 @@
           "__version": 2,
           "Flags": 0,
           "Name": "Body",
-          "Position": "0,0,0",
-          "Rotation": "0,0,0,1",
+          "Position": "192.577606,-61.6814804,2.85804272E-05",
+          "Rotation": "0,0,-0.999916077,-0.0129558742",
           "Scale": "1,1,1",
           "Tags": "",
           "Enabled": true,
@@ -678,7 +682,7 @@
           "Flags": 0,
           "_PlayerPrefab": {
             "_type": "gameobject",
-            "prefab": "prefabs/drunkcc.prefab"
+            "prefab": "player.prefab"
           },
           "_SpawnLocation": {
             "_type": "gameobject",
@@ -700,7 +704,7 @@
       "Flags": 0,
       "Name": "SPAWNLOCATION",
       "Position": "0,0,202.044373",
-      "Rotation": "0,0,0,1",
+      "Rotation": "0,0,0.707106769,0.707106769",
       "Scale": "1,1,1",
       "Tags": "",
       "Enabled": true,
@@ -711,10 +715,123 @@
       "OwnerTransfer": 1,
       "Components": [],
       "Children": []
+    },
+    {
+      "__guid": "0ed5b002-d119-4c85-b681-316e2c2ddcdc",
+      "__version": 2,
+      "Flags": 0,
+      "Name": "Block",
+      "Position": "25.8373623,-72.103363,0",
+      "Rotation": "0,0,0,1",
+      "Scale": "1,1,1",
+      "Tags": "world",
+      "Enabled": true,
+      "NetworkMode": 2,
+      "NetworkFlags": 0,
+      "NetworkOrphaned": 0,
+      "NetworkTransmit": true,
+      "OwnerTransfer": 1,
+      "Components": [
+        {
+          "__type": "Sandbox.MeshComponent",
+          "__guid": "250e1466-70d2-4f47-b110-745a9d34aaa2",
+          "__enabled": true,
+          "Flags": 0,
+          "ColliderFlags": 0,
+          "Collision": "Mesh",
+          "Color": "1,1,1,1",
+          "Elasticity": null,
+          "Friction": null,
+          "HideInGame": false,
+          "IsTrigger": false,
+          "Mesh": {
+            "Data": {
+              "$blob": "e45fc654-6438-8654-b819-73a36c308d3c"
+            },
+            "Materials": [
+              "materials/dev/reflectivity_30.vmat"
+            ]
+          },
+          "OnComponentDestroy": null,
+          "OnComponentDisabled": null,
+          "OnComponentEnabled": null,
+          "OnComponentFixedUpdate": null,
+          "OnComponentStart": null,
+          "OnComponentUpdate": null,
+          "OnObjectTriggerEnter": null,
+          "OnObjectTriggerExit": null,
+          "OnTriggerEnter": null,
+          "OnTriggerExit": null,
+          "RenderType": "On",
+          "RollingResistance": null,
+          "SmoothingAngle": 40,
+          "Static": true,
+          "Surface": null,
+          "SurfaceVelocity": "0,0,0"
+        }
+      ],
+      "Children": []
+    },
+    {
+      "__guid": "5e59fa01-4ebb-472b-83fe-7ba9461bde58",
+      "__version": 2,
+      "Flags": 0,
+      "Name": "Block",
+      "Position": "-4.25415039,675.562622,0",
+      "Rotation": "0,0,0,1",
+      "Scale": "1,1,1",
+      "Tags": "world",
+      "Enabled": true,
+      "NetworkMode": 2,
+      "NetworkFlags": 0,
+      "NetworkOrphaned": 0,
+      "NetworkTransmit": true,
+      "OwnerTransfer": 1,
+      "Components": [
+        {
+          "__type": "Sandbox.MeshComponent",
+          "__guid": "f59b9a12-defa-49a8-9bf7-71fe36b2934f",
+          "__enabled": true,
+          "Flags": 0,
+          "ColliderFlags": 0,
+          "Collision": "Mesh",
+          "Color": "1,1,1,1",
+          "Elasticity": null,
+          "Friction": null,
+          "HideInGame": false,
+          "IsTrigger": false,
+          "Mesh": {
+            "Data": {
+              "$blob": "2e8c7c68-6591-88cd-9efd-4441ad7d8908"
+            },
+            "Materials": [
+              "materials/dev/reflectivity_30.vmat"
+            ]
+          },
+          "OnComponentDestroy": null,
+          "OnComponentDisabled": null,
+          "OnComponentEnabled": null,
+          "OnComponentFixedUpdate": null,
+          "OnComponentStart": null,
+          "OnComponentUpdate": null,
+          "OnObjectTriggerEnter": null,
+          "OnObjectTriggerExit": null,
+          "OnTriggerEnter": null,
+          "OnTriggerExit": null,
+          "RenderType": "On",
+          "RollingResistance": null,
+          "SmoothingAngle": 40,
+          "Static": true,
+          "Surface": null,
+          "SurfaceVelocity": "0,0,0"
+        }
+      ],
+      "Children": []
     }
   ],
   "SceneProperties": {
     "NetworkInterpolation": true,
+    "PhysicsMode": "Physics3D",
     "TimeScale": 1,
     "WantsSystemScene": true,
     "Metadata": {
