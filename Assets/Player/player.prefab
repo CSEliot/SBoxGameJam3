@@ -18,7 +18,7 @@
       {
         "__type": "Sandbox.ModelRenderer",
         "__guid": "9c3fbb2a-cef3-4956-9d34-388da9d2c434",
-        "__enabled": true,
+        "__enabled": false,
         "Flags": 0,
         "BodyGroups": 18446744073709551615,
         "CreateAttachments": false,
@@ -100,7 +100,7 @@
         "Radius": 32,
         "RollingResistance": null,
         "Static": false,
-        "Surface": "player.surface",
+        "Surface": "player/player.surface",
         "SurfaceVelocity": "0,0,0"
       },
       {
@@ -109,13 +109,16 @@
         "__enabled": true,
         "Flags": 0,
         "_BeerLevel": 1,
-        "_CanSober": false,
-        "_CorrectionStrength": 100,
+        "_CorrectionDamping": 0,
+        "_CorrectionStrength": 1000,
+        "_DrunkLeanScale": 0.8,
         "_ForwardRayCastPosition": 0,
         "_HasHitObstacle": false,
         "_JumpForce": 1,
-        "_KnockdownRecoveryTime": 1,
-        "_MaxHitRoll": 0,
+        "_KnockdownRecoveryTime": 2,
+        "_LateralGrip": 5,
+        "_LeanImpulse": 1000,
+        "_MaxHitRoll": 60,
         "_MaxRunningForce": 500,
         "_RigidbodySphere": {
           "_type": "component",
@@ -124,14 +127,11 @@
           "component_type": "Rigidbody"
         },
         "_RollResponseFloor": 0,
-        "_RollTurnRate": 1,
-        "_RotationDampeningStrength": 20,
+        "_RollTurnRate": 2,
         "_RunningAcceleration": 1,
-        "_SoberRate": 1,
-        "_State": 0,
-        "_TurnForce": 0.5,
         "_VelocityCeiling": 500,
         "_WillCollideApproachAngle": 0,
+        "_YawGain": 10,
         "LockPitch": true,
         "LockRoll": false,
         "LockYaw": false,
@@ -163,7 +163,7 @@
           {
             "__type": "Sandbox.ModelRenderer",
             "__guid": "d3ac7c42-715a-4c10-9721-b5a45a7c8a6c",
-            "__enabled": true,
+            "__enabled": false,
             "Flags": 0,
             "BodyGroups": 18446744073709551615,
             "CreateAttachments": false,
@@ -259,6 +259,70 @@
             },
             "RenderType": "On",
             "Tint": "1,1,1,1"
+          }
+        ],
+        "Children": []
+      },
+      {
+        "__guid": "10a43dc9-8aab-4fd2-a2c8-02bdfa57b59e",
+        "__version": 2,
+        "Flags": 0,
+        "Name": "citizen",
+        "Position": "-6.34197092,0,-31.0657845",
+        "Rotation": "0,0,0,1",
+        "Scale": "3.22580647,3.22580647,3.22580647",
+        "Tags": "",
+        "Enabled": true,
+        "NetworkMode": 2,
+        "NetworkFlags": 0,
+        "NetworkOrphaned": 0,
+        "NetworkTransmit": true,
+        "OwnerTransfer": 1,
+        "Components": [
+          {
+            "__type": "Sandbox.SkinnedModelRenderer",
+            "__guid": "b9af53d1-f8dd-41b9-ab6d-d0cc9246f140",
+            "__enabled": true,
+            "Flags": 0,
+            "AnimationGraph": null,
+            "BodyGroups": 341,
+            "BoneMergeTarget": null,
+            "CreateAttachments": false,
+            "CreateBoneObjects": false,
+            "LodOverride": null,
+            "MaterialGroup": null,
+            "MaterialOverride": null,
+            "Materials": null,
+            "Model": "models/citizen/citizen.vmdl",
+            "Morphs": {},
+            "OnComponentDestroy": null,
+            "OnComponentDisabled": null,
+            "OnComponentEnabled": null,
+            "OnComponentFixedUpdate": null,
+            "OnComponentStart": null,
+            "OnComponentUpdate": null,
+            "Parameters": {
+              "bools": {},
+              "ints": {},
+              "floats": {},
+              "vectors": {},
+              "rotations": {}
+            },
+            "PlaybackRate": 1,
+            "RenderOptions": {
+              "GameLayer": true,
+              "OverlayLayer": false,
+              "BloomLayer": false,
+              "AfterUILayer": false
+            },
+            "RenderType": "On",
+            "Sequence": {
+              "Name": null,
+              "Looping": true,
+              "Blending": false
+            },
+            "Tint": "1,1,1,1",
+            "UseAnimGraph": true
           }
         ],
         "Children": []

@@ -3,7 +3,12 @@ using System;
 namespace Sandbox;
 
 /// <summary>
-/// Character controller for Drunk Player
+/// Character controller for Drunk Player.
+///
+/// Motorcycle-feel human CC driven by forces, not set velocities. Players tap Left/Right to
+/// lean; lean both steers (yaw follows roll while moving forward) and must be actively
+/// counter-tapped to stay upright. Drunkenness exaggerates every tap. Lean past _MaxHitRoll
+/// and the CC ragdolls for _KnockdownRecoveryTime, then resets at zero velocity.
 /// </summary>
 public sealed class DrunkCC : Component
 {
@@ -16,52 +21,77 @@ public sealed class DrunkCC : Component
 		Running,
 		KnockedDown,
 	}
+
+	private State _CurrentState = State.Running;
+
+	/// <summary>
+	/// Counts down while knocked down. Reset happens when it reaches zero.
+	/// </summary>
+	private TimeUntil _KnockdownEnds;
 	
 	/// <summary>
-	/// 
+	/// Debug: hard-zero spin and orientation on this axis every tick.
 	/// </summary>
 	[Property] public bool LockPitch { get; set; }
 	/// <summary>
-	/// 
+	/// Debug: hard-zero spin and orientation on this axis every tick.
 	/// </summary>
 	[Property] public bool LockYaw   { get; set; }
 	/// <summary>
-	/// 
+	/// Debug: hard-zero spin and orientation on this axis every tick.
 	/// </summary>
 	[Property] public bool LockRoll  { get; set; }
 	
 	/// <summary>
-	/// How quickly the character corrects itself after drifting left or right.
-	/// </summary>
-	[Property] private float _State { get; set; }
-	
-	/// <summary>
-	/// How quickly the character corrects itself after drifting left or right.
+	/// Upright spring stiffness: corrective torque per degree of roll beyond _RollResponseFloor.
 	/// </summary>
 	[Property] private float _CorrectionStrength { get; set; } = 1;
 
 	/// <summary>
-	/// How far the character can roll before code will correct the roll.
+	/// Upright damping: torque per deg/s of roll rate, always active. Kills the wobble.
+	/// Leave at 0 to auto-compute critical damping from _CorrectionStrength and the body's inertia.
+	/// </summary>
+	[Property] private float _CorrectionDamping { get; set; } = 0;
+
+	/// <summary>
+	/// Degrees of roll the spring ignores. The damper still acts inside it.
 	/// </summary>
 	[Property] private float _RollResponseFloor { get; set; } = 1;
 
 	/// <summary>
-	/// Yaw rate (rad/s) per degree of roll while moving forward. Motorcycle-style steering.
+	/// Angular impulse about the forward axis per Left/Right tap, at zero drunkenness.
 	/// </summary>
-	[Property] private float _RollTurnRate { get; set; } = 0.05f;
+	[Property] private float _LeanImpulse { get; set; } = 1;
+
+	/// <summary>
+	/// Tap impulse multiplier per beer: impulse = _LeanImpulse * (1 + _BeerLevel * this).
+	/// At 10 beers with 0.5 here a tap hits 6x. Tune so 10+ is "dangerously strong".
+	/// </summary>
+	[Property] private float _DrunkLeanScale { get; set; } = 0.5f;
+
+	/// <summary>
+	/// Target yaw rate (deg/s) per degree of roll while moving forward. Motorcycle steering.
+	/// </summary>
+	[Property] private float _RollTurnRate { get; set; } = 1f;
+
+	/// <summary>
+	/// Yaw torque per deg/s of error between target and actual yaw rate. Higher = crisper heading.
+	/// </summary>
+	[Property] private float _YawGain { get; set; } = 1f;
+
+	/// <summary>
+	/// Sideways force per unit of lateral velocity. Makes the sphere carve with its heading
+	/// instead of sliding on its old line. 0 = ice.
+	/// </summary>
+	[Property] private float _LateralGrip { get; set; } = 1f;
 	
 	/// <summary>
-	/// How quickly the character slows down after rotating itself after drifting left or right.
-	/// </summary>
-	[Property] private float _RotationDampeningStrength { get; set; } = 1;
-	
-	/// <summary>
-	/// How fast the character will eventually hit.
+	/// Constant forward drive while below _VelocityCeiling.
 	/// </summary>
 	[Property] private float _MaxRunningForce { get; set; } = 1;
 
 	/// <summary>
-	/// How fast the character will eventually hit.
+	/// Drive cuts out above this speed.
 	/// </summary>
 	[Property] private float _VelocityCeiling { get; set; } = 1;
 	
@@ -76,30 +106,15 @@ public sealed class DrunkCC : Component
 	[Property] private float _JumpForce { get; set; } = 1;
 	
 	/// <summary>
-	/// How quickly the character will recover after being knocked down.
+	/// Seconds spent ragdolling after a knockdown before reset.
 	/// </summary>
 	[Property] private float _KnockdownRecoveryTime { get; set; } = 1;
 	
 	/// <summary>
-	/// How many beers the player has in them.
+	/// How many beers the player has in them. No maximum.
 	/// </summary>
 	[Property] private float _BeerLevel { get; set; } = 1;
-
-	/// <summary>
-	/// How strong the character turns when moving.
-	/// </summary>
-	[Property] private float _TurnForce { get; set; } = 1;
-
-	/// <summary>
-	/// How strong the character turns when moving.
-	/// </summary>
-	[Property] private float _SoberRate { get; set; } = 1;
 	
-	/// <summary>
-	/// How strong the character turns when moving.
-	/// </summary>
-	[Property] private bool _CanSober { get; set; }
-
 	/// <summary>
 	/// The acute angle at which the forward ray cast will trigger a "hasHitObstacle" event.
 	/// </summary>
@@ -116,7 +131,7 @@ public sealed class DrunkCC : Component
 	[Property] private float _ForwardRayCastPosition { get; set; }
 
 	/// <summary>
-	/// The Max abs value of the roll where after 'hit' occurs.
+	/// Roll (degrees, either sign) at which the CC is knocked down. 0 disables knockdown.
 	/// </summary>
 	[Property] private float _MaxHitRoll { get; set; }
 	
@@ -137,98 +152,166 @@ public sealed class DrunkCC : Component
 
 	protected override void OnFixedUpdate()
 	{
-		
-		// Log.Info("Mass:" + _RigidbodySphere.Mass );
-		
-		Log.Info(_RigidbodySphere.Velocity.Length);
-		float newForwardForce = MathX.Lerp(_RigidbodySphere.Velocity.Length, _MaxRunningForce, _RunningAcceleration );
-		
-		var facingDirection = _RigidbodySphere.WorldRotation.Forward;
+		if ( _RigidbodySphere == null ) return;
 
-		if( _RigidbodySphere.Velocity.Length < _VelocityCeiling )
-			_RigidbodySphere.ApplyForce(facingDirection * _MaxRunningForce);// = (_RigidbodySphere.Velocity * WorldRotation.Forward) * newForwardForce;
-		//todo: Don't use strings! -ecs
-		// if ( Input.Down( "Forward" ) )
-		// {
-		// }
-		// // if ( Input.Down( "Backward" ) )
-		// {
-		// 	var facingDirection = _RigidbodySphere.WorldRotation.Forward;
-		// 	_RigidbodySphere.ApplyForce(facingDirection * _MaxRunningForce * -1);
-		// }
-		// Local Z axis (rigidbody's own up/turn axis) expressed in world space, since AngularVelocity is worldspace.
-		var rot = _RigidbodySphere.WorldRotation;
+		switch ( _CurrentState )
+		{
+			case State.Running:
+				TickRunning();
+				break;
+			case State.KnockedDown:
+				TickKnockedDown();
+				break;
+		}
+	}
+
+	private void TickRunning()
+	{
+		var rb = _RigidbodySphere;
+		var rot = rb.WorldRotation;
 		var fwd = rot.Forward;
 		var up = rot.Up;
+		var left = rot.Left;
 
 		// Roll measured geometrically: cross(up, worldUp) is the axis that rotates 'up' back toward
 		// world up, so projecting it onto forward gives a signed roll that doesn't depend on Euler
-		// sign conventions. Positive = leaning left (+Y), negative = leaning right.
+		// sign conventions. Sign: matches the +fwd torque direction, so +K*roll along fwd restores.
+		// Verified in-editor with the earlier torque version.
 		float rollSin = Vector3.Dot( Vector3.Cross( up, Vector3.Up ), fwd );
 		float rollCos = Vector3.Dot( up, Vector3.Up );
 		float rollDeg = MathF.Atan2( rollSin, rollCos ).RadianToDegree();
 
-		// Lean input (motorcycle style): Left/Right roll the body about its own forward axis.
-		// Positive rollDeg is a left lean, and +fwd torque rolls toward the right, so left input
-		// torques along -fwd.
-		float lean = 0f;
-		if ( Input.Down( "Right" ) )  lean += 1f;
-		if ( Input.Down( "Left" ) ) lean -= 1f;
-		if ( lean != 0f )
+		// Rule 5: leaned too far -> knocked down.
+		if ( _MaxHitRoll > 0f && MathF.Abs( rollDeg ) > _MaxHitRoll )
 		{
-			_RigidbodySphere.ApplyTorque( -fwd * lean * _TurnForce );
+			EnterKnockedDown();
+			return;
 		}
 
-		// Roll corrector: torque back toward upright once roll exceeds _RollResponseFloor. Runs
-		// even while leaning, so held input settles at the lean where _TurnForce balances the
-		// correction rather than rolling over.
+		// Spin in the body's own frame. Source convention: +X forward, +Y left, +Z up, so
+		// .x = roll rate (about forward), .y = pitch rate, .z = yaw rate. Radians/s.
+		var localAV = rot.Inverse * rb.AngularVelocity;
+		float rollRateDeg = localAV.x.RadianToDegree();
+		float yawRateDeg  = localAV.z.RadianToDegree();
+
+		// Rule 1 / 7: always running, always gaining speed up to the ceiling.
+		if ( rb.Velocity.Length < _VelocityCeiling )
+		{
+			rb.ApplyForce( fwd * _MaxRunningForce );
+		}
+
+		// Lateral grip: oppose sideways velocity so the heading change from yaw actually turns
+		// the path. Without this a sphere just keeps rolling along its old line.
+		if ( _LateralGrip > 0f )
+		{
+			float lateralSpeed = Vector3.Dot( rb.Velocity, left );
+			rb.ApplyForce( -left * lateralSpeed * _LateralGrip );
+		}
+
+		// Lean input: taps only, each tap is an angular impulse about the forward axis.
+		// Rule 2 / 4: drunkenness multiplies the impulse with no cap.
+		// Sign mapping (Right -> -fwd) was verified in-editor with the previous torque version.
+		float leanDir = 0f;
+		if ( Input.Pressed( "Left" ) ) leanDir -= 1f;
+		if ( Input.Pressed( "Right" ) )  leanDir += 1f;
+		if ( leanDir != 0f )
+		{
+			float impulse = _LeanImpulse * ( 1f + _BeerLevel * _DrunkLeanScale );
+			rb.PhysicsBody?.ApplyAngularImpulse( fwd * leanDir * impulse );
+		}
+
+		// Upright controller: spring on roll (outside the floor) plus damper on roll rate (always).
+		// Positive roll (left lean) needs +fwd torque to come back, so the spring is +K*roll.
+		// The damper opposes whatever spin about fwd exists, so it is -Kd*rate.
+		float spring = 0f;
 		if ( MathF.Abs( rollDeg ) > _RollResponseFloor )
 		{
 			// Error measured from the floor edge so response ramps smoothly instead of stepping.
 			float error = rollDeg - MathF.Sign( rollDeg ) * _RollResponseFloor;
-			_RigidbodySphere.ApplyTorque( fwd * error * _CorrectionStrength );
+			spring = error * _CorrectionStrength;
 		}
-		
-		// World angular velocity -> local frame (relative to the sphere's own rotation, not this GameObject's)
-		var localSphere = rot.Inverse * _RigidbodySphere.AngularVelocity;
-		// var localBody = WorldRotation.Inverse * _RigidbodySphere.AngularVelocity;
+		float damping = _CorrectionDamping > 0f ? _CorrectionDamping : CriticalRollDamping( rb );
+		rb.ApplyTorque( fwd * ( spring - rollRateDeg * damping ) );
 
-		// Motorcycle turn: yaw rate is linear in roll while moving forward. Set (not added) so it
-		// tracks the lean exactly instead of accumulating. Left lean (+roll) yaws left (+Z).
-		float forwardSpeed = Vector3.Dot( _RigidbodySphere.Velocity, fwd );
-		if ( forwardSpeed > 0f )
+		// Rule 3: yaw follows roll, linearly, while moving forward. Done as a rate-tracking torque
+		// about the body's up axis rather than setting angular velocity. Standing still or moving
+		// backward the target is zero, which also damps out residual yaw.
+		float forwardSpeed = Vector3.Dot( rb.Velocity, fwd );
+		float targetYawRateDeg = forwardSpeed > 0f ? rollDeg * _RollTurnRate : 0f;
+		rb.ApplyTorque( up * ( targetYawRateDeg - yawRateDeg ) * _YawGain );
+
+		ApplyDebugLocks( rb );
+	}
+
+	private void TickKnockedDown()
+	{
+		// Rule 6: ragdoll. No forces, no locks, physics owns the body until the timer runs out.
+		if ( _KnockdownEnds )
 		{
-			localSphere.z = rollDeg * _RollTurnRate;
+			ResetFromKnockdown();
 		}
-		else
-		{
-			localSphere.z = MathX.Lerp( localSphere.z, 0f, _RotationDampeningStrength ); //todo: if _RotationDampeningStrength is  > 1, it shouldn't make a difference but ot does -ecs
-		}
+	}
 
-		// Source convention: +X forward, +Y left, +Z up. Angular velocity components are spin
-		// about those axes, so .x = roll (about forward), .y = pitch (about left), .z = yaw.
-		if ( LockRoll )  localSphere.x = 0f;
-		if ( LockPitch ) localSphere.y = 0f;
-		if ( LockYaw )   localSphere.z = 0f;
-		// if ( LockPitch ) localBody.x = 0f;
-		// if ( LockRoll )  localBody.y = 0f;
-		// if ( LockYaw )   localBody.z = 0f;
+	private void EnterKnockedDown()
+	{
+		_CurrentState = State.KnockedDown;
+		_KnockdownEnds = _KnockdownRecoveryTime;
+	}
 
-		// Back to world space
-		_RigidbodySphere.AngularVelocity = rot * localSphere;
-		// _RigidbodyBody.AngularVelocity = WorldRotation * locsalBody;
+	/// <summary>
+	/// Rule 7: stand back up where we fell, facing the same way, at zero velocity.
+	/// </summary>
+	private void ResetFromKnockdown()
+	{
+		var rb = _RigidbodySphere;
+
+		// Heading from the forward vector flattened onto the ground plane. Euler Yaw() is not
+		// trustworthy on a body that ragdolled past 90 degrees of pitch or roll.
+		var flatForward = rb.WorldRotation.Forward.WithZ( 0f );
+		if ( flatForward.IsNearlyZero() ) flatForward = rb.WorldRotation.Up.WithZ( 0f );
+		if ( flatForward.IsNearlyZero() ) flatForward = Vector3.Forward;
+
+		rb.WorldRotation = Rotation.LookAt( flatForward.Normal, Vector3.Up );
+		rb.Velocity = Vector3.Zero;
+		rb.AngularVelocity = Vector3.Zero;
+		_CurrentState = State.Running;
+	}
+
+	/// <summary>
+	/// Critical damping for the roll spring, in torque per deg/s. For a spring k (per radian) on
+	/// inertia I, c = 2*sqrt(k*I). Converting both gains to per-degree gives Kd = 2*sqrt(Kp*I/57.3).
+	/// Uses the inertia about the body's forward (local X) axis.
+	/// </summary>
+	private float CriticalRollDamping( Rigidbody rb )
+	{
+		float inertiaFwd = rb.InertiaTensor.x;
+		if ( inertiaFwd <= 0f || _CorrectionStrength <= 0f ) return 0f;
+		return 2f * MathF.Sqrt( _CorrectionStrength * inertiaFwd / 57.2958f );
+	}
+
+	/// <summary>
+	/// Debug helper. Hard-zeroes spin and orientation on the locked axes. Overrides everything
+	/// above. LockPitch stays on (the sphere would tumble as it rolls otherwise); LockYaw and
+	/// LockRoll must be off for the motorcycle behaviour to show.
+	/// </summary>
+	private void ApplyDebugLocks( Rigidbody rb )
+	{
+		if ( !LockPitch && !LockYaw && !LockRoll ) return;
+
+		var rot = rb.WorldRotation;
+		var localAV = rot.Inverse * rb.AngularVelocity;
+		if ( LockRoll )  localAV.x = 0f;
+		if ( LockPitch ) localAV.y = 0f;
+		if ( LockYaw )   localAV.z = 0f;
+		rb.AngularVelocity = rot * localAV;
 
 		// Zeroing AngularVelocity only stops *future* drift - it doesn't undo orientation that's
 		// already accumulated (e.g. a rolling sphere constantly gets fed angular velocity by ground
-		// friction before we get a chance to zero it). So also clamp the actual orientation directly
-		// on the locked axes every tick.
-		if ( LockPitch || LockYaw || LockRoll )
-		{
-			var angles = _RigidbodySphere.WorldRotation.Angles();
-			if ( LockPitch ) angles.pitch = 0f;
-			if ( LockYaw )   angles.yaw   = 0f;
-			if ( LockRoll )  angles.roll  = 0f;
-			_RigidbodySphere.WorldRotation = angles.ToRotation();
-		}
+		// friction before we get a chance to zero it). So also clamp the actual orientation.
+		var angles = rot.Angles();
+		if ( LockPitch ) angles.pitch = 0f;
+		if ( LockYaw )   angles.yaw   = 0f;
+		if ( LockRoll )  angles.roll  = 0f;
+		rb.WorldRotation = angles.ToRotation();
 	}
 }
