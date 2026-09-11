@@ -73,7 +73,6 @@ public sealed class GameManager : Component, Component.INetworkListener
 		_LocalPlayerRigidbody.AngularVelocity = Vector3.Zero;
 		_LocalPlayerRigidbody.Sleeping = true;
 		_LocalPlayerRigidbody.Sleeping = false;
-		_LocalPlayerRigidbody.Reset();
 	}
 
 	/// <summary>
