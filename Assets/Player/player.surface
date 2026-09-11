@@ -4,7 +4,7 @@
   "Description": null,
   "Friction": 0,
   "Elasticity": 0.25,
-  "Density": 2000,
+  "Density": 0,
   "RollingResistance": 0,
   "BounceThreshold": 40,
   "FluidLinearDrag": 0.1,

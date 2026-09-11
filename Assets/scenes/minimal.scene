@@ -154,8 +154,8 @@
       "__version": 2,
       "Flags": 0,
       "Name": "Camera",
-      "Position": "231.101654,-641.675049,251.391068",
-      "Rotation": "0.115449868,-0.00541898608,-0.781126022,-0.613582492",
+      "Position": "-9.42094994,-528.601379,383.893799",
+      "Rotation": "-0.0191705301,-0.0531945936,-0.604010582,-0.794967473",
       "Scale": "1,1,1",
       "Tags": "",
       "Enabled": true,
@@ -244,6 +244,23 @@
           "OnComponentUpdate": null,
           "Scale": 0.2,
           "TexelSize": 1
+        },
+        {
+          "__type": "Sandbox.PlayerFollow",
+          "__guid": "eecdadbc-478d-4d53-a597-58e719f359ea",
+          "__enabled": true,
+          "Flags": 0,
+          "_FollowSpeed": 5,
+          "_LookAtSpeed": 5,
+          "_LookAtTarget": true,
+          "_Target": null,
+          "_UseInitialOffset": true,
+          "OnComponentDestroy": null,
+          "OnComponentDisabled": null,
+          "OnComponentEnabled": null,
+          "OnComponentFixedUpdate": null,
+          "OnComponentStart": null,
+          "OnComponentUpdate": null
         }
       ],
       "Children": []
@@ -627,7 +644,7 @@
       "__version": 2,
       "Flags": 0,
       "Name": "SPAWNLOCATION",
-      "Position": "0,0,202.044373",
+      "Position": "0,183.90773,202.044373",
       "Rotation": "0,0,0.707106769,0.707106769",
       "Scale": "1,1,1",
       "Tags": "",
@@ -638,62 +655,6 @@
       "NetworkTransmit": true,
       "OwnerTransfer": 1,
       "Components": [],
-      "Children": []
-    },
-    {
-      "__guid": "0ed5b002-d119-4c85-b681-316e2c2ddcdc",
-      "__version": 2,
-      "Flags": 0,
-      "Name": "Block",
-      "Position": "25.8373623,-72.103363,0",
-      "Rotation": "0,0,0,1",
-      "Scale": "1,1,1",
-      "Tags": "world",
-      "Enabled": true,
-      "NetworkMode": 2,
-      "NetworkFlags": 0,
-      "NetworkOrphaned": 0,
-      "NetworkTransmit": true,
-      "OwnerTransfer": 1,
-      "Components": [
-        {
-          "__type": "Sandbox.MeshComponent",
-          "__guid": "250e1466-70d2-4f47-b110-745a9d34aaa2",
-          "__enabled": true,
-          "Flags": 0,
-          "ColliderFlags": 0,
-          "Collision": "Mesh",
-          "Color": "1,1,1,1",
-          "Elasticity": null,
-          "Friction": null,
-          "HideInGame": false,
-          "IsTrigger": false,
-          "Mesh": {
-            "Data": {
-              "$blob": "e45fc654-6438-8654-b819-73a36c308d3c"
-            },
-            "Materials": [
-              "materials/dev/reflectivity_30.vmat"
-            ]
-          },
-          "OnComponentDestroy": null,
-          "OnComponentDisabled": null,
-          "OnComponentEnabled": null,
-          "OnComponentFixedUpdate": null,
-          "OnComponentStart": null,
-          "OnComponentUpdate": null,
-          "OnObjectTriggerEnter": null,
-          "OnObjectTriggerExit": null,
-          "OnTriggerEnter": null,
-          "OnTriggerExit": null,
-          "RenderType": "On",
-          "RollingResistance": null,
-          "SmoothingAngle": 40,
-          "Static": true,
-          "Surface": null,
-          "SurfaceVelocity": "0,0,0"
-        }
-      ],
       "Children": []
     },
     {
@@ -721,12 +682,12 @@
           "Collision": "Mesh",
           "Color": "1,1,1,1",
           "Elasticity": null,
-          "Friction": null,
+          "Friction": 1,
           "HideInGame": false,
           "IsTrigger": false,
           "Mesh": {
             "Data": {
-              "$blob": "2e8c7c68-6591-88cd-9efd-4441ad7d8908"
+              "$blob": "d45b7311-a793-8080-ae11-d6399fc559a5"
             },
             "Materials": [
               "materials/dev/reflectivity_30.vmat"
@@ -746,7 +707,7 @@
           "RollingResistance": null,
           "SmoothingAngle": 40,
           "Static": true,
-          "Surface": null,
+          "Surface": "frictionless.surface",
           "SurfaceVelocity": "0,0,0"
         }
       ],
