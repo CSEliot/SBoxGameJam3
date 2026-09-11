@@ -682,7 +682,7 @@
           "Flags": 0,
           "_PlayerPrefab": {
             "_type": "gameobject",
-            "prefab": "player.prefab"
+            "prefab": "player/player.prefab"
           },
           "_SpawnLocation": {
             "_type": "gameobject",

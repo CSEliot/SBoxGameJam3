@@ -173,7 +173,7 @@
             "MaterialGroup": null,
             "MaterialOverride": null,
             "Materials": null,
-            "Model": "cyllinder.vmdl",
+            "Model": "player/cyllinder.vmdl",
             "OnComponentDestroy": null,
             "OnComponentDisabled": null,
             "OnComponentEnabled": null,
@@ -205,9 +205,9 @@
               "X": false,
               "Y": false,
               "Z": false,
-              "Pitch": true,
-              "Yaw": true,
-              "Roll": true
+              "Pitch": false,
+              "Yaw": false,
+              "Roll": false
             },
             "MassCenterOverride": "0,0,0",
             "MassOverride": 20,

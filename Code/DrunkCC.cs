@@ -107,8 +107,7 @@ public sealed class DrunkCC : Component
 	
 	protected override void OnStart()
 	{
-		_RigidbodySphere = GetComponent<Rigidbody>();
-		_RigidbodyBody = GetComponentInChildren<Rigidbody>();
+		
 	}
 	
 	protected override void OnUpdate()
@@ -146,14 +145,19 @@ public sealed class DrunkCC : Component
 		}
 		
 		// World angular velocity -> local frame
-		var local = WorldRotation.Inverse * _RigidbodySphere.AngularVelocity;
+		var localSphere = WorldRotation.Inverse * _RigidbodySphere.AngularVelocity;
+		var localBody = WorldRotation.Inverse * _RigidbodySphere.AngularVelocity;
 
-		if ( LockPitch ) local.x = 0f;
-		if ( LockRoll )  local.y = 0f;
-		if ( LockYaw )   local.z = 0f;
+		if ( LockPitch ) localSphere.x = 0f;
+		if ( LockRoll )  localSphere.y = 0f;
+		if ( LockYaw )   localSphere.z = 0f;
+		if ( LockPitch ) localBody.x = 0f;
+		if ( LockRoll )  localBody.y = 0f;
+		if ( LockYaw )   localBody.z = 0f;
 
 		// Back to world space
-		_RigidbodySphere.AngularVelocity = WorldRotation * local;
+		_RigidbodySphere.AngularVelocity = WorldRotation * localSphere;
+		_RigidbodyBody.AngularVelocity = WorldRotation * localBody;
 
 	}
 }
