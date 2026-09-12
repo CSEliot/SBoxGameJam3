@@ -51,13 +51,13 @@ PS
 	CreateTexture2D( g_tColor ) < Attribute( "TextureColor" ); SrgbRead( true ); Filter( TEXTURE_FILTERING ); >;
 
 	float g_flEmissionStrength < Default( 3.0 ); UiGroup( "Emission,10/10" ); Range( 0.0, 20.0 ); >;
-	float3 g_vEmissionColor < Default( 1.0, 0.8, 0.3 ); UiGroup( "Emission,10/20" ); >;
+	float3 g_vEmissionColor < UiType( Color ); Default3( 1.0, 0.8, 0.3 ); UiGroup( "Emission,10/20" ); >;
 
 	float4 MainPs( PixelInput i ) : SV_Target0
 	{
 		Material m = Material::Init( i );
 
-		float4 vColor = g_tColor.Sample( TextureFiltering, i.vTextureCoords.xy );
+		float4 vColor = g_tColor.Sample( g_sAniso, i.vTextureCoords.xy );
 		m.Albedo = vColor.rgb;
 		m.Opacity = vColor.a;
 
