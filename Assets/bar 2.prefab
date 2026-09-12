@@ -1,0 +1,116 @@
+{
+  "RootObject": {
+    "__guid": "e2fd4585-8d35-47a2-be06-f324e311472b",
+    "__version": 2,
+    "Flags": 0,
+    "Name": "bar 2",
+    "Position": "0,0,0",
+    "Rotation": "0,0,-0.965925813,0.258819073",
+    "Scale": "1,1,1",
+    "Tags": "",
+    "Enabled": true,
+    "NetworkMode": 2,
+    "NetworkFlags": 0,
+    "NetworkOrphaned": 0,
+    "NetworkTransmit": true,
+    "OwnerTransfer": 1,
+    "Components": [
+      {
+        "__type": "Sandbox.ModelRenderer",
+        "__guid": "fb29895c-305f-42f2-80b5-97df2019f191",
+        "__enabled": true,
+        "Flags": 0,
+        "BodyGroups": 18446744073709551615,
+        "CreateAttachments": false,
+        "LodOverride": null,
+        "MaterialGroup": null,
+        "MaterialOverride": null,
+        "Materials": {
+          "indexed": {
+            "0": "bar_2_material.vmat"
+          }
+        },
+        "Model": "bar 2.vmdl",
+        "OnComponentDestroy": null,
+        "OnComponentDisabled": null,
+        "OnComponentEnabled": null,
+        "OnComponentFixedUpdate": null,
+        "OnComponentStart": null,
+        "OnComponentUpdate": null,
+        "RenderOptions": {
+          "GameLayer": true,
+          "OverlayLayer": false,
+          "BloomLayer": false,
+          "AfterUILayer": false
+        },
+        "RenderType": "On",
+        "Tint": "1,1,1,1"
+      },
+      {
+        "__type": "Sandbox.BoxCollider",
+        "__guid": "bff83df7-eb03-4793-b359-932108a7583e",
+        "__enabled": true,
+        "Flags": 0,
+        "Center": "-18.5793152,1.13097382,101.808167",
+        "ColliderFlags": 0,
+        "Elasticity": null,
+        "Friction": null,
+        "IsTrigger": false,
+        "OnComponentDestroy": null,
+        "OnComponentDisabled": null,
+        "OnComponentEnabled": null,
+        "OnComponentFixedUpdate": null,
+        "OnComponentStart": null,
+        "OnComponentUpdate": null,
+        "OnObjectTriggerEnter": null,
+        "OnObjectTriggerExit": null,
+        "OnTriggerEnter": null,
+        "OnTriggerExit": null,
+        "RollingResistance": null,
+        "Scale": "320.287964,243.217377,204.134155",
+        "Static": true,
+        "Surface": null,
+        "SurfaceVelocity": "0,0,0"
+      },
+      {
+        "__type": "Sandbox.NavMeshArea",
+        "__guid": "8329c6c8-7738-4ffb-8815-2f28dc02f737",
+        "__enabled": true,
+        "Flags": 0,
+        "Area": null,
+        "IsBlocker": true,
+        "LinkedCollider": null,
+        "OnComponentDestroy": null,
+        "OnComponentDisabled": null,
+        "OnComponentEnabled": null,
+        "OnComponentFixedUpdate": null,
+        "OnComponentStart": null,
+        "OnComponentUpdate": null,
+        "SceneVolume": {
+          "Type": "Box",
+          "Sphere": {
+            "Center": "0,0,0",
+            "Radius": 10
+          },
+          "Box": {
+            "Mins": "-50,-50,-50",
+            "Maxs": "50,50,50"
+          },
+          "Capsule": {
+            "CenterA": "0,0,10",
+            "CenterB": "0,0,90",
+            "Radius": 10
+          }
+        }
+      }
+    ],
+    "Children": []
+  },
+  "ResourceVersion": 2,
+  "ShowInMenu": false,
+  "MenuPath": null,
+  "MenuIcon": null,
+  "DontBreakAsTemplate": false,
+  "__references": [],
+  "__version": 2
+}
