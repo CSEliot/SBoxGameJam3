@@ -1,5 +1,6 @@
 using System;
 using Sandbox.Citizen;
+using ShrimpleRagdolls;
 
 namespace Sandbox;
 
@@ -29,6 +30,17 @@ public sealed class DrunkCC : Component
 	/// Counts down while knocked down. Reset happens when it reaches zero.
 	/// </summary>
 	private TimeUntil _KnockdownEnds;
+
+	/// <summary>
+	/// At knockdown, get heading direction.
+	/// </summary>
+	private Vector3 _KnockdownHeading;
+
+	/// <summary>
+	/// At knockdown, get heading direction.
+	/// </summary>
+	private Vector3 _KnockdownRestorePosition;
+
 	
 	/// <summary>
 	/// Debug: hard-zero spin and orientation on this axis every tick.
@@ -139,7 +151,7 @@ public sealed class DrunkCC : Component
 	/// <summary>
 	/// Local Rigidbody Component
 	/// </summary>
-	[Property] private Rigidbody _RigidbodySphere { get; set; }
+	[Property] private Rigidbody _Rigidbody { get; set; }
 
 	/// <summary>
 	/// Component to control citizen via code.
@@ -150,6 +162,11 @@ public sealed class DrunkCC : Component
 	/// Component to control citizen via code.
 	/// </summary>
 	[Property] private SkinnedModelRenderer _SkinnedModelRenderer { get; set; }
+
+	/// <summary>
+	/// Custom Ragdoll Code by Small Fish Library
+	/// </summary>
+	[Property] private ShrimpleRagdoll _Ragdoll { get; set; }
 	
 	protected override void OnStart()
 	{
@@ -165,7 +182,7 @@ public sealed class DrunkCC : Component
 
 	protected override void OnFixedUpdate()
 	{
-		if ( _RigidbodySphere == null ) return;
+		if ( _Rigidbody == null ) return;
 
 		switch ( _CurrentState )
 		{
@@ -180,7 +197,7 @@ public sealed class DrunkCC : Component
 
 	private void TickRunning()
 	{
-		var rb = _RigidbodySphere;
+		var rb = _Rigidbody;
 		var rot = rb.WorldRotation;
 		var fwd = rot.Forward;
 		var up = rot.Up;
@@ -269,6 +286,13 @@ public sealed class DrunkCC : Component
 	{
 		_CurrentState = State.KnockedDown;
 		_KnockdownEnds = _KnockdownRecoveryTime;
+		_Ragdoll.Mode = RagdollMode.Enabled;
+		_Ragdoll.ApplyVelocity( _Rigidbody.Velocity );
+		
+		_KnockdownHeading = _Rigidbody.WorldRotation.Forward.WithZ( 0f );
+		if ( _KnockdownHeading.IsNearlyZero() ) _KnockdownHeading = _Rigidbody.WorldRotation.Up.WithZ( 0f );
+		if ( _KnockdownHeading.IsNearlyZero() ) _KnockdownHeading = Vector3.Forward;
+
 	}
 
 	/// <summary>
@@ -276,18 +300,16 @@ public sealed class DrunkCC : Component
 	/// </summary>
 	private void ResetFromKnockdown()
 	{
-		var rb = _RigidbodySphere;
+		var rb = _Rigidbody;
 
 		// Heading from the forward vector flattened onto the ground plane. Euler Yaw() is not
 		// trustworthy on a body that ragdolled past 90 degrees of pitch or roll.
-		var flatForward = rb.WorldRotation.Forward.WithZ( 0f );
-		if ( flatForward.IsNearlyZero() ) flatForward = rb.WorldRotation.Up.WithZ( 0f );
-		if ( flatForward.IsNearlyZero() ) flatForward = Vector3.Forward;
 
-		rb.WorldRotation = Rotation.LookAt( flatForward.Normal, Vector3.Up );
+		rb.WorldRotation = Rotation.LookAt( _KnockdownHeading.Normal, Vector3.Up );
 		rb.Velocity = Vector3.Zero;
 		rb.AngularVelocity = Vector3.Zero;
 		_CurrentState = State.Running;
+		_Ragdoll.Mode = RagdollMode.None;
 	}
 
 	/// <summary>

@@ -43,13 +43,13 @@
 	</ItemGroup>
 
 	<ItemGroup>
-		<ProjectReference Include="S:/steamapps/common/sbox/editor/ActionGraph/Code/actiongraph.csproj" />
-		<ProjectReference Include="S:/steamapps/common/sbox/editor/DooEditor/Code/dooeditor.csproj" />
-		<ProjectReference Include="S:/steamapps/common/sbox/editor/Hammer/Code/hammer.csproj" />
-		<ProjectReference Include="S:/steamapps/common/sbox/addons/tools/Code/Base Editor Library.csproj" />
-		<ProjectReference Include="S:/steamapps/common/sbox/editor/MovieMaker/Code/moviemaker.csproj" />
+		<ProjectReference Include="/home/cseliot/.local/share/Steam/steamapps/common/sbox/editor/ActionGraph/Code/actiongraph.csproj" />
+		<ProjectReference Include="/home/cseliot/.local/share/Steam/steamapps/common/sbox/editor/DooEditor/Code/dooeditor.csproj" />
+		<ProjectReference Include="/home/cseliot/.local/share/Steam/steamapps/common/sbox/editor/Hammer/Code/hammer.csproj" />
+		<ProjectReference Include="/home/cseliot/.local/share/Steam/steamapps/common/sbox/addons/tools/Code/Base Editor Library.csproj" />
+		<ProjectReference Include="/home/cseliot/.local/share/Steam/steamapps/common/sbox/editor/MovieMaker/Code/moviemaker.csproj" />
 		<ProjectReference Include="../Code/sboxgamejam3.csproj" />
-		<ProjectReference Include="S:/steamapps/common/sbox/editor/ShaderGraph/Code/shadergraph.csproj" />
+		<ProjectReference Include="/home/cseliot/.local/share/Steam/steamapps/common/sbox/editor/ShaderGraph/Code/shadergraph.csproj" />
 	</ItemGroup>
 
 </Project>
