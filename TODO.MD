@@ -87,3 +87,25 @@
 - [ ] Display current Timer, Score, and Drunkenness level.
 - [ ] Show an icon if the player is carrying an Emergency Beer.
 - [ ] Visual indicator for current Pants Level.
+
+## Animation & Visuals
+
+### Configure Animator / Blend Trees
+
+- [ ] Add the "Tripping over" and "Getting up" animation sequences.
+- [ ] Create separate movement animations for different pants levels (e.g., a normal run, a waddle, a stumble).
+
+### Dynamic Pants Visuals
+
+- [ ] Use Skinned Mesh bodygroups or bone-scaling to visually drop the pants to the knees and ankles.
+
+## Networking
+
+### Sync Player Variables
+
+- [ ] Use [Sync] properties for variables that other players need to see (e.g., PantsLevel, visual drunkenness, current speed).
+
+### Server Authority on Progression
+
+- [ ] Ensure the final Score Cash-in and Item Pickups are validated on the server to prevent cheating.
+- [ ] Mini-game results should be sent from Client to Server via RPC for validation before adding time.
