@@ -190,6 +190,29 @@
         "RigidbodyFlags": 0,
         "StartAsleep": false,
         "Surface": null
+      },
+      {
+        "__type": "Sandbox.NavMeshAgent",
+        "__guid": "00b12dfd-1cc2-4b54-bb65-591dd2f35f8e",
+        "__enabled": false,
+        "Flags": 0,
+        "Acceleration": 120,
+        "AllowDefaultArea": true,
+        "AllowedAreas": [],
+        "AutoTraverseLinks": true,
+        "ForbiddenAreas": [],
+        "Height": 64,
+        "MaxSpeed": 120,
+        "OnComponentDestroy": null,
+        "OnComponentDisabled": null,
+        "OnComponentEnabled": null,
+        "OnComponentFixedUpdate": null,
+        "OnComponentStart": null,
+        "OnComponentUpdate": null,
+        "Radius": 16,
+        "Separation": 0.25,
+        "UpdatePosition": true,
+        "UpdateRotation": false
       }
     ],
     "Children": [
