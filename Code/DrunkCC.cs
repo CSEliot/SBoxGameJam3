@@ -78,6 +78,11 @@ public sealed class DrunkCC : Component
 	/// </summary>
 	[Property] private float _RecoverySampleInterval { get; set; } = 0.1f;
 
+	/// <summary>
+	/// Search radius (units) when snapping the recovery point onto the navmesh.
+	/// </summary>
+	[Property] private float _RecoveryNavSearchRadius { get; set; } = 1024f;
+
 	
 	/// <summary>
 	/// Debug: hard-zero spin and orientation on this axis every tick.
@@ -236,18 +241,12 @@ public sealed class DrunkCC : Component
 	{
 		RecordHistory();
 
-		var rb = _Rigidbody;
-		var rot = rb.WorldRotation;
-		var fwd = rot.Forward;
-		var up = rot.Up;
-		var left = rot.Left;
-
 		// Roll measured geometrically: cross(up, worldUp) is the axis that rotates 'up' back toward
 		// world up, so projecting it onto forward gives a signed roll that doesn't depend on Euler
 		// sign conventions. Sign: matches the +fwd torque direction, so +K*roll along fwd restores.
 		// Verified in-editor with the earlier torque version.
-		float rollSin = Vector3.Dot( Vector3.Cross( up, Vector3.Up ), fwd );
-		float rollCos = Vector3.Dot( up, Vector3.Up );
+		float rollSin = Vector3.Dot( Vector3.Cross( _Rigidbody.WorldRotation.Up, Vector3.Up ), _Rigidbody.WorldRotation.Forward );
+		float rollCos = Vector3.Dot( _Rigidbody.WorldRotation.Up, Vector3.Up );
 		float rollDeg = MathF.Atan2( rollSin, rollCos ).RadianToDegree();
 
 		// Rule 5: leaned too far -> knocked down.
@@ -259,34 +258,34 @@ public sealed class DrunkCC : Component
 
 		// Spin in the body's own frame. Source convention: +X forward, +Y left, +Z up, so
 		// .x = roll rate (about forward), .y = pitch rate, .z = yaw rate. Radians/s.
-		var localAV = rot.Inverse * rb.AngularVelocity;
+		var localAV = _Rigidbody.WorldRotation.Inverse * _Rigidbody.AngularVelocity;
 		float rollRateDeg = localAV.x.RadianToDegree();
 		float yawRateDeg  = localAV.z.RadianToDegree();
 
 		// Rule 1 / 7: always running, always gaining speed up to the ceiling.
-		if ( rb.Velocity.Length < _VelocityCeiling )
+		if ( _Rigidbody.Velocity.Length < _VelocityCeiling )
 		{
-			rb.ApplyForce( fwd * _MaxRunningForce );
+			_Rigidbody.ApplyForce( _Rigidbody.WorldRotation.Forward * _MaxRunningForce );
 		}
 
 		// Lateral grip: oppose sideways velocity so the heading change from yaw actually turns
 		// the path. Without this a sphere just keeps rolling along its old line.
 		if ( _LateralGrip > 0f )
 		{
-			float lateralSpeed = Vector3.Dot( rb.Velocity, left );
-			rb.ApplyForce( -left * lateralSpeed * _LateralGrip );
+			float lateralSpeed = Vector3.Dot( _Rigidbody.Velocity, _Rigidbody.WorldRotation.Left );
+			_Rigidbody.ApplyForce( -_Rigidbody.WorldRotation.Left * lateralSpeed * _LateralGrip );
 		}
 
 		// Lean input: taps only, each tap is an angular impulse about the forward axis.
 		// Rule 2 / 4: drunkenness multiplies the impulse with no cap.
 		// Sign mapping (Right -> -fwd) was verified in-editor with the previous torque version.
 		float leanDir = 0f;
-		if ( Input.Pressed( "Left" ) ) leanDir -= 1f;
-		if ( Input.Pressed( "Right" ) )  leanDir += 1f;
+		if ( Input.Down( "Left" ) ) leanDir -= 1f;
+		if ( Input.Down( "Right" ) )  leanDir += 1f;
 		if ( leanDir != 0f )
 		{
 			float impulse = _LeanImpulse * ( 1f + _BeerLevel * _DrunkLeanScale );
-			rb.PhysicsBody?.ApplyAngularImpulse( fwd * leanDir * impulse );
+			_Rigidbody.PhysicsBody?.ApplyTorque( _Rigidbody.WorldRotation.Forward * leanDir * impulse );
 		}
 
 		// Upright controller: spring on roll (outside the floor) plus damper on roll rate (always).
@@ -299,17 +298,17 @@ public sealed class DrunkCC : Component
 			float error = rollDeg - MathF.Sign( rollDeg ) * _RollResponseFloor;
 			spring = error * _CorrectionStrength;
 		}
-		float damping = _CorrectionDamping > 0f ? _CorrectionDamping : CriticalRollDamping( rb );
-		rb.ApplyTorque( fwd * ( spring - rollRateDeg * damping ) );
+		float damping = _CorrectionDamping > 0f ? _CorrectionDamping : CriticalRollDamping( _Rigidbody );
+		_Rigidbody.ApplyTorque( _Rigidbody.WorldRotation.Forward * ( spring - rollRateDeg * damping ) );
 
 		// Rule 3: yaw follows roll, linearly, while moving forward. Done as a rate-tracking torque
 		// about the body's up axis rather than setting angular velocity. Standing still or moving
 		// backward the target is zero, which also damps out residual yaw.
-		float forwardSpeed = Vector3.Dot( rb.Velocity, fwd );
+		float forwardSpeed = Vector3.Dot( _Rigidbody.Velocity, _Rigidbody.WorldRotation.Forward );
 		float targetYawRateDeg = forwardSpeed > 0f ? rollDeg * _RollTurnRate : 0f;
-		rb.ApplyTorque( up * ( targetYawRateDeg - yawRateDeg ) * _YawGain );
+		_Rigidbody.ApplyTorque( _Rigidbody.WorldRotation.Up * ( targetYawRateDeg - yawRateDeg ) * _YawGain );
 
-		ApplyDebugLocks( rb );
+		ApplyDebugLocks( _Rigidbody );
 	}
 
 	private void TickKnockedDown()
@@ -396,15 +395,47 @@ public sealed class DrunkCC : Component
 	}
 
 	/// <summary>
+	/// Snaps a recovery position onto the navmesh if one exists, quietly returning the point
+	/// unchanged when there is no mesh, it is disabled, or the query finds nothing within
+	/// _RecoveryNavSearchRadius. Navmesh points sit on the walkable surface while the rigidbody
+	/// origin sits above the sphere's contact point, so the point is lifted by that standing
+	/// offset to land resting on the ground rather than buried in it.
+	/// </summary>
+	private Vector3 SnapRecoveryToNavMesh( Vector3 pos )
+	{
+		var nav = Scene.NavMesh;
+		if ( nav is null || !nav.IsEnabled )
+			return pos;
+
+		var snapped = nav.GetClosestPoint( pos, _RecoveryNavSearchRadius );
+		if ( !snapped.HasValue )
+			return pos;
+
+		return snapped.Value + Vector3.Up * RecoveryStandOffset();
+	}
+
+	/// <summary>
+	/// Height of the rigidbody origin above the ground while standing on the movement sphere
+	/// collider (Radius minus the collider's local Center.z). Lets the navmesh snap reproduce
+	/// the standing pose instead of embedding the sphere.
+	/// </summary>
+	private float RecoveryStandOffset()
+	{
+		var collider = _Rigidbody.GameObject.Components.Get<SphereCollider>();
+		if ( collider is null ) return 0f;
+		return collider.Radius - collider.Center.z;
+	}
+
+	/// <summary>
 	/// Rule 7: stand back up at the rewound recovery point, facing that moment's heading, at zero velocity.
 	/// </summary>
 	private void ResetFromKnockdown()
 	{
 		var rb = _Rigidbody;
 
-		// TODO: snap _KnockdownRestorePosition to the nearest point on the nav mesh via pathfinding
-		// before teleporting, so recovery lands on walkable ground.
-		rb.WorldPosition = _KnockdownRestorePosition;
+		// Snap the rewound point onto the navmesh if one exists. Quietly falls back to the raw
+		// position when there's no mesh, it's disabled, or the point is beyond the search radius.
+		rb.WorldPosition = SnapRecoveryToNavMesh( _KnockdownRestorePosition );
 		rb.WorldRotation = Rotation.LookAt( _KnockdownHeading.Normal, Vector3.Up );
 		rb.Velocity = Vector3.Zero;
 		rb.AngularVelocity = Vector3.Zero;
