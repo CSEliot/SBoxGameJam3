@@ -1,0 +1,371 @@
+<?xml version="1.0"?>
+<doc>
+    <assembly>
+        <name>package.fish.shrimple_ragdolls</name>
+    </assembly>
+    <members>
+        <member name="T:ShrimpleRagdolls.ShrimpleRagdoll">
+            <summary>
+            A wrapper for modelphysics with utilities
+            </summary>
+        </member>
+        <member name="P:ShrimpleRagdolls.ShrimpleRagdoll.HitReactionTranslationEnd">
+            <summary>
+            When translation ends during a hit reaction, as a fraction of the total duration.
+            </summary>
+        </member>
+        <member name="P:ShrimpleRagdolls.ShrimpleRagdoll.HitReactionRotationStart">
+            <summary>
+            When rotation kicks in during a hit reaction, as a fraction of the total duration.
+            </summary>
+        </member>
+        <member name="P:ShrimpleRagdolls.ShrimpleRagdoll.HitReactionTranslationScale">
+            <summary>
+            Multiplier for hit reaction translation displacement.
+            </summary>
+        </member>
+        <member name="P:ShrimpleRagdolls.ShrimpleRagdoll.HitReactionRotationScale">
+            <summary>
+            Multiplier for hit reaction rotation displacement.
+            </summary>
+        </member>
+        <member name="M:ShrimpleRagdolls.ShrimpleRagdoll.UpdateHitReactions">
+            <summary>
+            Update all active hit reactions, called from OnUpdate
+            </summary>
+        </member>
+        <member name="M:ShrimpleRagdolls.ShrimpleRagdoll.MoveObjectsFromAnimations">
+            <summary>
+            Teleport all body GameObjects to their animation bone transforms
+            </summary>
+        </member>
+        <member name="M:ShrimpleRagdolls.ShrimpleRagdoll.MoveBodiesFromAnimations">
+            <summary>
+            Kinematically move all rigidbodies toward their animation bone transforms
+            </summary>
+        </member>
+        <member name="M:ShrimpleRagdolls.ShrimpleRagdoll.EnableJointMotors(System.Single,System.Single)">
+            <summary>
+            Enable motors on all joints with the given frequency and damping
+            </summary>
+        </member>
+        <member name="M:ShrimpleRagdolls.ShrimpleRagdoll.DisableJointMotors">
+            <summary>
+            Disable and reset motors on all joints
+            </summary>
+        </member>
+        <member name="M:ShrimpleRagdolls.ShrimpleRagdoll.MoveJointsFromAnimations(System.Single,System.Single)">
+            <summary>
+            Drive every joint toward its animation pose using joint motors
+            </summary>
+        </member>
+        <member name="P:ShrimpleRagdolls.ShrimpleRagdoll.PartialRagdollOverrides">
+            <summary>
+            Bones that currently have a partial ragdoll override
+            </summary>
+        </member>
+        <member name="M:ShrimpleRagdolls.ShrimpleRagdoll.RagdollBone(Sandbox.BoneCollection.Bone,ShrimpleRagdolls.RagdollMode,System.Boolean)">
+            <summary>
+            Ragdolls a single bone and optionally all its children
+            </summary>
+            <param name="rootBone">The target bone</param>
+            <param name="mode">Which mode to set the bone (Only works for Enabled and Motor)</param>
+            <param name="includeChildren">Include all children of the target bone</param>
+        </member>
+        <member name="M:ShrimpleRagdolls.ShrimpleRagdoll.UnragdollBone(Sandbox.BoneCollection.Bone,System.Boolean)">
+            <summary>
+            Unragdoll the bone optionally all its children
+            </summary>
+        </member>
+        <member name="M:ShrimpleRagdolls.ShrimpleRagdoll.ClearPartialRagdoll">
+            <summary>
+            Clear all partial ragdoll overrides, returning full control to the global mode.
+            </summary>
+        </member>
+        <member name="P:ShrimpleRagdolls.ShrimpleRagdoll.PartialRagdollConfig">
+            <summary>
+            Bone overrides to apply on start and whenever this property is changed.
+            Key is the bone name, value is the ragdoll mode.
+            </summary>
+        </member>
+        <member name="P:ShrimpleRagdolls.ShrimpleRagdoll.Gravity">
+            <summary>
+            Enable/Disable gravity to all bodies.
+            </summary>
+        </member>
+        <member name="P:ShrimpleRagdolls.ShrimpleRagdoll.GravityScale">
+            <summary>
+            Set the gravity scale to all bodies.
+            </summary>
+        </member>
+        <member name="P:ShrimpleRagdolls.ShrimpleRagdoll.LinearDamping">
+            <summary>
+            Set the linear damping to all bodies.
+            </summary>
+        </member>
+        <member name="P:ShrimpleRagdolls.ShrimpleRagdoll.AngularDamping">
+            <summary>
+            Set the angular damping to all bodies.
+            </summary>
+        </member>
+        <member name="P:ShrimpleRagdolls.ShrimpleRagdoll.RigidbodyFlags">
+            <summary>
+            Rigidbody flags applied to all bodies.
+            </summary>
+        </member>
+        <member name="P:ShrimpleRagdolls.ShrimpleRagdoll.Locking">
+            <summary>
+            Rigidbody locking applied to all bodies.
+            </summary>
+        </member>
+        <member name="P:ShrimpleRagdolls.ShrimpleRagdoll.MassOverride">
+            <summary>
+            Sets the mass override of this ragdoll<br />
+            Each body part will have their proportionally changed so they combine to the desired total mass<br />
+            Set to 0 for the default value
+            </summary>
+        </member>
+        <member name="P:ShrimpleRagdolls.ShrimpleRagdoll.StartAsleep">
+            <summary>
+            All bodies will be put to sleep on start.
+            </summary>
+        </member>
+        <member name="P:ShrimpleRagdolls.ShrimpleRagdoll.EnableImpactDamage">
+            <summary>
+            All bodies will have impact damage enabled
+            </summary>
+        </member>
+        <member name="P:ShrimpleRagdolls.ShrimpleRagdoll.MinimumImpactSpeed">
+            <summary>
+            Set the minimum impact speed on all bodies
+            </summary>
+        </member>
+        <member name="P:ShrimpleRagdolls.ShrimpleRagdoll.Surface">
+            <summary>
+            Surface to apply to all colliders<br />
+            Set to null for the surfaces defined in the ragdoll
+            </summary>
+        </member>
+        <member name="P:ShrimpleRagdolls.ShrimpleRagdoll.MassCenter">
+            <summary>
+            Calculate the center of mass of the ragdoll in world space based on its bodies' masses and masscenters
+            </summary>
+        </member>
+        <member name="M:ShrimpleRagdolls.ShrimpleRagdoll.GetMassCenter">
+            <summary>
+            Calculate the center of mass of the ragdoll in world space based on its bodies' masses and masscenters
+            </summary>
+            <returns>World position of the combined center of mass</returns>
+        </member>
+        <member name="M:ShrimpleRagdolls.ShrimpleRagdoll.GetModelMass">
+            <summary>
+            Calculate the mass of the ragdoll using the model data
+            </summary>
+            <returns></returns>
+        </member>
+        <member name="M:ShrimpleRagdolls.ShrimpleRagdoll.WakePhysics">
+            <summary>
+            Makes sure to wake up all bodies
+            </summary>
+        </member>
+        <member name="M:ShrimpleRagdolls.ShrimpleRagdoll.SleepPhysics">
+            <summary>
+            Sets all rigidbodies to sleep
+            </summary>
+        </member>
+        <member name="M:ShrimpleRagdolls.ShrimpleRagdoll.SetGravity(System.Boolean)">
+            <summary>
+            Sets gravity to all rigid bodies
+            </summary>
+            <param name="gravity"></param>
+        </member>
+        <member name="M:ShrimpleRagdolls.ShrimpleRagdoll.SetGravityScale(System.Single)">
+            <summary>
+            Sets gravity scale to all rigid bodies
+            </summary>
+            <param name="gravityScale"></param>
+        </member>
+        <member name="M:ShrimpleRagdolls.ShrimpleRagdoll.SetLinearDamping(System.Single)">
+            <summary>
+            Sets the linear damping to all rigid bodies
+            </summary>
+            <param name="damping"></param>
+        </member>
+        <member name="M:ShrimpleRagdolls.ShrimpleRagdoll.SetAngularDamping(System.Single)">
+            <summary>
+            Sets the angular damping to all rigid bodies
+            </summary>
+            <param name="damping"></param>
+        </member>
+        <member name="M:ShrimpleRagdolls.ShrimpleRagdoll.SetSurface(Sandbox.Surface)">
+            <summary>
+            Apply a surface to every collider
+            </summary>
+            <param name="surface"></param>
+        </member>
+        <member name="M:ShrimpleRagdolls.ShrimpleRagdoll.SetColliderFlags(Sandbox.ColliderFlags)">
+            <summary>
+            Apply collider flags to every collider
+            </summary>
+            <param name="flags"></param>
+        </member>
+        <member name="M:ShrimpleRagdolls.ShrimpleRagdoll.SetMassOverride(System.Single)">
+            <summary>
+            Sets the mass override, each body piece will have their mass proportional so that the total combines to the desired value
+            </summary>
+            <param name="massOverride"></param>
+        </member>
+        <member name="M:ShrimpleRagdolls.ShrimpleRagdoll.SetEnableImpactDamage(System.Boolean)">
+            <summary>
+            Sets <see cref="P:Sandbox.Rigidbody.EnableImpactDamage"/> on all bodies
+            </summary>
+            <param name="enabled"></param>
+        </member>
+        <member name="M:ShrimpleRagdolls.ShrimpleRagdoll.SetImpactMinimumSpeed(System.Single)">
+            <summary>
+            Sets <see cref="P:Sandbox.Rigidbody.MinImpactDamageSpeed"/> on all bodies
+            </summary>
+            <param name="speed"></param>
+        </member>
+        <member name="M:ShrimpleRagdolls.ShrimpleRagdoll.SetupPhysics">
+            <summary>
+            Sets up all physics related settings for colliders and rigidbodies
+            </summary>
+        </member>
+        <member name="M:ShrimpleRagdolls.ShrimpleRagdoll.UpdatePhysicsPoints">
+            <summary>
+            To compensate for height parameters, ModelPhysics scales the joint's frames on creation to match<br/>
+            But that doesn't update the physics points and they up misaligned, very visible with extremely short people.<br/>
+            We manually sync the physics points here
+            </summary>
+        </member>
+        <member name="M:ShrimpleRagdolls.ShrimpleRagdoll.Move(Transform)">
+            <summary>
+            Move the ragdoll without affecting its velocity or simulating collisions<br />
+            </summary>
+            <param name="target">The target transform, the entire ragdoll will be moved so that its root matches</param>
+        </member>
+        <member name="M:ShrimpleRagdolls.ShrimpleRagdoll.ApplyVelocity(Vector3)">
+            <summary>
+            Apply a velocity to the ragdoll as a whole rather than on every body individually
+            </summary>
+            <param name="velocity">The velocity applied</param>
+        </member>
+        <member name="M:ShrimpleRagdolls.ShrimpleRagdoll.ApplyAngularVelocity(Vector3)">
+            <summary>
+            Apply an angular velocity to the ragdoll, spinning it around the mass center
+            </summary>
+            <param name="angularVelocity">The axis to spin around and speed in radians per second</param>
+        </member>
+        <member name="M:ShrimpleRagdolls.ShrimpleRagdoll.ApplyTorque(Vector3)">
+            <summary>
+            Apply a torque to the ragdoll, causing angular acceleration based on each body's inertia
+            </summary>
+            <param name="torque">The torque vector (axis and magnitude)</param>
+        </member>
+        <member name="M:ShrimpleRagdolls.ShrimpleRagdoll.ApplyForce(Vector3)">
+            <summary>
+            Apply a force to the ragdoll, causing acceleration based on each body's mass
+            </summary>
+            <param name="force">The force vector</param>
+        </member>
+        <member name="M:ShrimpleRagdolls.ShrimpleRagdoll.ApplyImpulse(Vector3)">
+            <summary>
+            Apply an impulse to the ragdoll, instantly changing velocity based on each body's mass
+            </summary>
+            <param name="impulse">The impulse vector</param>
+        </member>
+        <member name="M:ShrimpleRagdolls.ShrimpleRagdoll.GetBodyByBoneName(System.String)">
+            <summary>
+            Get a body by bone name
+            </summary>
+        </member>
+        <member name="M:ShrimpleRagdolls.ShrimpleRagdoll.GetBodyByBoneIndex(System.Int32)">
+            <summary>
+            Get a body by bone index
+            </summary>
+        </member>
+        <member name="M:ShrimpleRagdolls.ShrimpleRagdoll.GetBodyByBone(Sandbox.BoneCollection.Bone)">
+            <summary>
+            Get a body by bone
+            </summary>
+        </member>
+        <member name="M:ShrimpleRagdolls.ShrimpleRagdoll.GetSignedAngleAroundAxis(Rotation,Vector3)">
+            <summary>
+            Returns the signed angle in degrees that <paramref name="rot"/> rotates around <paramref name="axis"/>.
+            Picks a reference vector perpendicular to the axis, rotates it, projects onto the plane, then atan2s the result.
+            </summary>
+        </member>
+        <member name="M:ShrimpleRagdolls.ShrimpleRagdoll.GetRagdollTransform(System.Int32,System.Boolean)">
+            <summary>
+            Get the ragdoll's ideal transform from the provided bone
+            </summary>
+            <param name="boneIndex">Which bone to base off of</param>
+            <param name="mergedBoneTransforms">The final renderer's transform should match the bone's transform</param>
+            <returns></returns>
+        </member>
+        <member name="M:ShrimpleRagdolls.ShrimpleRagdoll.GetDescendantBones(Sandbox.BoneCollection.Bone)">
+            <summary>
+            Returns the given bone and all of its descendants in the skeleton
+            </summary>
+            <param name="rootBone">The root bone</param>
+        </member>
+        <member name="M:ShrimpleRagdolls.ShrimpleRagdoll.GetDescendantBones(System.String)">
+            <summary>
+            Returns the given bone and all of its descendants in the skeleton
+            </summary>
+            <param name="boneName">The root bone</param>
+        </member>
+        <member name="M:ShrimpleRagdolls.ShrimpleRagdoll.GetDescendantBones(System.Int32)">
+            <summary>
+            Returns the given bone and all of its descendants in the skeleton
+            </summary>
+            <param name="boneIndex">The root bone</param>
+        </member>
+        <member name="P:ShrimpleRagdolls.ShrimpleRagdoll.ActiveLerpTime">
+            <summary>
+            How fast bodies move to the desired position in active mode
+            </summary>
+        </member>
+        <member name="P:ShrimpleRagdolls.ShrimpleRagdoll.MotorFrequency">
+            <summary>
+            Motor joints frequency
+            </summary>
+        </member>
+        <member name="P:ShrimpleRagdolls.ShrimpleRagdoll.MotorDamping">
+            <summary>
+            Motor joints damping
+            </summary>
+        </member>
+        <member name="P:ShrimpleRagdolls.ShrimpleRagdoll.ModeChanged">
+            <summary>
+            Before, After
+            </summary>
+        </member>
+        <member name="F:ShrimpleRagdolls.RagdollMode.None">
+            <summary>
+            Ragdolling is disabled completely
+            </summary>
+        </member>
+        <member name="F:ShrimpleRagdolls.RagdollMode.Passive">
+            <summary>
+            Collisions but follows animations 1 to 1
+            </summary>
+        </member>
+        <member name="F:ShrimpleRagdolls.RagdollMode.Active">
+            <summary>
+            Physically simulated and tried to follow animations
+            </summary>
+        </member>
+        <member name="F:ShrimpleRagdolls.RagdollMode.Enabled">
+            <summary>
+            Completely physical driven, flops around
+            </summary>
+        </member>
+        <member name="F:ShrimpleRagdolls.RagdollMode.Motor">
+            <summary>
+            Physical driven but uses joint motors to follow animations
+            </summary>
+        </member>
+    </members>
+</doc>
