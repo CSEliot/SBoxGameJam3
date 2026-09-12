@@ -1,5 +1,11 @@
 ## Character Controller & Physics
 
+ - camera needs to quickly flip to back of cc
+ - recovery to nearest navmesh vertex wasn't working
+ - camera jerking
+ - recovery can still get stuck if stuck in same place for more than 10 seconds. So need to be node-or distance based? or recovery doesn't replace old positions until certain distance.
+ - + perhaps manual recovery locations?
+
 ### DrunkardController
 
 - [ ] Implement auto-forward movement.
