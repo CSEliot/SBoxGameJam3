@@ -4,7 +4,10 @@
   </Configurations>
   <Project Path="Code/sboxgamejam3.csproj" />
   <Project Path="Editor/sboxgamejam3.editor.csproj" />
-  <Folder Name="/Tools/">
+    <Folder Name="/Libraries/">
+        <Project Path="Libraries/fish.shrimple_ragdolls/Code/shrimple_ragdolls.csproj" />
+    </Folder>
+    <Folder Name="/Tools/">
     <Project Path="/home/cseliot/.local/share/Steam/steamapps/common/sbox/addons/tools/Code/Base Editor Library.csproj" />
     <Project Path="/home/cseliot/.local/share/Steam/steamapps/common/sbox/editor/ActionGraph/Code/actiongraph.csproj" />
     <Project Path="/home/cseliot/.local/share/Steam/steamapps/common/sbox/editor/DooEditor/Code/dooeditor.csproj" />
