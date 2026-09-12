@@ -41,6 +41,43 @@ public sealed class DrunkCC : Component
 	/// </summary>
 	private Vector3 _KnockdownRestorePosition;
 
+	/// <summary>
+	/// One recorded moment of the running player: where they were and which way they faced.
+	/// </summary>
+	private struct HistorySample
+	{
+		public float Time;
+		public Vector3 Position;
+		public Vector3 Heading;
+	}
+
+	/// <summary>
+	/// Rolling trail of recent running positions/headings, oldest first. Only recorded while
+	/// Running; recovery after a knockdown rewinds into this by beer level.
+	/// </summary>
+	private readonly List<HistorySample> _history = new();
+
+	/// <summary>
+	/// Timer gating how often a HistorySample is appended.
+	/// </summary>
+	private TimeSince _sinceLastSample;
+
+	/// <summary>
+	/// Seconds of rewind per beer. rewindSeconds = _BeerLevel * this. Default 1 -> 1 beer rewinds ~1s.
+	/// </summary>
+	[Property] private float _SecondsPerBeer { get; set; } = 1f;
+
+	/// <summary>
+	/// Extra seconds of history kept beyond the current beer's rewind, so higher beer levels
+	/// already have trail to rewind into. Buffer length = _BeerLevel * _SecondsPerBeer + this.
+	/// </summary>
+	[Property] private float _RecoveryHistoryHeadroom { get; set; } = 3f;
+
+	/// <summary>
+	/// Seconds between recorded HistorySamples. Smaller = finer rewind, more memory.
+	/// </summary>
+	[Property] private float _RecoverySampleInterval { get; set; } = 0.1f;
+
 	
 	/// <summary>
 	/// Debug: hard-zero spin and orientation on this axis every tick.
@@ -197,6 +234,8 @@ public sealed class DrunkCC : Component
 
 	private void TickRunning()
 	{
+		RecordHistory();
+
 		var rb = _Rigidbody;
 		var rot = rb.WorldRotation;
 		var fwd = rot.Forward;
@@ -288,28 +327,92 @@ public sealed class DrunkCC : Component
 		_KnockdownEnds = _KnockdownRecoveryTime;
 		_Ragdoll.Mode = RagdollMode.Enabled;
 		_Ragdoll.ApplyVelocity( _Rigidbody.Velocity );
-		
-		_KnockdownHeading = _Rigidbody.WorldRotation.Forward.WithZ( 0f );
-		if ( _KnockdownHeading.IsNearlyZero() ) _KnockdownHeading = _Rigidbody.WorldRotation.Up.WithZ( 0f );
-		if ( _KnockdownHeading.IsNearlyZero() ) _KnockdownHeading = Vector3.Forward;
 
+		// Recovery rewinds further back the drunker you are. Pull the sample from
+		// rewindSeconds ago; if history is shorter than that (early game, or beer just spiked),
+		// fall back to the oldest sample we have.
+		float rewindSeconds = _BeerLevel * _SecondsPerBeer;
+		var restore = GetRewoundSample( rewindSeconds );
+
+		_KnockdownRestorePosition = restore.Position;
+		_KnockdownHeading = restore.Heading;
+		if ( _KnockdownHeading.IsNearlyZero() ) _KnockdownHeading = Vector3.Forward;
 	}
 
 	/// <summary>
-	/// Rule 7: stand back up where we fell, facing the same way, at zero velocity.
+	/// Records a position/heading sample at _RecoverySampleInterval and trims the trail to the
+	/// window we need: current beer's rewind plus headroom, so higher future beer levels already
+	/// have trail to rewind into. Called only while Running.
+	/// </summary>
+	private void RecordHistory()
+	{
+		if ( _sinceLastSample < _RecoverySampleInterval && _history.Count > 0 )
+			return;
+
+		_sinceLastSample = 0f;
+
+		var heading = _Rigidbody.WorldRotation.Forward.WithZ( 0f );
+		if ( heading.IsNearlyZero() ) heading = _Rigidbody.WorldRotation.Up.WithZ( 0f );
+
+		_history.Add( new HistorySample
+		{
+			Time = Time.Now,
+			Position = _Rigidbody.WorldPosition,
+			Heading = heading,
+		} );
+
+		// Keep buffer sized to the deepest rewind we might need plus headroom.
+		float window = _BeerLevel * _SecondsPerBeer + _RecoveryHistoryHeadroom;
+		float cutoff = Time.Now - window;
+		int keepFrom = 0;
+		while ( keepFrom < _history.Count - 1 && _history[keepFrom].Time < cutoff )
+			keepFrom++;
+		if ( keepFrom > 0 )
+			_history.RemoveRange( 0, keepFrom );
+	}
+
+	/// <summary>
+	/// Returns the sample from approximately secondsAgo in the past, clamped to the oldest sample
+	/// when history doesn't reach that far back. Falls back to the live transform if empty.
+	/// </summary>
+	private HistorySample GetRewoundSample( float secondsAgo )
+	{
+		if ( _history.Count == 0 )
+		{
+			var heading = _Rigidbody.WorldRotation.Forward.WithZ( 0f );
+			return new HistorySample { Time = Time.Now, Position = _Rigidbody.WorldPosition, Heading = heading };
+		}
+
+		float target = Time.Now - secondsAgo;
+		// History is oldest-first; walk newest->oldest and take the first sample at or before target.
+		for ( int i = _history.Count - 1; i >= 0; i-- )
+		{
+			if ( _history[i].Time <= target )
+				return _history[i];
+		}
+
+		// Requested further back than we have -> oldest available.
+		return _history[0];
+	}
+
+	/// <summary>
+	/// Rule 7: stand back up at the rewound recovery point, facing that moment's heading, at zero velocity.
 	/// </summary>
 	private void ResetFromKnockdown()
 	{
 		var rb = _Rigidbody;
 
-		// Heading from the forward vector flattened onto the ground plane. Euler Yaw() is not
-		// trustworthy on a body that ragdolled past 90 degrees of pitch or roll.
-
+		// TODO: snap _KnockdownRestorePosition to the nearest point on the nav mesh via pathfinding
+		// before teleporting, so recovery lands on walkable ground.
+		rb.WorldPosition = _KnockdownRestorePosition;
 		rb.WorldRotation = Rotation.LookAt( _KnockdownHeading.Normal, Vector3.Up );
 		rb.Velocity = Vector3.Zero;
 		rb.AngularVelocity = Vector3.Zero;
 		_CurrentState = State.Running;
 		_Ragdoll.Mode = RagdollMode.None;
+
+		// The rewound trail is spent; don't let stale pre-knockdown samples seed the next rewind.
+		_history.Clear();
 	}
 
 	/// <summary>

@@ -105,6 +105,8 @@
           "go": "264f7192-4519-4521-810f-28d695f84a0e",
           "component_type": "ShrimpleRagdoll"
         },
+        "_RecoveryHistoryHeadroom": 3,
+        "_RecoverySampleInterval": 0.1,
         "_Rigidbody": {
           "_type": "component",
           "component_id": "d64224d0-5c8f-4e5f-86ea-d5dd3ed42506",
@@ -114,6 +116,7 @@
         "_RollResponseFloor": 0,
         "_RollTurnRate": 2,
         "_RunningAcceleration": 1,
+        "_SecondsPerBeer": 0.5,
         "_SkinnedModelRenderer": {
           "_type": "component",
           "component_id": "1782aee1-8527-881d-9d38-816387542f8d",

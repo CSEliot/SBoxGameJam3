@@ -1,4 +1,3 @@
-// Bar sign material shader with emission (glow)
 FEATURES
 {
     #include "common/features.hlsl"
@@ -53,7 +52,6 @@ PS
 		m.Albedo = vColor.rgb;
 		m.Opacity = vColor.a;
 
-		// Emission makes the sign glow
 		m.Emission = g_vEmissionColor * g_flEmissionStrength;
 
 		return ShadingModelStandard::Shade( m );
