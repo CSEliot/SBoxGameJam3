@@ -81,7 +81,7 @@
         "__guid": "36b954c9-53ed-4a23-8947-9e8f035f61a0",
         "__enabled": true,
         "Flags": 0,
-        "_BeerLevel": 1,
+        "_BeerLevel": 20,
         "_CitizenAnimationHelper": {
           "_type": "component",
           "component_id": "0600e1f6-7303-864c-a2f5-aca1beb26385",
@@ -92,11 +92,12 @@
         "_CorrectionStrength": 1000,
         "_DrunkLeanScale": 0.8,
         "_ForwardRayCastPosition": 0,
+        "_GroundCheckDistance": 4,
         "_HasHitObstacle": false,
-        "_JumpForce": 1,
+        "_JumpForce": 20000,
         "_KnockdownRecoveryTime": 2,
         "_LateralGrip": 5,
-        "_LeanImpulse": 1000,
+        "_LeanImpulse": 10000,
         "_MaxHitRoll": 60,
         "_MaxRunningForce": 500,
         "_Ragdoll": {
@@ -106,6 +107,7 @@
           "component_type": "ShrimpleRagdoll"
         },
         "_RecoveryHistoryHeadroom": 3,
+        "_RecoveryNavSearchRadius": 1024,
         "_RecoverySampleInterval": 0.1,
         "_Rigidbody": {
           "_type": "component",

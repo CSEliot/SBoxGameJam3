@@ -27,6 +27,17 @@ public sealed class DrunkCC : Component
 	private State _CurrentState = State.Running;
 
 	/// <summary>
+	/// True from the moment a jump launches until we detect a fresh landing. Gates re-jumping.
+	/// </summary>
+	private bool _isJumping;
+
+	/// <summary>
+	/// Set once the body has actually left the ground after a jump, so the sphere still touching
+	/// the floor for a tick right after launch isn't mistaken for a landing.
+	/// </summary>
+	private bool _hasLeftGround;
+
+	/// <summary>
 	/// Counts down while knocked down. Reset happens when it reaches zero.
 	/// </summary>
 	private TimeUntil _KnockdownEnds;
@@ -159,6 +170,12 @@ public sealed class DrunkCC : Component
 	/// How strong the character will jump.
 	/// </summary>
 	[Property] private float _JumpForce { get; set; } = 1;
+
+	/// <summary>
+	/// Distance (units) below the sphere's bottom to probe for ground. The landing check and the
+	/// can-jump check both use this downward trace. Small values are stricter about "grounded".
+	/// </summary>
+	[Property] private float _GroundCheckDistance { get; set; } = 4f;
 	
 	/// <summary>
 	/// Seconds spent ragdolling after a knockdown before reset.
@@ -229,17 +246,30 @@ public sealed class DrunkCC : Component
 		switch ( _CurrentState )
 		{
 			case State.Running:
-				TickRunning();
+				HandleRunning();
 				break;
 			case State.KnockedDown:
-				TickKnockedDown();
+				HandleKnockedDown();
 				break;
 		}
 	}
 
-	private void TickRunning()
+	private void HandleRunning()
 	{
 		RecordHistory();
+
+		// Landing detection: once a jump has carried the body clear of the ground, the first time
+		// we touch down again clears the jump gate so the next Jump press is allowed. Feeding
+		// IsGrounded here also lets the animgraph blend out of the jump/fall pose on landing.
+		bool grounded = IsGrounded();
+		_CitizenAnimationHelper.IsGrounded = grounded;
+		if ( _isJumping )
+		{
+			if ( !grounded )
+				_hasLeftGround = true;
+			else if ( _hasLeftGround )
+				_isJumping = false;
+		}
 
 		// Roll measured geometrically: cross(up, worldUp) is the axis that rotates 'up' back toward
 		// world up, so projecting it onto forward gives a signed roll that doesn't depend on Euler
@@ -309,9 +339,17 @@ public sealed class DrunkCC : Component
 		_Rigidbody.ApplyTorque( _Rigidbody.WorldRotation.Up * ( targetYawRateDeg - yawRateDeg ) * _YawGain );
 
 		ApplyDebugLocks( _Rigidbody );
+
+		if ( Input.Pressed( "Jump" ) && !_isJumping && grounded )
+		{
+			_Rigidbody.ApplyForce( _Rigidbody.WorldRotation.Up * _JumpForce );
+			_CitizenAnimationHelper.TriggerJump();
+			_isJumping = true;
+			_hasLeftGround = false;
+		}
 	}
 
-	private void TickKnockedDown()
+	private void HandleKnockedDown()
 	{
 		// Rule 6: ragdoll. No forces, no locks, physics owns the body until the timer runs out.
 		if ( _KnockdownEnds )
@@ -319,6 +357,8 @@ public sealed class DrunkCC : Component
 			ResetFromKnockdown();
 		}
 	}
+	
+	
 
 	private void EnterKnockedDown()
 	{
@@ -427,6 +467,26 @@ public sealed class DrunkCC : Component
 	}
 
 	/// <summary>
+	/// True when solid ground is within _GroundCheckDistance below the movement sphere. Probes
+	/// straight down (world) from the sphere's centre out to its radius plus that skin distance,
+	/// ignoring the whole player hierarchy so neither the sphere itself nor the ragdoll's bone
+	/// colliders count as ground. Returns true when there's no sphere collider so a misconfigured
+	/// prefab doesn't silently make jumping impossible.
+	/// </summary>
+	private bool IsGrounded()
+	{
+		var collider = _Rigidbody.GameObject.Components.Get<SphereCollider>();
+		if ( collider is null ) return true;
+
+		var centre = _Rigidbody.WorldPosition + _Rigidbody.WorldRotation * collider.Center;
+		float reach = collider.Radius + _GroundCheckDistance;
+		var trace = Scene.Trace.Ray( centre, centre + Vector3.Down * reach )
+			.IgnoreGameObjectHierarchy( GameObject )
+			.Run();
+		return trace.Hit;
+	}
+
+	/// <summary>
 	/// Rule 7: stand back up at the rewound recovery point, facing that moment's heading, at zero velocity.
 	/// </summary>
 	private void ResetFromKnockdown()
@@ -441,6 +501,10 @@ public sealed class DrunkCC : Component
 		rb.AngularVelocity = Vector3.Zero;
 		_CurrentState = State.Running;
 		_Ragdoll.Mode = RagdollMode.None;
+
+		// A knockdown can interrupt a jump; clear the gate so recovery doesn't leave jumping stuck off.
+		_isJumping = false;
+		_hasLeftGround = false;
 
 		// The rewound trail is spent; don't let stale pre-knockdown samples seed the next rewind.
 		_history.Clear();
