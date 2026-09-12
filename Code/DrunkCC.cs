@@ -1,4 +1,5 @@
 using System;
+using Sandbox.Citizen;
 
 namespace Sandbox;
 
@@ -139,15 +140,27 @@ public sealed class DrunkCC : Component
 	/// Local Rigidbody Component
 	/// </summary>
 	[Property] private Rigidbody _RigidbodySphere { get; set; }
+
+	/// <summary>
+	/// Component to control citizen via code.
+	/// </summary>
+	[Property] private CitizenAnimationHelper _CitizenAnimationHelper { get; set; }
+
+	/// <summary>
+	/// Component to control citizen via code.
+	/// </summary>
+	[Property] private SkinnedModelRenderer _SkinnedModelRenderer { get; set; }
 	
 	protected override void OnStart()
 	{
-
 	}
 	
 	protected override void OnUpdate()
 	{
-
+		_CitizenAnimationHelper.MoveStyle = CitizenAnimationHelper.MoveStyles.Run;
+		_SkinnedModelRenderer.Set( "move_style", 2 );
+		_SkinnedModelRenderer.Set( "move_x", 10000 );
+		Log.Info(_CitizenAnimationHelper.MoveStyle);
 	}
 
 	protected override void OnFixedUpdate()
