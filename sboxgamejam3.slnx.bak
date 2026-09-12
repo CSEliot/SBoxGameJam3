@@ -1,0 +1,15 @@
+<Solution>
+  <Configurations>
+    <Platform Name="Any CPU" />
+  </Configurations>
+  <Project Path="Code/sboxgamejam3.csproj" />
+  <Project Path="Editor/sboxgamejam3.editor.csproj" />
+  <Folder Name="/Tools/">
+    <Project Path="/home/cseliot/.local/share/Steam/steamapps/common/sbox/addons/tools/Code/Base Editor Library.csproj" />
+    <Project Path="/home/cseliot/.local/share/Steam/steamapps/common/sbox/editor/ActionGraph/Code/actiongraph.csproj" />
+    <Project Path="/home/cseliot/.local/share/Steam/steamapps/common/sbox/editor/DooEditor/Code/dooeditor.csproj" />
+    <Project Path="/home/cseliot/.local/share/Steam/steamapps/common/sbox/editor/Hammer/Code/hammer.csproj" />
+    <Project Path="/home/cseliot/.local/share/Steam/steamapps/common/sbox/editor/MovieMaker/Code/moviemaker.csproj" />
+    <Project Path="/home/cseliot/.local/share/Steam/steamapps/common/sbox/editor/ShaderGraph/Code/shadergraph.csproj" />
+  </Folder>
+</Solution>
