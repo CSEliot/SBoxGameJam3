@@ -236,7 +236,6 @@ public sealed class DrunkCC : Component
 		_CitizenAnimationHelper.MoveStyle = CitizenAnimationHelper.MoveStyles.Run;
 		_SkinnedModelRenderer.Set( "move_style", 2 );
 		_SkinnedModelRenderer.Set( "move_x", 10000 );
-		Log.Info(_CitizenAnimationHelper.MoveStyle);
 	}
 
 	protected override void OnFixedUpdate()

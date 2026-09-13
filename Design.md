@@ -84,6 +84,8 @@ Game Over: The game has two endings:
 
 Hit: Anything that causes player to go into KnockedDown state. Ex: Tilting too much left or right is a 'hit'. Colliding is a 'hit'. Running into wall is a 'hit'.
 
+Jerk: When the camera moves in response to movement input.
+
 ### Networking
 
 ### Session-Scope

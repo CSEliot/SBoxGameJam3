@@ -246,15 +246,21 @@
           "TexelSize": 1
         },
         {
-          "__type": "Sandbox.PlayerFollow",
-          "__guid": "eecdadbc-478d-4d53-a597-58e719f359ea",
+          "__type": "Sandbox.CCCamera",
+          "__guid": "c02fa76f-e07f-4b5d-acfc-6c1bbc0cebb3",
           "__enabled": true,
           "Flags": 0,
+          "_drunkCC": null,
           "_FollowSpeed": 5,
+          "_JerkDirection": true,
+          "_JerkMaxDistance": 250,
+          "_JerkSpeed": 1.1,
+          "_JerkTime": 0.5,
           "_LookAtSpeed": 5,
           "_LookAtTarget": true,
+          "_Offset": "0,-350,100",
+          "_ScaleSpeedToBeerLevel": 1.1,
           "_Target": null,
-          "_UseInitialOffset": true,
           "OnComponentDestroy": null,
           "OnComponentDisabled": null,
           "OnComponentEnabled": null,
@@ -644,7 +650,7 @@
       "__version": 2,
       "Flags": 0,
       "Name": "SPAWNLOCATION",
-      "Position": "0,183.90773,202.044373",
+      "Position": "0,-248.710464,268.424835",
       "Rotation": "0,0,0.707106769,0.707106769",
       "Scale": "1,1,1",
       "Tags": "",
@@ -655,7 +661,54 @@
       "NetworkTransmit": true,
       "OwnerTransfer": 1,
       "Components": [],
-      "Children": []
+      "Children": [
+        {
+          "__guid": "dc5caa8d-d478-4b22-906f-d6004f8758d1",
+          "__version": 2,
+          "Flags": 0,
+          "Name": "Sphere",
+          "Position": "0,0,0",
+          "Rotation": "0,0,0,1",
+          "Scale": "1,1,1",
+          "Tags": "",
+          "Enabled": true,
+          "NetworkMode": 2,
+          "NetworkFlags": 0,
+          "NetworkOrphaned": 0,
+          "NetworkTransmit": true,
+          "OwnerTransfer": 1,
+          "Components": [
+            {
+              "__type": "Sandbox.ModelRenderer",
+              "__guid": "576d1bc2-62a9-4700-b7ed-714b9297e638",
+              "__enabled": true,
+              "Flags": 0,
+              "BodyGroups": 18446744073709551615,
+              "CreateAttachments": false,
+              "LodOverride": null,
+              "MaterialGroup": null,
+              "MaterialOverride": null,
+              "Materials": null,
+              "Model": "models/dev/sphere.vmdl",
+              "OnComponentDestroy": null,
+              "OnComponentDisabled": null,
+              "OnComponentEnabled": null,
+              "OnComponentFixedUpdate": null,
+              "OnComponentStart": null,
+              "OnComponentUpdate": null,
+              "RenderOptions": {
+                "GameLayer": true,
+                "OverlayLayer": true,
+                "BloomLayer": true,
+                "AfterUILayer": true
+              },
+              "RenderType": "On",
+              "Tint": "1,0,0,1"
+            }
+          ],
+          "Children": []
+        }
+      ]
     },
     {
       "__guid": "5e59fa01-4ebb-472b-83fe-7ba9461bde58",

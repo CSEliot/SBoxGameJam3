@@ -81,7 +81,7 @@
         "__guid": "36b954c9-53ed-4a23-8947-9e8f035f61a0",
         "__enabled": true,
         "Flags": 0,
-        "_BeerLevel": 20,
+        "_BeerLevel": 0,
         "_CitizenAnimationHelper": {
           "_type": "component",
           "component_id": "0600e1f6-7303-864c-a2f5-aca1beb26385",
@@ -3932,6 +3932,68 @@
             ]
           }
         ]
+      },
+      {
+        "__guid": "59e32681-7c66-4a02-87db-331ff4fb4255",
+        "__version": 2,
+        "Flags": 0,
+        "Name": "FOLLOW_ME",
+        "Position": "0,0,91.8788986",
+        "Rotation": "0,0,0,1",
+        "Scale": "0.276001751,0.276001751,0.276001751",
+        "Tags": "follow-target",
+        "Enabled": true,
+        "NetworkMode": 2,
+        "NetworkFlags": 0,
+        "NetworkOrphaned": 0,
+        "NetworkTransmit": true,
+        "OwnerTransfer": 1,
+        "Components": [
+          {
+            "__type": "Sandbox.ModelRenderer",
+            "__guid": "b5305d60-7068-4221-afb9-b21b9e3e67e1",
+            "__enabled": false,
+            "Flags": 0,
+            "BodyGroups": 18446744073709551615,
+            "CreateAttachments": false,
+            "LodOverride": null,
+            "MaterialGroup": null,
+            "MaterialOverride": null,
+            "Materials": null,
+            "Model": "models/dev/sphere.vmdl",
+            "OnComponentDestroy": null,
+            "OnComponentDisabled": null,
+            "OnComponentEnabled": null,
+            "OnComponentFixedUpdate": null,
+            "OnComponentStart": null,
+            "OnComponentUpdate": null,
+            "RenderOptions": {
+              "GameLayer": true,
+              "OverlayLayer": false,
+              "BloomLayer": false,
+              "AfterUILayer": false
+            },
+            "RenderType": "On",
+            "Tint": "1,0,0,1"
+          },
+          {
+            "__type": "Sandbox.DeleteIfProxy",
+            "__guid": "d08020aa-1c82-4425-9f07-619c3cac34a7",
+            "__enabled": true,
+            "Flags": 0,
+            "OnComponentDestroy": null,
+            "OnComponentDisabled": null,
+            "OnComponentEnabled": null,
+            "OnComponentFixedUpdate": null,
+            "OnComponentStart": null,
+            "OnComponentUpdate": null,
+            "Target": {
+              "_type": "gameobject",
+              "go": "264f7192-4519-4521-810f-28d695f84a0e"
+            }
+          }
+        ],
+        "Children": []
       }
     ],
     "__properties": {
