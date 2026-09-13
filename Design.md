@@ -86,6 +86,319 @@ Hit: Anything that causes player to go into KnockedDown state. Ex: Tilting too m
 
 Jerk: When the camera moves in response to movement input.
 
+# Section 3 - Visuals
+
+This is going to occur at dusk and quickly become night time. In a city, where windows glow behind semi-lit city structures (using shaders) and street lamps.
+
+Here's our color palette, use this for GUI design and other visuals:
+#00166D #4C74E5 #FFD51B #FF6120 #E03AC0
+
+# Section 4 - UI Design
+
+## Design System
+
+### Color Palette
+- **Background**: #00166D (deep blue, dusk sky)
+- **Primary glow**: #4C74E5 (medium blue, default neon edges)
+- **Accent warm**: #FFD51B (yellow, timer, score)
+- **Accent hot**: #FF6120 (orange, danger states, pants warning)
+- **Accent wild**: #E03AC0 (magenta, drunkenness, game over)
+
+### Typography
+- **Display** (score, timer): Monospace or chunky sans-serif, large, with glow
+- **Body** (labels, prompts): Clean sans-serif, medium weight
+- All text should have subtle outer glow matching its color
+
+### Drunk Effect System
+As drunkenness meter increases (measured in beers, 0 to unbounded):
+- **0-3 beers**: Clean UI, subtle glow only
+- **3-6 beers**: Slight wobble on text (1-2px oscillation), mild blur on edges
+- **6-10 beers**: Strong wobble (3-5px), chromatic aberration on text (RGB split), occasional double-vision flicker
+- **10+ beers**: Heavy blur, strong RGB split, UI elements tilt with player lean, color shift toward magenta
+
+Effects apply to: timer, score, drunkenness meter display, pants indicator. Arrow indicator stays crisp (gameplay critical).
+
+---
+
+## Screen 1: HUD (Always Visible During Gameplay)
+
+### Layout
+```
+[TOP-LEFT]                    [TOP-CENTER]           [TOP-RIGHT]
+Timer                         Score                  Drunkenness
+[2:00]                        [0042]                 [🍺 3.5]
+
+[BOTTOM-CENTER]
+Arrow Indicator (3D, floating above ground, points to target bar)
+
+[BOTTOM-LEFT]
+Pants Level
+[▮▮▮] (3 bars, filled = current level)
+```
+
+### Elements
+
+**Timer (top-left)**
+- Format: `M:SS` (e.g., `2:00`)
+- Color: #FFD51B (yellow), shifts to #FF6120 (orange) when <30s, flashes when <10s
+- Size: Large (80px display font)
+- Behavior: Counts down, pauses in bar menu
+- Drunk effect: Wobble + blur at high levels, double-vision flicker at 10+ beers
+
+**Score (top-center)**
+- Format: 4-digit zero-padded (e.g., `0042`)
+- Color: #FFD51B (yellow)
+- Size: Large (80px display font)
+- Behavior: Increments every second, multiplier increases with drunkenness
+- Drunk effect: Same as timer
+
+**Drunkenness Meter (top-right)**
+- Format: `🍺 X.X` (beer emoji + decimal beers)
+- Color: #E03AC0 (magenta)
+- Size: Medium (60px display font)
+- Behavior: Increases after bar visits and mini-games, no cap
+- Drunk effect: This element itself wobbles/blurs, making it hard to read at high levels (intentional chaos)
+
+**Arrow Indicator (bottom-center, 3D world-space)**
+- Format: 3D arrow model floating above ground, points toward target bar
+- Color: #4C74E5 (blue) with #FFD51B (yellow) glow
+- Size: Medium (visible but not obstructive)
+- Behavior: Dynamically updates to point to closest valid bar, rotates smoothly
+- Drunk effect: **None** (gameplay critical, must stay readable)
+
+**Pants Level (bottom-left)**
+- Format: 3 vertical bars (like battery indicator)
+- Color: #4C74E5 (blue) when full, #FF6120 (orange) when 1 bar, flashes red when 0 bars (trip risk)
+- Size: Small (40px tall)
+- Behavior: Decreases on obstacle hit, increases when player mashes R
+- Drunk effect: Slight wobble at high levels
+
+---
+
+## Screen 2: Bar Menu (Modal Overlay)
+
+### Layout
+```
+[CENTER OF SCREEN]
+┌─────────────────────────────────────┐
+│         🍻 BAR NAME 🍻              │
+│                                     │
+│  [CASH IN SCORE]                    │
+│  End run, save 0042 points          │
+│                                     │
+│  [PLAY MINI-GAME]                   │
+│  Drink more, get drunker, get time  │
+└─────────────────────────────────────┘
+```
+
+### Elements
+
+**Modal Background**
+- Semi-transparent dark overlay (#00166D at 80% opacity)
+- Blurred backdrop of game world
+
+**Modal Container**
+- Border: 2px solid #4C74E5 (blue) with glow
+- Background: #00166D (deep blue) at 90% opacity
+- Padding: 40px
+
+**Title**
+- Text: Bar name (e.g., "THE DRUNKEN SAILOR")
+- Color: #FFD51B (yellow)
+- Size: 60px display font
+- Drunk effect: Wobble applies
+
+**Button: Cash In Score**
+- Text: `CASH IN SCORE` + subtitle `End run, save [score] points`
+- Background: Transparent with #4C74E5 border
+- Hover: Fill with #4C74E5, text glows #FFD51B
+- Size: 400px wide, 80px tall
+- Drunk effect: Button wobbles slightly
+
+**Button: Play Mini-Game**
+- Text: `PLAY MINI-GAME` + subtitle `Drink more, get drunker, get time`
+- Background: Transparent with #E03AC0 border
+- Hover: Fill with #E03AC0, text glows #FFD51B
+- Size: 400px wide, 80px tall
+- Drunk effect: Button wobbles more than cash-in (temptation visual)
+
+**Timer Display**
+- Paused timer shown in corner of modal
+- Color: #FFD51B (yellow), dimmed
+- Size: 40px
+- Behavior: Frozen while menu is open
+
+---
+
+## Screen 3: Mini-Game UI (Spacebar Mashing)
+
+### Layout
+```
+[TOP-CENTER]
+┌─────────────────────────────────────┐
+│         CHUG! CHUG! CHUG!           │
+│                                     │
+│  [████████████████░░░░░░] 85%       │
+│                                     │
+│  SMASH SPACEBAR!                    │
+│  [TIME: 5s]                         │
+└─────────────────────────────────────┘
+```
+
+### Elements
+
+**Title**
+- Text: `CHUG! CHUG! CHUG!`
+- Color: #E03AC0 (magenta)
+- Size: 80px display font
+- Behavior: Pulses/bounces with each spacebar press
+- Drunk effect: Heavy wobble, RGB split
+
+**Progress Bar**
+- Format: Horizontal bar, 600px wide, 40px tall
+- Fill color: Gradient from #4C74E5 (blue) to #E03AC0 (magenta) as it fills
+- Border: 2px solid #4C74E5 with glow
+- Behavior: Fills with each spacebar press, decays slowly over time
+- Drunk effect: Bar itself wobbles, making it hard to judge fill level
+
+**Percentage**
+- Text: `XX%` next to progress bar
+- Color: #FFD51B (yellow)
+- Size: 60px display font
+- Behavior: Updates in real-time
+
+**Instruction**
+- Text: `SMASH SPACEBAR!`
+- Color: #FF6120 (orange)
+- Size: 60px display font
+- Behavior: Flashes/pulses
+
+**Timer**
+- Text: `TIME: Xs` (countdown from 5-10 seconds)
+- Color: #FFD51B (yellow), shifts to #FF6120 when <3s
+- Size: 60px display font
+- Behavior: Counts down, mini-game ends at 0
+
+**Visual Feedback**
+- Screen shake on each press
+- Beer splashes/particles on high combo
+- Character model in background performs drinking animation
+
+---
+
+## Screen 4: Game Over
+
+### Layout
+```
+[CENTER OF SCREEN]
+┌─────────────────────────────────────┐
+│      GAME OVER / YOU CASHED IN      │
+│                                     │
+│  Final Score: 0042                  │
+│  Beers Drunk: 7.5 🍺               │
+│  Bars Visited: 3                    │
+│                                     │
+│  [LEADERBOARD]                      │
+│  [PLAY AGAIN]                       │
+│  [QUIT]                             │
+└─────────────────────────────────────┘
+```
+
+### Elements
+
+**Title**
+- Text: `GAME OVER` (if timer ran out) or `YOU CASHED IN` (if player chose to stop)
+- Color: #FF6120 (orange) for game over, #FFD51B (yellow) for cash-in
+- Size: 100px display font
+- Behavior: Fades in with glow
+- Drunk effect: None (game over, player is sober now)
+
+**Stats**
+- Final Score: 4-digit, #FFD51B (yellow)
+- Beers Drunk: Decimal + beer emoji, #E03AC0 (magenta)
+- Bars Visited: Integer, #4C74E5 (blue)
+- Size: 60px display font each
+- Layout: Vertical stack, left-aligned
+
+**Button: Leaderboard**
+- Text: `LEADERBOARD`
+- Opens leaderboard overlay
+- Style: Same as bar menu buttons
+
+**Button: Play Again**
+- Text: `PLAY AGAIN`
+- Background: Fill #E03AC0 (magenta)
+- Hover: Brighter glow
+
+**Button: Quit**
+- Text: `QUIT`
+- Background: Transparent, #FF6120 border
+- Hover: Fill #FF6120
+
+---
+
+## Screen 5: Leaderboard (Overlay)
+
+### Layout
+```
+[CENTER OF SCREEN]
+┌─────────────────────────────────────┐
+│         🏆 BEST DRUNKARDS 🏆        │
+│                                     │
+│  1. PlayerName1    0987   12.5🍺    │
+│  2. PlayerName2    0742   10.0🍺    │
+│  3. PlayerName3    0521    8.5🍺    │
+│  4. PlayerName4    0421    7.0🍺    │
+│  5. PlayerName5    0312    6.5🍺    │
+│                                     │
+│  [CLOSE]                            │
+└─────────────────────────────────────┘
+```
+
+### Elements
+
+**Title**
+- Text: `🏆 BEST DRUNKARDS 🏆`
+- Color: #FFD51B (yellow)
+- Size: 80px display font
+- Trophy emoji glows
+
+**Leaderboard Rows**
+- Format: `Rank. Name    Score    Beers`
+- Rank 1: #FFD51B (gold/yellow)
+- Rank 2: #4C74E5 (silver/blue)
+- Rank 3: #FF6120 (bronze/orange)
+- Rank 4+: White/dim
+- Size: 40px sans-serif
+- Layout: Monospace alignment for numbers
+- Current player's row highlighted with #E03AC0 glow
+
+**Close Button**
+- Text: `CLOSE` or `X` in corner
+- Standard button style
+
+---
+
+## Implementation Notes
+
+### Drunk Effect Performance
+- Wobble: Use shader or UI animation, sine wave on position/rotation
+- Blur: Gaussian blur shader pass on UI layer
+- RGB split: Chromatic aberration shader (offset R, G, B channels)
+- Double-vision: Render UI twice with offset, blend
+- All effects should scale smoothly with drunkenness value, not step
+
+### Accessibility
+- Arrow indicator never gets drunk effects (gameplay critical)
+- Timer remains readable even at high drunk levels (reduce blur, keep wobble)
+- Consider colorblind mode: use shapes/symbols alongside colors for pants level
+
+### s&box Specifics
+- UI likely built with s&box UI system (HTML/CSS or native panels)
+- 3D arrow indicator is a world-space model, not screen-space
+- Drunk effects may require post-processing shader on UI render target
+- Test performance with all effects active at max drunk level
+
 ### Networking
 
 ### Session-Scope
