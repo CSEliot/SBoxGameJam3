@@ -250,6 +250,7 @@
           "__guid": "c02fa76f-e07f-4b5d-acfc-6c1bbc0cebb3",
           "__enabled": true,
           "Flags": 0,
+          "_BehindCap": 0.25,
           "_drunkCC": null,
           "_FollowSpeed": 5,
           "_JerkDirection": true,
@@ -740,7 +741,7 @@
           "IsTrigger": false,
           "Mesh": {
             "Data": {
-              "$blob": "d45b7311-a793-8080-ae11-d6399fc559a5"
+              "$blob": "e16ddbbb-1d6a-8f19-8b65-e2f090c7b4e3"
             },
             "Materials": [
               "materials/dev/reflectivity_30.vmat"

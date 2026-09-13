@@ -137,7 +137,9 @@ public sealed class CCCamera : Component
 			DoJerkHelper( true );
 		}
 
-		EnforceBehindCap();
+		if(_drunkCC.CurrentState == DrunkCC.State.Running)
+			EnforceBehindCap();
+		
 		EnforceMinDistance();
 	}
 
