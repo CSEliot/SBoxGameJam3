@@ -1,0 +1,5 @@
+# Build artifacts - never commit these, they're machine/build-specific.
+obj/
+bin/
+gen/*
+!gen/.gitkeep

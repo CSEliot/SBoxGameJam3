@@ -1,0 +1,35 @@
+<Project>
+
+  <!-- Shared s&box engine install-root resolution, project-agnostic.
+       Steam relocates its library folder across machines/reinstalls/OS, so nothing here is
+       hardcoded per-project. Resolution order:
+         1) SBOX_ROOT environment variable (explicit override; set this for a non-standard install
+            and nothing else needs editing).
+         2) SboxRoot MSBuild property, if already set by a caller (-p:SboxRoot=...).
+         3) A short list of known install locations (Linux Steam, Windows Steam variants), first one
+            that actually contains bin/managed/Sandbox.Generator.dll wins.
+       Fails the build with a clear message if nothing resolves, instead of a confusing
+       CS0006 / MSB3245 "metadata file not found" buried in compiler output. To add a new machine's
+       install location, either set SBOX_ROOT or add a candidate line below. -->
+
+  <PropertyGroup>
+    <SboxRoot Condition="'$(SboxRoot)' == '' AND '$(SBOX_ROOT)' != ''">$(SBOX_ROOT)</SboxRoot>
+
+    <!-- Linux: standard Steam library location, and the ~/.steam symlink some distros use. -->
+    <SboxRoot Condition="'$(SboxRoot)' == '' AND Exists('$([System.Environment]::GetFolderPath(SpecialFolder.UserProfile))/.local/share/Steam/steamapps/common/sbox/bin/managed/Sandbox.Generator.dll')">$([System.Environment]::GetFolderPath(SpecialFolder.UserProfile))/.local/share/Steam/steamapps/common/sbox</SboxRoot>
+    <SboxRoot Condition="'$(SboxRoot)' == '' AND Exists('$([System.Environment]::GetFolderPath(SpecialFolder.UserProfile))/.steam/steam/steamapps/common/sbox/bin/managed/Sandbox.Generator.dll')">$([System.Environment]::GetFolderPath(SpecialFolder.UserProfile))/.steam/steam/steamapps/common/sbox</SboxRoot>
+
+    <!-- Windows: common Steam library drives/locations. -->
+    <SboxRoot Condition="'$(SboxRoot)' == '' AND Exists('D:\steam\steamapps\common\sbox\bin\managed\Sandbox.Generator.dll')">D:\steam\steamapps\common\sbox</SboxRoot>
+    <SboxRoot Condition="'$(SboxRoot)' == '' AND Exists('C:\Program Files (x86)\Steam\steamapps\common\sbox\bin\managed\Sandbox.Generator.dll')">C:\Program Files (x86)\Steam\steamapps\common\sbox</SboxRoot>
+    <SboxRoot Condition="'$(SboxRoot)' == '' AND Exists('C:\Program Files\Steam\steamapps\common\sbox\bin\managed\Sandbox.Generator.dll')">C:\Program Files\Steam\steamapps\common\sbox</SboxRoot>
+    <SboxRoot Condition="'$(SboxRoot)' == '' AND Exists('C:\steam\steamapps\common\sbox\bin\managed\Sandbox.Generator.dll')">C:\steam\steamapps\common\sbox</SboxRoot>
+  </PropertyGroup>
+
+  <Target Name="ValidateSboxRoot" BeforeTargets="BeforeBuild;CoreCompile;Restore">
+    <Error
+      Condition="'$(SboxRoot)' == '' OR !Exists('$(SboxRoot)\bin\managed\Sandbox.Generator.dll')"
+      Text="SboxRoot could not be resolved (checked SBOX_ROOT env var + known candidate paths in SboxRoot.props). Set SBOX_ROOT to your sbox install directory (the folder containing bin/managed/Sandbox.Generator.dll), or add a candidate path to CodeTestPortable/SboxRoot.props." />
+  </Target>
+
+</Project>
