@@ -98,12 +98,7 @@ public sealed class CCCamera : Component
 	/// <summary>
 	/// Manual target override. If unset, the local (non-proxy) DrunkCC in the scene is used.
 	/// </summary>
-	[Property] private DrunkCC _drunkCC
-	{
-		get;
-		set;
-	}
-
+	private DrunkCC _drunkCC;
 
 	protected override void OnStart()
 	{
@@ -242,7 +237,7 @@ public sealed class CCCamera : Component
 	/// <returns>True if _Target is valid.</returns>
 	private bool TryResolveGetDrunkHelper()
 	{
-		if ( _Target.IsValid() )
+		if ( _drunkCC.IsValid() )
 			return true;
 		
 		var drunkCC = Scene.GetAllComponents<DrunkCC>().FirstOrDefault( d => !d.IsProxy );

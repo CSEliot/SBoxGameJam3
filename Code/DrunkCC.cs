@@ -18,13 +18,13 @@ public sealed class DrunkCC : Component
 	/// <summary>
 	/// The current state of the character.
 	/// </summary>
-	private enum State
+	public enum State
 	{
 		Running,
 		KnockedDown,
 	}
 
-	private State _CurrentState = State.Running;
+	public State CurrentState { get; set; } = State.Running;
 
 	/// <summary>
 	/// True from the moment a jump launches until we detect a fresh landing. Gates re-jumping.
@@ -40,17 +40,17 @@ public sealed class DrunkCC : Component
 	/// <summary>
 	/// Counts down while knocked down. Reset happens when it reaches zero.
 	/// </summary>
-	private TimeUntil _KnockdownEnds;
+	private TimeUntil _knockdownEnds;
 
 	/// <summary>
 	/// At knockdown, get heading direction.
 	/// </summary>
-	private Vector3 _KnockdownHeading;
+	private Vector3 _knockdownHeading;
 
 	/// <summary>
 	/// At knockdown, get heading direction.
 	/// </summary>
-	private Vector3 _KnockdownRestorePosition;
+	private Vector3 _knockdownRestorePosition;
 
 	/// <summary>
 	/// One recorded moment of the running player: where they were and which way they faced.
@@ -229,6 +229,7 @@ public sealed class DrunkCC : Component
 	
 	protected override void OnStart()
 	{
+		
 	}
 	
 	protected override void OnUpdate()
@@ -242,7 +243,7 @@ public sealed class DrunkCC : Component
 	{
 		if ( _Rigidbody == null ) return;
 
-		switch ( _CurrentState )
+		switch ( CurrentState )
 		{
 			case State.Running:
 				HandleRunning();
@@ -255,13 +256,17 @@ public sealed class DrunkCC : Component
 
 	private void HandleRunning()
 	{
-		RecordHistory();
-
 		// Landing detection: once a jump has carried the body clear of the ground, the first time
 		// we touch down again clears the jump gate so the next Jump press is allowed. Feeding
 		// IsGrounded here also lets the animgraph blend out of the jump/fall pose on landing.
 		bool grounded = IsGrounded();
 		_CitizenAnimationHelper.IsGrounded = grounded;
+
+		// Only record recovery history while grounded. Airborne/off-map positions must never
+		// become a stand-up target: falling off the map would otherwise poison the trail and
+		// recovery would teleport the player to a point they were never validly standing on.
+		if ( grounded )
+			RecordHistory();
 		if ( _isJumping )
 		{
 			if ( !grounded )
@@ -287,9 +292,9 @@ public sealed class DrunkCC : Component
 
 		// Spin in the body's own frame. Source convention: +X forward, +Y left, +Z up, so
 		// .x = roll rate (about forward), .y = pitch rate, .z = yaw rate. Radians/s.
-		var localAV = _Rigidbody.WorldRotation.Inverse * _Rigidbody.AngularVelocity;
-		float rollRateDeg = localAV.x.RadianToDegree();
-		float yawRateDeg  = localAV.z.RadianToDegree();
+		var localAv = _Rigidbody.WorldRotation.Inverse * _Rigidbody.AngularVelocity;
+		float rollRateDeg = localAv.x.RadianToDegree();
+		float yawRateDeg  = localAv.z.RadianToDegree();
 
 		// Rule 1 / 7: always running, always gaining speed up to the ceiling.
 		if ( _Rigidbody.Velocity.Length < _VelocityCeiling )
@@ -351,7 +356,7 @@ public sealed class DrunkCC : Component
 	private void HandleKnockedDown()
 	{
 		// Rule 6: ragdoll. No forces, no locks, physics owns the body until the timer runs out.
-		if ( _KnockdownEnds )
+		if ( _knockdownEnds )
 		{
 			ResetFromKnockdown();
 		}
@@ -361,8 +366,8 @@ public sealed class DrunkCC : Component
 
 	private void EnterKnockedDown()
 	{
-		_CurrentState = State.KnockedDown;
-		_KnockdownEnds = _KnockdownRecoveryTime;
+		CurrentState = State.KnockedDown;
+		_knockdownEnds = _KnockdownRecoveryTime;
 		_Ragdoll.Mode = RagdollMode.Enabled;
 		_Ragdoll.ApplyVelocity( _Rigidbody.Velocity );
 
@@ -372,9 +377,9 @@ public sealed class DrunkCC : Component
 		float rewindSeconds = _BeerLevel * _SecondsPerBeer;
 		var restore = GetRewoundSample( rewindSeconds );
 
-		_KnockdownRestorePosition = restore.Position;
-		_KnockdownHeading = restore.Heading;
-		if ( _KnockdownHeading.IsNearlyZero() ) _KnockdownHeading = Vector3.Forward;
+		_knockdownRestorePosition = restore.Position;
+		_knockdownHeading = restore.Heading;
+		if ( _knockdownHeading.IsNearlyZero() ) _knockdownHeading = Vector3.Forward;
 	}
 
 	/// <summary>
@@ -434,11 +439,13 @@ public sealed class DrunkCC : Component
 	}
 
 	/// <summary>
-	/// Snaps a recovery position onto the navmesh if one exists, quietly returning the point
-	/// unchanged when there is no mesh, it is disabled, or the query finds nothing within
-	/// _RecoveryNavSearchRadius. Navmesh points sit on the walkable surface while the rigidbody
-	/// origin sits above the sphere's contact point, so the point is lifted by that standing
-	/// offset to land resting on the ground rather than buried in it.
+	/// Snaps a recovery position onto the navmesh so recovery always lands on walkable ground.
+	/// If the rewound point is beyond _RecoveryNavSearchRadius (e.g. an off-map sample), it falls
+	/// back to snapping the body's current resting position, and only if that also misses the mesh
+	/// does it stand up in place - it never teleports to the raw off-mesh point. Returns the point
+	/// unchanged only when there is no navmesh or it is disabled. Navmesh points sit on the walkable
+	/// surface while the rigidbody origin sits above the sphere's contact point, so the point is
+	/// lifted by that standing offset to land resting on the ground rather than buried in it.
 	/// </summary>
 	private Vector3 SnapRecoveryToNavMesh( Vector3 pos )
 	{
@@ -448,7 +455,15 @@ public sealed class DrunkCC : Component
 
 		var snapped = nav.GetClosestPoint( pos, _RecoveryNavSearchRadius );
 		if ( !snapped.HasValue )
-			return pos;
+		{
+			// Rewound point is off-mesh. Never teleport to it - snap the body's current resting
+			// position instead, and if even that misses the mesh, stand up in place.
+			var here = _Rigidbody.WorldPosition;
+			var snappedHere = nav.GetClosestPoint( here, _RecoveryNavSearchRadius );
+			return snappedHere.HasValue
+				? snappedHere.Value + Vector3.Up * RecoveryStandOffset()
+				: here;
+		}
 
 		return snapped.Value + Vector3.Up * RecoveryStandOffset();
 	}
@@ -494,11 +509,11 @@ public sealed class DrunkCC : Component
 
 		// Snap the rewound point onto the navmesh if one exists. Quietly falls back to the raw
 		// position when there's no mesh, it's disabled, or the point is beyond the search radius.
-		rb.WorldPosition = SnapRecoveryToNavMesh( _KnockdownRestorePosition );
-		rb.WorldRotation = Rotation.LookAt( _KnockdownHeading.Normal, Vector3.Up );
+		rb.WorldPosition = SnapRecoveryToNavMesh( _knockdownRestorePosition );
+		rb.WorldRotation = Rotation.LookAt( _knockdownHeading.Normal, Vector3.Up );
 		rb.Velocity = Vector3.Zero;
 		rb.AngularVelocity = Vector3.Zero;
-		_CurrentState = State.Running;
+		CurrentState = State.Running;
 		_Ragdoll.Mode = RagdollMode.None;
 
 		// A knockdown can interrupt a jump; clear the gate so recovery doesn't leave jumping stuck off.
@@ -531,11 +546,11 @@ public sealed class DrunkCC : Component
 		if ( !LockPitch && !LockYaw && !LockRoll ) return;
 
 		var rot = rb.WorldRotation;
-		var localAV = rot.Inverse * rb.AngularVelocity;
-		if ( LockRoll )  localAV.x = 0f;
-		if ( LockPitch ) localAV.y = 0f;
-		if ( LockYaw )   localAV.z = 0f;
-		rb.AngularVelocity = rot * localAV;
+		var localAv = rot.Inverse * rb.AngularVelocity;
+		if ( LockRoll )  localAv.x = 0f;
+		if ( LockPitch ) localAv.y = 0f;
+		if ( LockYaw )   localAv.z = 0f;
+		rb.AngularVelocity = rot * localAv;
 
 		// Zeroing AngularVelocity only stops *future* drift - it doesn't undo orientation that's
 		// already accumulated (e.g. a rolling sphere constantly gets fed angular velocity by ground
