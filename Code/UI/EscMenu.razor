@@ -1,0 +1,78 @@
+@*
+// Project: sboxgamejam3
+// File:    EscMenu.razor
+// Author:  cseliot
+// Created: 2026.09.14
+//
+// Copyright (c) 2026 KiteLion Games, LLC. All rights reserved.
+//
+// This source code is the property of KiteLion Games, LLC and may not be
+// copied, distributed, modified, or used in any way without prior written
+// permission from KiteLion Games, LLC.
+//
+// Description:
+// Escape/pause menu overlay. Toggles with ESC. Return to game, leave to
+// main menu, open s&box settings.
+*@
+
+@using System
+@using Sandbox
+@using Sandbox.UI
+
+@inherits PanelComponent
+
+<root>
+	@if ( IsOpen )
+	{
+		<div class="backdrop" onclick=@CloseMenu></div>
+		<div class="menu">
+			<div class="title">PAUSED</div>
+			<div class="button return" onclick=@CloseMenu>RETURN TO GAME</div>
+			<div class="button leave" onclick=@LeaveToMainMenu>LEAVE TO MAIN MENU</div>
+			<div class="button settings" onclick=@OpenSettings>@( "OPEN S&BOX SETTINGS" )</div>
+		</div>
+	}
+</root>
+
+@code
+{
+	public bool IsOpen { get; private set; }
+
+	protected override void OnUpdate()
+	{
+		// "Escape Menu" input action (F). ESC is unreliable in-editor: Sandbox.Tools
+		// grabs it to focus the editor window (ToolsDll.cs) before we see it, and TAB
+		// is the panel system's keyboard-focus traversal key since 26.09.08.
+		// In retail builds ESC reaches us first, so consume it there too.
+		var togglePressed = Input.Pressed( "Escape Menu" );
+
+		if ( Input.EscapePressed )
+		{
+			Input.EscapePressed = false;
+			togglePressed = true;
+		}
+
+		if ( togglePressed )
+		{
+			IsOpen = !IsOpen;
+		}
+	}
+
+	void CloseMenu()
+	{
+		IsOpen = false;
+	}
+
+	void LeaveToMainMenu()
+	{
+		// In editor: exits playmode. In retail: closes the game back to the platform main menu.
+		Game.Close();
+	}
+
+	void OpenSettings()
+	{
+		Game.Overlay.ShowSettingsModal();
+	}
+
+	protected override int BuildHash() => HashCode.Combine( IsOpen );
+}
