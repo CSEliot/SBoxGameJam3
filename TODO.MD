@@ -1,6 +1,7 @@
 ## Character Controller & Physics
 
   + Add "Safe Respawn" button in settings that TP's to nearest gameobject w tag: "safe-point".
+ + Review design info regarding mini-game, ai got it VERY wrong.
 
 ### DrunkardController
 

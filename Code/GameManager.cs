@@ -28,20 +28,45 @@ namespace Sandbox;
 
 public sealed class GameManager : Component, Component.INetworkListener
 {
+	public enum LocalGameState
+	{
+		Overworld,
+		Minigame,
+	}
+
+	public LocalGameState GetLocalGameState() => _localGameState;
+	
 	[Property] private bool _ImmediatelySpawnRunner { get; set; } = false;
 	[Property] private GameObject _PlayerPrefab { get; set; }
 	[Property] private GameObject _SpawnLocation { get; set; }
 	[Property] private GameObject _MinigameLocation { get; set; }
 	private GameObject _LocalPlayer { get; set; }
 	private Rigidbody _LocalPlayerRigidbody { get; set; }
+	private LocalGameState _localGameState = LocalGameState.Minigame;
+	private Dictionary<Bar, int> _BarToUIDDictionary = new();
 	
+	
+	/// <summary>
+	/// Returns the unique ID of the Bar that called this function.
+	/// </summary>
+	/// <param name="callingBar"></param>
+	/// <returns></returns>
+	public int GetBarUID( Bar callingBar )
+	{
+		int uid = 0;
+		while ( _BarToUIDDictionary.ContainsValue( uid ) )
+			uid++;
+		_BarToUIDDictionary.Add( callingBar, uid );
+		return uid;
+	}
+
 	protected override void OnStart()
 	{
 		if ( _ImmediatelySpawnRunner && SpawnPlayerHelper() )
 		{
 			if( _LocalPlayer == null )
 			{
-				Log.Error( "LocalPlayer is n ull, despite successful spawn!" );
+				Log.Error( "LocalPla yer is null, despite successful spawn!" );
 			}
 		}
 		else
@@ -53,6 +78,7 @@ public sealed class GameManager : Component, Component.INetworkListener
 
 	protected override void OnUpdate()
 	{
+		Log.Info( "GameManager Update" );
 		if ( Input.Keyboard.Down( "R" ) )
 		{
 			 ResetPlayerHelper();
@@ -96,5 +122,7 @@ public sealed class GameManager : Component, Component.INetworkListener
 	{
 		_LocalPlayer.NetworkSpawn( connection );
 	}
+	
+	
 }
 
