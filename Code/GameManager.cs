@@ -28,24 +28,26 @@ namespace Sandbox;
 
 public sealed class GameManager : Component, Component.INetworkListener
 {
-	
+	[Property] private bool _ImmediatelySpawnRunner { get; set; } = false;
 	[Property] private GameObject _PlayerPrefab { get; set; }
 	[Property] private GameObject _SpawnLocation { get; set; }
+	[Property] private GameObject _MinigameLocation { get; set; }
 	private GameObject _LocalPlayer { get; set; }
 	private Rigidbody _LocalPlayerRigidbody { get; set; }
 	
 	protected override void OnStart()
 	{
-		if ( SpawnPlayerHelper() )
+		if ( _ImmediatelySpawnRunner && SpawnPlayerHelper() )
 		{
 			if( _LocalPlayer == null )
 			{
-				Log.Error( "LocalPlayer is null, despite successful spawn!" );
+				Log.Error( "LocalPlayer is n ull, despite successful spawn!" );
 			}
 		}
 		else
 		{
-			Log.Error( "Failed to spawn player" );
+			if ( _ImmediatelySpawnRunner )
+				Log.Error( "Failed to spawn player" );
 		}
 	}
 
