@@ -93,6 +93,10 @@ This is going to occur at dusk and quickly become night time. In a city, where w
 Here's our color palette, use this for GUI design and other visuals:
 #00166D #4C74E5 #FFD51B #FF6120 #E03AC0
 
+Game uses a cartoonish pixar-esque mid-low poly (higher than mobile game "low poly") art style for the 3D Models.
+
+Otherwise game depends on the realistic-ish Citizen Terry Sausage characters built in to the platform.
+
 # Section 4 - UI Design
 
 ## Design System
@@ -376,6 +380,23 @@ Pants Level
 **Close Button**
 - Text: `CLOSE` or `X` in corner
 - Standard button style
+
+# Section 5 - Character Controller and Camera Implementation
+The intent of this character controller is to recreate the feeling of driving a motorcycle but it's a human cc.
+Unlike traditional cc design, this cc uses and relies on forces instead of "setting velocity". A very physics-tied cc.
+
+Players only press left and right to both:
+ 1. Move left and right (like a motorcycle)
+ 2. Adjust and "fix" the LEAN of the character.
+
+This cc has gameplay mechanic rules to follow:
+ 1. When the cc has a drunkness level at 0, the character stays nearly completely up straight as they run and gain speed.
+ 2. Drunkenness level has no maximum. But at 10+ level Drunkenness, the character dangerously strongly rolls into the direction input by the player. We intend the game to be VERY >
+ 3. The cc both yaws and rolls into the turn.
+ 4. At medium level Drunkenness, it is expected that the player, if turning right, will lightly throttle the "Right" key, so to turn but not so hard they fall over.  The Drunkenne>
+ 5. At roll degree X (positive or negative), the cc enters the "knockeddown" state due to having leaned over too much.
+ 6. knockeddown state == Rag-dolling for X amount of time, before being reset.
+ 7. Upon resetting, the cc starts again at 0 velocity and must gain momentum again.
 
 ---
 
