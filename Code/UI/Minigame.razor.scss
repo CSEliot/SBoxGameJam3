@@ -1,0 +1,123 @@
+// Fonts do the styling. Files live in Assets/Fonts/; family names come from the font
+// metadata, not the filename (First Blood.ttf -> "First Blood", SNOWBLUE.ttf -> "Snow Blue").
+$display: First Blood;
+$body: Snow Blue;
+
+Minigame
+{
+	position: absolute;
+	top: 0px;
+	left: 0px;
+	right: 0px;
+	bottom: 0px;
+	flex-direction: column;
+	align-items: center;
+	justify-content: space-between;
+	padding: 60px 0px;
+	font-family: $body;
+
+	.title
+	{
+		font-family: $display;
+		font-size: 80px;
+		color: #E03AC0;
+		transform-origin: center;
+	}
+
+	.middle
+	{
+		flex-direction: column;
+		align-items: center;
+		gap: 12px;
+	}
+
+	.progress-row
+	{
+		flex-direction: row;
+		align-items: center;
+		gap: 20px;
+	}
+
+	.bar
+	{
+		width: 600px;
+		height: 40px;
+		border: 2px solid #4C74E5;
+		overflow: hidden;
+
+		.clip
+		{
+			height: 100%;
+			overflow: hidden;
+		}
+
+		// Full-width gradient under the clip so the visible slice is always the left
+		// part of the blue -> magenta ramp.
+		.fill
+		{
+			width: 596px;
+			height: 100%;
+			flex-shrink: 0;
+			background: linear-gradient( to right, #4C74E5, #E03AC0 );
+		}
+	}
+
+	.percent
+	{
+		font-size: 60px;
+		color: #FFD51B;
+		min-width: 150px;
+	}
+
+	.beers
+	{
+		font-size: 60px;
+		color: #E03AC0;
+	}
+
+	.bottom
+	{
+		flex-direction: column;
+		align-items: center;
+		gap: 12px;
+	}
+
+	.instruction
+	{
+		font-size: 60px;
+		color: #FF6120;
+		animation-name: instruction-flash;
+		animation-duration: 0.6s;
+		animation-iteration-count: infinite;
+		animation-timing-function: ease-in-out;
+	}
+
+	.timer
+	{
+		font-size: 60px;
+		color: #FFD51B;
+
+		&.warning
+		{
+			color: #FF6120;
+		}
+	}
+}
+
+@keyframes instruction-flash
+{
+	0%
+	{
+		opacity: 1;
+	}
+
+	50%
+	{
+		opacity: 0.35;
+	}
+
+	100%
+	{
+		opacity: 1;
+	}
+}

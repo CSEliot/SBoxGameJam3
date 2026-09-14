@@ -1,0 +1,131 @@
+@*
+// Project: sboxgamejam3
+// File:    Minigame.razor
+// Author:  cseliot
+// Created: 2026.09.14
+//
+// Copyright (c) 2026 KiteLion Games, LLC. All rights reserved.
+//
+// This source code is the property of KiteLion Games, LLC and may not be
+// copied, distributed, modified, or used in any way without prior written
+// permission from KiteLion Games, LLC.
+//
+// Description:
+// Bar mini-game overlay (Design.md, Screen 3). Spacebar mashing fills a
+// progress bar that decays over time. Each time the bar hits 100% it resets
+// and one beer is added. The round runs for a fixed duration; OnFinished
+// reports the beers drunk.
+*@
+
+@using System
+@using Sandbox
+@using Sandbox.UI
+
+@inherits PanelComponent
+
+<root>
+	@if ( IsActive )
+	{
+		<div class="title" style="transform: scale( @( TitleScale ) );">CHUG! CHUG! CHUG!</div>
+
+		<div class="middle">
+			<div class="progress-row">
+				<div class="bar">
+					<div class="clip" style="width: @( Percent )%;">
+						<div class="fill"></div>
+					</div>
+				</div>
+				<div class="percent">@( Percent )%</div>
+			</div>
+			<div class="beers">@( Beers ) BEERS</div>
+		</div>
+
+		<div class="bottom">
+			<div class="instruction">SMASH SPACEBAR!</div>
+			<div class="timer @( SecondsLeft < 3 ? "warning" : "" )">TIME: @( SecondsLeft )s</div>
+		</div>
+	}
+</root>
+
+@code
+{
+	/// <summary>Round length in seconds.</summary>
+	[Property] private float _Duration { get; set; } = 10f;
+
+	/// <summary>Fill added per spacebar press (0..1 scale).</summary>
+	[Property] private float _FillPerPress { get; set; } = 0.06f;
+
+	/// <summary>Fill lost per second while the round is running.</summary>
+	[Property] private float _DecayPerSecond { get; set; } = 0.25f;
+
+	/// <summary>Start a round as soon as the scene plays. Editor testing only.</summary>
+	[Property] private bool _StartOnPlay { get; set; } = false;
+
+	/// <summary>Fired when the countdown hits zero. Argument is the number of beers drunk this round.</summary>
+	public Action<int> OnFinished { get; set; }
+
+	public bool IsActive { get; private set; }
+
+	/// <summary>Current bar fill, 0..1. Resets to 0 each time it reaches 1.</summary>
+	public float Progress { get; private set; }
+
+	/// <summary>Beers finished this round (one per full bar).</summary>
+	public int Beers { get; private set; }
+
+	int Percent => (int)MathF.Round( Progress * 100f );
+	int SecondsLeft => Math.Max( 0, (int)MathF.Ceiling( _endsAt.Relative ) );
+	float TitleScale => 1f + 0.15f * _punch;
+
+	TimeUntil _endsAt;
+	float _punch;
+
+	protected override void OnStart()
+	{
+		if ( _StartOnPlay )
+			Begin();
+	}
+
+	/// <summary>Start a round using the configured duration.</summary>
+	public void Begin() => Begin( _Duration );
+
+	/// <summary>Start a round of the given length in seconds.</summary>
+	public void Begin( float durationSeconds )
+	{
+		Progress = 0f;
+		Beers = 0;
+		_punch = 0f;
+		_endsAt = durationSeconds;
+		IsActive = true;
+	}
+
+	protected override void OnUpdate()
+	{
+		if ( !IsActive )
+			return;
+
+		if ( Input.Keyboard.Pressed( "space" ) )
+		{
+			Progress += _FillPerPress;
+			_punch = 1f;
+
+			if ( Progress >= 1f )
+			{
+				Beers++;
+				Progress -= 1f;
+			}
+		}
+
+		Progress = Math.Max( 0f, Progress - _DecayPerSecond * Time.Delta );
+		_punch = Math.Max( 0f, _punch - 8f * Time.Delta );
+
+		if ( _endsAt )
+		{
+			IsActive = false;
+			OnFinished?.Invoke( Beers );
+		}
+	}
+
+	// Rebuild every frame while a round is running so the bar, percentage, timer and
+	// title punch track their values; idle panel hashes to a constant and stays put.
+	protected override int BuildHash() => IsActive ? HashCode.Combine( IsActive, RealTime.Now ) : HashCode.Combine( IsActive );
+}
