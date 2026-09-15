@@ -22,11 +22,13 @@
 // arising from, out of, or in connection with the software or the use or
 // other dealings in the software.
 
+using Sandbox.UI;
+
 namespace Sandbox;
 
 public sealed class Bar : Component
 {
-
+	
 	/// <summary>
 	/// Players currently playing the minigame at this bar, by their client id (or whatever sandbox offers).
 	/// </summary>
@@ -35,14 +37,13 @@ public sealed class Bar : Component
 	/// <summary>
 	/// Unique ID for this bar instance.
 	/// </summary>
-	[Property] private int? _ID { get; set; } = null;
-	
-	/// <summary>
-	/// Unique ID for this bar instance.
-	/// </summary>
-	[Property] private string _Name { get; set; }
-
+	[Property, ReadOnly] private int? _ID { get; set; }
+	[Property, ReadOnly] private string _activeModule { get; set; } = "";
 	private GameManager _gameManager = null;
+	
+	private readonly List<BarModule> _barModules = [];
+	
+	
 	
 	protected override void OnStart()
 	{
@@ -52,6 +53,18 @@ public sealed class Bar : Component
 		else
 		{
 			_ID = _gameManager.GetBarUID( this );
+		}
+
+		foreach ( var child in GetComponentsInChildren<BarModule>( true ) )
+		{
+			
+			_barModules.Add( child );
+			if ( child.Active )
+			{
+				if ( _activeModule != "" )
+					Log.Error( "Bar has multiple active modules!" );
+				_activeModule = child.Name;
+			}
 		}
 	}
 

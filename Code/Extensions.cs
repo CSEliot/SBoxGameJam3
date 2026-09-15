@@ -57,4 +57,22 @@ public static class Extensions
 
 		return !net.Active || net.IsOwner;
 	}
+
+	/// <summary>
+	/// Is this recursive or only returns top level children? The world may never know ...
+	/// </summary>
+	/// <param name="component"></param>
+	/// <param name="tag"></param>
+	/// <returns></returns>
+	public static GameObject[] GetTagInChildren( this Component component, string tag )
+	{
+		var children = new List<GameObject>();
+		// ReSharper disable once ForeachCanBeConvertedToQueryUsingAnotherGetEnumerator
+		foreach ( var child in component.GameObject.Children )
+		{
+			if(child.Tags.Contains( tag ))
+				children.Add(child);
+		}
+		return children.ToArray();
+	}
 }
