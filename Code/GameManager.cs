@@ -92,6 +92,8 @@ public sealed class GameManager : Component, Component.INetworkListener
 
 	protected override void OnUpdate()
 	{
+		Log.Info( "OWNER: " + Network.Owner );
+		return;
 		if ( Input.Keyboard.Down( "R" ) )
 		{
 			 ResetPlayerHelper();
@@ -122,8 +124,11 @@ public sealed class GameManager : Component, Component.INetworkListener
 
 	private bool StartMiniGameHelper( int targetBar )
 	{
-		_Bars[targetBar].SitDownPlayer( Network.Owner );
+		Log.Info("START MINIGAME");
+		_Bars[targetBar].SitDownPlayer( Network.Owner, _minigameController );
 		_minigameController.Begin();
+		Log.Info("FINISH START MINIGAME");
+		
 		
 		return true;
 	}

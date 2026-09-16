@@ -22,6 +22,7 @@
 // arising from, out of, or in connection with the software or the use or
 // other dealings in the software.
 
+using System;
 using Sandbox.UI;
 
 namespace Sandbox;
@@ -46,6 +47,11 @@ public sealed class Bar : Component
 	private GameManager _gameManager = null;
 	
 	private readonly List<BarModule> _barModules = [];
+	[Property] private GameObject[] _Drinkers { get; set; }
+	
+	private Dictionary<Guid, int> _connectionToPatronIndex =  new();
+	
+	
 	
 	protected override void OnStart()
 	{
@@ -55,7 +61,6 @@ public sealed class Bar : Component
 	
 		foreach ( var child in GetComponentsInChildren<BarModule>( true ) )
 		{
-			
 			_barModules.Add( child );
 			if ( child.Active )
 			{
@@ -72,16 +77,69 @@ public sealed class Bar : Component
 	}
 
 	[Rpc.Broadcast]
-	public void SitDownPlayer( Connection playerConnection )
+	public void SitDownPlayer( Connection playerConnection, Minigame minigame )
 	{
 		_CurrentPatronCount++;
-		_Dri
+		
+		// Get next available drinker
+		GameObject availableDrinker = null;
+		int drinkerIndex = -1;
+		for ( int i = 0; i < _Drinkers.Length; i++ )
+		{
+			if ( _Drinkers[i].Enabled == false )
+			{
+				availableDrinker = _Drinkers[i];
+				drinkerIndex = i;
+				break;
+			}
+		}
+
+		if ( availableDrinker == null )
+		{
+			Log.Error( "Drinker not found! Is the bar full?" );
+			return;
+		}
+		
+		var drinkerCam = availableDrinker.GetTagInChildren( "barcam" ).First();
+		var drinkerBeerSpawnLocation = drinkerCam.GetTagInChildren( "beerspawnlocation" ).First();
+
+		availableDrinker.Enabled = true;
+		_connectionToPatronIndex.Add( playerConnection.Id, drinkerIndex );
+		
+		Log.Info( "SITTING DOWN" );
+		
+		if ( IsProxy == false)
+		{
+			Log.Info( "NOT PROXY" );
+			drinkerCam.Enabled = true;
+			minigame.BeerSpawnLocation = drinkerBeerSpawnLocation.WorldPosition;
+		}
 	}
 	
 	[Rpc.Broadcast]
 	public void ExitPlayer( Connection playerConnection )
 	{
+		_CurrentPatronCount--;
 		
+		// Get next available drinker
+		int exitingDrinkerIndex = _connectionToPatronIndex[playerConnection.Id];
+		GameObject exitingDrinker = _Drinkers[exitingDrinkerIndex];
+
+		if ( exitingDrinker == null )
+		{
+			Log.Error( "Exiting Drinker not found! Guid issue?" );
+			return;
+		}
+		
+		var drinkerCam = exitingDrinker.GetTagInChildren( "barcam" ).First();
+
+		_connectionToPatronIndex.Remove( playerConnection.Id );
+		
+		if ( IsProxy == false)
+		{
+			drinkerCam.Enabled = true;
+		}
+		exitingDrinker.Enabled = true;
 	}
 
 }

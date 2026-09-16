@@ -37,8 +37,22 @@ public partial class Minigame
 	// GAME LOGIC: state, tunables and simulation for the mini-game. Base type
 	// (PanelComponent) and rendering-only members are declared in the .razor
 	// and .razor.cs parts of this partial class.
+	
+	/// <summary>Fired when the countdown hits zero. Argument is the number of beers drunk this round.</summary>
+	public Action<float> OnFinished { get; set; }
 
-	[Property] private GameObject[] _Drinkers { get; set; }
+	public bool IsActive { get; private set; }
+
+	/// <summary>Current bar fill, 0..1. Resets to 0 each time it reaches 1.</summary>
+	public float Progress { get; private set; }
+
+	/// <summary>Beers finished this round (one per full bar).</summary>
+	public float Beers { get; private set; }
+
+	/// <summary>
+	/// Set when a bar is told to sit down a player.
+	/// </summary>
+	public Vector3 BeerSpawnLocation;
 	
 	/// <summary>Round length in seconds.</summary>
 	[Property] private float _Duration { get; set; } = 10f;
@@ -52,26 +66,14 @@ public partial class Minigame
 	/// <summary>Start a round as soon as the scene plays. Editor testing only.</summary>
 	[Property] private bool _StartOnPlay { get; set; } = false;
 	[Property] private GameObject _Mug { get; set; }
+	[Property] private GameManager _GameManager { get; set; }
 
-	/// <summary>Fired when the countdown hits zero. Argument is the number of beers drunk this round.</summary>
-	public Action<float> OnFinished { get; set; }
-
-	public bool IsActive { get; private set; }
-
-	/// <summary>Current bar fill, 0..1. Resets to 0 each time it reaches 1.</summary>
-	public float Progress { get; private set; }
-
-	/// <summary>Beers finished this round (one per full bar).</summary>
-	public float Beers { get; private set; }
 
 	TimeUntil _endsAt;
 	float _punch;
 
-	private GameManager _gameManager;
-
 	protected override void OnStart()
 	{
-		_gameManager = Scene.GetAllComponents<GameManager>().First();
 		if ( _StartOnPlay )
 			Begin();
 	}
@@ -121,6 +123,6 @@ public partial class Minigame
 	[Rpc.Broadcast(NetFlags.Unreliable)]
 	public void SpawnABeerHelper()
 	{
-		_Mug.Clone( _BeerSpawnLocation.WorldPosition, _BeerSpawnLocation.WorldRotation );
+		// _Mug.Clone( _BeerSpawnLocation.WorldPosition, _BeerSpawnLocation.WorldRotation );
 	}
 }

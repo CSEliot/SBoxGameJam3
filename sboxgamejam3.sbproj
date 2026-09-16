@@ -1,7 +1,7 @@
 {
   "Title": "SBoxGameJam3",
   "Type": "game",
-  "Org": "local",
+  "Org": "cseliot",
   "Ident": "sboxgamejam3",
   "Schema": 1,
   "IncludeSourceFiles": false,
@@ -15,6 +15,8 @@
       "Keyboard": false,
       "VR": false,
       "Gamepad": false
-    }
+    },
+    "StartupScene": "scenes/minimal.scene",
+    "LaunchMode": "Normal"
   }
 }

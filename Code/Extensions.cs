@@ -26,6 +26,7 @@ namespace Sandbox;
 
 public static class Extensions
 {
+
 	/// <summary>
 	/// True when this object is the local machine's to simulate.
 	///
@@ -69,6 +70,24 @@ public static class Extensions
 		var children = new List<GameObject>();
 		// ReSharper disable once ForeachCanBeConvertedToQueryUsingAnotherGetEnumerator
 		foreach ( var child in component.GameObject.Children )
+		{
+			if(child.Tags.Contains( tag ))
+				children.Add(child);
+		}
+		return children.ToArray();
+	}
+	
+	/// <summary>
+	/// Is this recursive or only returns top level children? The world may never know ...
+	/// </summary>
+	/// <param name="gameObject"></param>
+	/// <param name="tag"></param>
+	/// <returns></returns>
+	public static GameObject[] GetTagInChildren( this GameObject gameObject, string tag )
+	{
+		var children = new List<GameObject>();
+		// ReSharper disable once ForeachCanBeConvertedToQueryUsingAnotherGetEnumerator
+		foreach ( var child in gameObject.Children )
 		{
 			if(child.Tags.Contains( tag ))
 				children.Add(child);
