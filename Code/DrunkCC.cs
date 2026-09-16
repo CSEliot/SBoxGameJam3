@@ -23,7 +23,10 @@ public sealed class DrunkCC : Component
 		Running,
 		KnockedDown,
 	}
-
+	
+	[Sync]
+	public Guid ConnectionID { get; set; }
+	
 	public State CurrentState { get; set; } = State.Running;
 
 	/// <summary>

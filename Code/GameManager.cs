@@ -23,6 +23,7 @@
 // other dealings in the software.
 
 using System;
+using Sandbox.UI;
 
 namespace Sandbox;
 
@@ -30,9 +31,12 @@ public sealed class GameManager : Component, Component.INetworkListener
 {
 	public enum LocalGameState
 	{
-		Overworld,
-		Minigame,
+		Crawling,
+		WaitingToStartMinigame,
+		PlayingMinigame,
 	}
+	
+	
 
 	public LocalGameState GetLocalGameState() => _localGameState;
 	
@@ -40,33 +44,36 @@ public sealed class GameManager : Component, Component.INetworkListener
 	[Property] private GameObject _PlayerPrefab { get; set; }
 	[Property] private GameObject _SpawnLocation { get; set; }
 	[Property] private GameObject _MinigameLocation { get; set; }
+	[Sync, Property, ReadOnly] private long _SecondsUptime { get; set; }
+	private bool _canUpdateBars = false;
 	private GameObject _LocalPlayer { get; set; }
+	private bool _SpawnPlayerHelperCalled { get; set; }
 	private Rigidbody _LocalPlayerRigidbody { get; set; }
-	private LocalGameState _localGameState = LocalGameState.Minigame;
-	private Dictionary<Bar, int> _BarToUIDDictionary = new();
-	
-	
+	private LocalGameState _localGameState = LocalGameState.WaitingToStartMinigame;
 	/// <summary>
-	/// Returns the unique ID of the Bar that called this function.
+	/// Where the bar index in the array is its ID.
 	/// </summary>
-	/// <param name="callingBar"></param>
-	/// <returns></returns>
-	public int GetBarUID( Bar callingBar )
-	{
-		int uid = 0;
-		while ( _BarToUIDDictionary.ContainsValue( uid ) )
-			uid++;
-		_BarToUIDDictionary.Add( callingBar, uid );
-		return uid;
-	}
-
+	[Sync, Property] private Bar[] _Bars { get; set; } = new Bar[10];
+	private int _startingBar;
+	private int _totalBars;
+	private float _startTime = -1;
+	private bool _serverActive;
+	private readonly Random _random = new(0);
+	private Minigame _minigameController;
+	/// <summary>
+	/// The bar that player will start minigame in upon collision of sphere.
+	/// </summary>
+	private int _targetBarWaiting = -1;
+	
 	protected override void OnStart()
 	{
+		_targetBarWaiting = _startingBar;
+		_minigameController = GetComponent<Minigame>();
 		if ( _ImmediatelySpawnRunner && SpawnPlayerHelper() )
 		{
 			if( _LocalPlayer == null )
 			{
-				Log.Error( "LocalPla yer is null, despite successful spawn!" );
+				Log.Error( "LocalPlayer is null, despite successful spawn!" );
 			}
 		}
 		else
@@ -74,14 +81,75 @@ public sealed class GameManager : Component, Component.INetworkListener
 			if ( _ImmediatelySpawnRunner )
 				Log.Error( "Failed to spawn player" );
 		}
+		_startTime = Time.Now;
+		for ( int i = 0; i < _Bars.Length; i++ )
+		{
+			if(_Bars[i] != null)
+				_totalBars++;
+		}
+		UpdateSessionBarData(0, _random.Next());
 	}
 
 	protected override void OnUpdate()
 	{
-		Log.Info( "GameManager Update" );
 		if ( Input.Keyboard.Down( "R" ) )
 		{
 			 ResetPlayerHelper();
+		}
+
+		if ( _localGameState == LocalGameState.WaitingToStartMinigame )
+		{
+			if(StartMiniGameHelper(_targetBarWaiting))
+				_localGameState = LocalGameState.PlayingMinigame;
+			else
+				Log.Error("Failed to start mini game!");
+		}
+
+		if ( Networking.IsHost )
+		{
+			if(_startTime == -1)
+				_startTime = Time.Now;
+			if ( _serverActive )
+				_SecondsUptime = (long)(Time.Now - _startTime);
+			
+			if(_SecondsUptime % (long)60 == 0 && _canUpdateBars )
+				UpdateSessionBarData(_random.Next(0, _totalBars), _random.Next(0, _totalBars));
+			if(_SecondsUptime % (long)60 != 0)
+				_canUpdateBars = true;
+		}
+		
+	}
+
+	private bool StartMiniGameHelper( int targetBar )
+	{
+		_Bars[targetBar].SitDownPlayer( Network.Owner );
+		_minigameController.Begin();
+		
+		return true;
+	}
+
+	/// <summary>
+	/// Setting starting bar and a seed for bars to determine their nextbar.
+	/// </summary>
+	[Rpc.Broadcast]
+	private void UpdateSessionBarData(int startingBarIndex, int nextBarSeed)
+	{
+		Log.Info("Updating session bar data");
+		_canUpdateBars = false;
+		_startingBar = startingBarIndex;
+		var rand = new Random(nextBarSeed);
+		for ( int barID = 0; barID < _Bars.Length; barID++)
+		{
+			if(_Bars[barID] == null)
+				continue;
+			
+			int nextBar = barID;
+			while(nextBar == barID && _totalBars > 1)
+				nextBar = rand.Next(0, _totalBars);
+			
+			if(barID == nextBar)
+				nextBar = rand.Next(0, _totalBars);
+			_Bars[barID].NextBar = _Bars[nextBar];
 		}
 	}
 
@@ -109,6 +177,12 @@ public sealed class GameManager : Component, Component.INetworkListener
 	/// <returns>True if success</returns>
 	private bool SpawnPlayerHelper()
 	{
+		if ( _SpawnPlayerHelperCalled == true )
+		{
+			Log.Info("Spawn Player helper already called.");
+			return true;
+		}
+		
 		_LocalPlayer = _PlayerPrefab.Clone();
 		_LocalPlayerRigidbody = _LocalPlayer.GetComponent<Rigidbody>();
 		if(_LocalPlayerRigidbody == null) {
@@ -120,7 +194,17 @@ public sealed class GameManager : Component, Component.INetworkListener
 
 	void INetworkListener.OnActive( Connection connection )
 	{
-		_LocalPlayer.NetworkSpawn( connection );
+		var spawned = SpawnPlayerHelper();
+		if(spawned)
+			_LocalPlayer.NetworkSpawn( connection );
+		else
+		{
+			Log.Error( "Failed to spawn net player" );
+		}
+
+		_LocalPlayer.GetComponent<DrunkCC>().ConnectionID = connection.Id;
+		_LocalPlayer.Enabled = false;
+		_serverActive = true;
 	}
 	
 	

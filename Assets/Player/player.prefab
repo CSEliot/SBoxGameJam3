@@ -9,7 +9,7 @@
     "Scale": "1,1,1",
     "Tags": "cc_body",
     "Enabled": true,
-    "NetworkMode": 2,
+    "NetworkMode": 1,
     "NetworkFlags": 0,
     "NetworkOrphaned": 0,
     "NetworkTransmit": true,
@@ -3983,7 +3983,7 @@
             ]
           },
           {
-            "__guid": "a8116f29-dd5b-4f53-8d02-dd111fd230ae",
+            "__guid": "898d8e05-9292-46d9-a3af-f996ec75b240",
             "__version": 2,
             "Flags": 0,
             "Name": "Clothing - baseball_cap",
@@ -4000,7 +4000,7 @@
             "Components": [
               {
                 "__type": "Sandbox.SkinnedModelRenderer",
-                "__guid": "cecbc069-cac3-4a5d-b914-52b359ffdc8f",
+                "__guid": "70f92f83-9648-4590-b280-fbb12d77a5e9",
                 "__enabled": true,
                 "Flags": 0,
                 "AnimationGraph": null,
@@ -4052,7 +4052,7 @@
             "Children": []
           },
           {
-            "__guid": "a1746441-f3a3-4ebf-9562-57d1d3d08e31",
+            "__guid": "634ee37d-5548-48fc-a240-8a98e2efaef3",
             "__version": 2,
             "Flags": 0,
             "Name": "Clothing - trackie_bottoms_black",
@@ -4069,7 +4069,7 @@
             "Components": [
               {
                 "__type": "Sandbox.SkinnedModelRenderer",
-                "__guid": "8ed492da-62a0-44e7-a5eb-dff120c0184c",
+                "__guid": "f34d42ac-ea66-4e1c-968a-36d634fe319b",
                 "__enabled": true,
                 "Flags": 0,
                 "AnimationGraph": null,
@@ -4121,7 +4121,7 @@
             "Children": []
           },
           {
-            "__guid": "b9a53585-7c4c-4095-b069-dab95ba80b74",
+            "__guid": "abb6aaf5-45e6-4872-bda3-38d63ab3a842",
             "__version": 2,
             "Flags": 0,
             "Name": "Clothing - hawaiian shirt",
@@ -4138,7 +4138,7 @@
             "Components": [
               {
                 "__type": "Sandbox.SkinnedModelRenderer",
-                "__guid": "02df4ab0-4c11-442e-a17a-7886deaf67e5",
+                "__guid": "e573e1d6-e6cd-4bf7-9416-2c225d42bd91",
                 "__enabled": true,
                 "Flags": 0,
                 "AnimationGraph": null,
@@ -4190,7 +4190,7 @@
             "Children": []
           },
           {
-            "__guid": "fde1bac5-9c84-4dfc-a802-4dd67583f4e2",
+            "__guid": "315ddac7-b748-4ead-9ce6-70e38c728419",
             "__version": 2,
             "Flags": 0,
             "Name": "Clothing - sneakers",
@@ -4207,7 +4207,7 @@
             "Components": [
               {
                 "__type": "Sandbox.SkinnedModelRenderer",
-                "__guid": "0d92d85d-64c0-4f93-be39-de9672e60901",
+                "__guid": "bc6b36c0-aa0b-41d2-90f1-71f85ab359de",
                 "__enabled": true,
                 "Flags": 0,
                 "AnimationGraph": null,
@@ -4259,7 +4259,7 @@
             "Children": []
           },
           {
-            "__guid": "8ec24acf-f27c-470d-b4a0-bbae53043cec",
+            "__guid": "51bdf302-3edd-4b50-9fe6-696802ac2d69",
             "__version": 2,
             "Flags": 0,
             "Name": "Clothing - biker_jacket",
@@ -4276,7 +4276,7 @@
             "Components": [
               {
                 "__type": "Sandbox.SkinnedModelRenderer",
-                "__guid": "c38b4341-d1ff-4861-a846-25516499e9fd",
+                "__guid": "403d3bee-3f07-4a90-8226-c48d356338fc",
                 "__enabled": true,
                 "Flags": 0,
                 "AnimationGraph": null,
@@ -4328,7 +4328,7 @@
             "Children": []
           },
           {
-            "__guid": "8d0dabd6-9045-46c1-a283-7318e008be6f",
+            "__guid": "835d5cce-1a9f-4b23-9976-d7556da261e7",
             "__version": 2,
             "Flags": 0,
             "Name": "Clothing - nerdy_glasses",
@@ -4345,7 +4345,7 @@
             "Components": [
               {
                 "__type": "Sandbox.SkinnedModelRenderer",
-                "__guid": "6bec6d3b-68e4-415f-94ff-ad877abb6c91",
+                "__guid": "0397f8ef-f129-4e6b-aba9-8a0454e478f8",
                 "__enabled": true,
                 "Flags": 0,
                 "AnimationGraph": null,

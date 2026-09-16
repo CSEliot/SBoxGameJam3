@@ -1,6 +1,6 @@
 # Architecture.md
 
-# Play By Play - v0
+## Play By Play - v0
 
 Minigame Starts.
 
@@ -10,9 +10,23 @@ MiniGameStarted = true
 
 GameManager tracks and controls renderings of character in pub. Players are allowed to make networked calls, but host is owner of data.
 
-barslots
-
 playerID = locally tracked ID by GameManager
+
+---
+
+## Narrative - Notes directly from "head to paper"
+
+--- 
+
+General Networking Arch: Players own majority of logic, host only has data that's necessary to sync.
+
+True for all players:
+_startingBar - depends on time
+_NextBar (per bar) - depends on time
+
+
+Every minute, bars get assigned a new "nextbar". Can be previous bar.
+Every minute, starting bar changes.
 
 X Player prefabs exist in a line. When EnterBar(playerID) (a global call amongst all clients) is called, the next available Drinker gameobject is enabled, their BarCam is enabled IF LOCAL, clothing set to playing players' clothing, and
 when player plays minigame, we spawn Beer at only that BeerSpawnLocation of THAT Drinker/BarCam/BeerSpawnLocation.

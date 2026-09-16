@@ -121,6 +121,6 @@ public partial class Minigame
 	[Rpc.Broadcast(NetFlags.Unreliable)]
 	public void SpawnABeerHelper()
 	{
-		// _Mug.Clone( _BeerSpawnLocation.WorldPosition, _BeerSpawnLocation.WorldRotation );
+		_Mug.Clone( _BeerSpawnLocation.WorldPosition, _BeerSpawnLocation.WorldRotation );
 	}
 }

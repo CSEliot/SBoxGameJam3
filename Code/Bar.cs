@@ -28,33 +28,31 @@ namespace Sandbox;
 
 public sealed class Bar : Component
 {
-	
+
+	public Bar NextBar;
+
 	/// <summary>
 	/// Players currently playing the minigame at this bar, by their client id (or whatever sandbox offers).
 	/// </summary>
 	private List<int> CurrentPlayers = [];
 
+	[Sync, Property, ReadOnly] private int _CurrentPatronCount { get; set; } = 0;
+	
 	/// <summary>
 	/// Unique ID for this bar instance.
 	/// </summary>
-	[Property, ReadOnly] private int? _ID { get; set; }
+	// [Property, ReadOnly] private int? _ID { get; set; } //todo: BARS NO LONGER TRACK THEIR IDs??? -ecs
 	[Property, ReadOnly] private string _activeModule { get; set; } = "";
 	private GameManager _gameManager = null;
 	
 	private readonly List<BarModule> _barModules = [];
-	
-	
 	
 	protected override void OnStart()
 	{
 		_gameManager = Scene.GetAllComponents<GameManager>().First();
 		if ( _gameManager is null )
 			Log.Error( "GameManager not found!" );
-		else
-		{
-			_ID = _gameManager.GetBarUID( this );
-		}
-
+	
 		foreach ( var child in GetComponentsInChildren<BarModule>( true ) )
 		{
 			
@@ -72,5 +70,19 @@ public sealed class Bar : Component
 	{
 
 	}
+
+	[Rpc.Broadcast]
+	public void SitDownPlayer( Connection playerConnection )
+	{
+		_CurrentPatronCount++;
+		_Dri
+	}
+	
+	[Rpc.Broadcast]
+	public void ExitPlayer( Connection playerConnection )
+	{
+		
+	}
+
 }
 
