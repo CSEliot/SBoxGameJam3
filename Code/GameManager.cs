@@ -36,8 +36,6 @@ public sealed class GameManager : Component, Component.INetworkListener
 		PlayingMinigame,
 	}
 	
-	
-
 	public LocalGameState GetLocalGameState() => _localGameState;
 	
 	[Property] private bool _ImmediatelySpawnRunner { get; set; } = false;
@@ -47,6 +45,7 @@ public sealed class GameManager : Component, Component.INetworkListener
 	[Sync, Property, ReadOnly] private long _SecondsUptime { get; set; }
 	private bool _canUpdateBars = false;
 	private GameObject _LocalPlayer { get; set; }
+	private DrunkCC _LocalDrunkCC { get; set; }
 	private bool _SpawnPlayerHelperCalled { get; set; }
 	private Rigidbody _LocalPlayerRigidbody { get; set; }
 	private LocalGameState _localGameState = LocalGameState.WaitingToStartMinigame;
@@ -54,16 +53,24 @@ public sealed class GameManager : Component, Component.INetworkListener
 	/// Where the bar index in the array is its ID.
 	/// </summary>
 	[Sync, Property] private Bar[] _Bars { get; set; } = new Bar[10];
+	/// <summary>
+	/// Is also the SEED for joiners' local Random!
+	/// </summary>
 	private int _startingBar;
 	private int _totalBars;
 	private float _startTime = -1;
 	private bool _serverActive;
-	private readonly Random _random = new(0);
+	private Random _localRandom = new(0);
+	private Random _randomForNewJoiners = new(0);
 	private Minigame _minigameController;
 	/// <summary>
 	/// The bar that player will start minigame in upon collision of sphere.
 	/// </summary>
-	private int _targetBarWaiting = -1;
+	private int _targetBarWaiting = 1;
+	
+	// every time a player joins, they join the latest group within 30 seconds (group has a timecreated) and if there isn't a group w 
+	// timecreated within 30 seconds, make a new one.
+	// also if they join as party, they get the same startingBar (targetBarWaiting).
 	
 	protected override void OnStart()
 	{
@@ -87,13 +94,10 @@ public sealed class GameManager : Component, Component.INetworkListener
 			if(_Bars[i] != null)
 				_totalBars++;
 		}
-		UpdateSessionBarData(0, _random.Next());
 	}
 
 	protected override void OnUpdate()
 	{
-		Log.Info( "OWNER: " + Network.Owner );
-		return;
 		if ( Input.Keyboard.Down( "R" ) )
 		{
 			 ResetPlayerHelper();
@@ -107,42 +111,43 @@ public sealed class GameManager : Component, Component.INetworkListener
 				Log.Error("Failed to start mini game!");
 		}
 
+		if ( _localGameState == LocalGameState.PlayingMinigame && _minigameController.IsPlaying == false )
+		{
+			_localGameState = LocalGameState.Crawling;
+			_LocalDrunkCC.BeerLevel += _minigameController.Beers;
+			UpdateNextBarData();
+			
+			ResetPlayerHelper();
+		}
+
 		if ( Networking.IsHost )
 		{
 			if(_startTime == -1)
 				_startTime = Time.Now;
 			if ( _serverActive )
 				_SecondsUptime = (long)(Time.Now - _startTime);
-			
 			if(_SecondsUptime % (long)60 == 0 && _canUpdateBars )
-				UpdateSessionBarData(_random.Next(0, _totalBars), _random.Next(0, _totalBars));
+				_startingBar = _localRandom.Next(0, _totalBars);
 			if(_SecondsUptime % (long)60 != 0)
 				_canUpdateBars = true;
 		}
-		
 	}
 
 	private bool StartMiniGameHelper( int targetBar )
 	{
-		Log.Info("START MINIGAME");
-		_Bars[targetBar].SitDownPlayer( Network.Owner, _minigameController );
+		_Bars[targetBar].SitDownPlayer( Connection.Local, _minigameController );
 		_minigameController.Begin();
-		Log.Info("FINISH START MINIGAME");
-		
 		
 		return true;
 	}
-
+	
 	/// <summary>
-	/// Setting starting bar and a seed for bars to determine their nextbar.
+	/// Determine their nextbar.
 	/// </summary>
-	[Rpc.Broadcast]
-	private void UpdateSessionBarData(int startingBarIndex, int nextBarSeed)
+	private void UpdateNextBarData()
 	{
 		Log.Info("Updating session bar data");
 		_canUpdateBars = false;
-		_startingBar = startingBarIndex;
-		var rand = new Random(nextBarSeed);
 		for ( int barID = 0; barID < _Bars.Length; barID++)
 		{
 			if(_Bars[barID] == null)
@@ -150,10 +155,10 @@ public sealed class GameManager : Component, Component.INetworkListener
 			
 			int nextBar = barID;
 			while(nextBar == barID && _totalBars > 1)
-				nextBar = rand.Next(0, _totalBars);
+				nextBar = _localRandom.Next(0, _totalBars);
 			
 			if(barID == nextBar)
-				nextBar = rand.Next(0, _totalBars);
+				nextBar = _localRandom.Next(0, _totalBars);
 			_Bars[barID].NextBar = _Bars[nextBar];
 		}
 	}
@@ -174,8 +179,10 @@ public sealed class GameManager : Component, Component.INetworkListener
 		_LocalPlayerRigidbody.AngularVelocity = Vector3.Zero;
 		_LocalPlayerRigidbody.Sleeping = true;
 		_LocalPlayerRigidbody.Sleeping = false;
+		_LocalPlayer.Enabled = true;
 	}
 
+	// todo: how does this work w multiplaeyr???
 	/// <summary>
 	/// 
 	/// </summary>
@@ -190,6 +197,7 @@ public sealed class GameManager : Component, Component.INetworkListener
 		
 		_LocalPlayer = _PlayerPrefab.Clone();
 		_LocalPlayerRigidbody = _LocalPlayer.GetComponent<Rigidbody>();
+		_LocalDrunkCC = _LocalPlayer.GetComponent<DrunkCC>();
 		if(_LocalPlayerRigidbody == null) {
 			Log.Error( "LocalPlayer Rigidbody is null, despite successful spawn!" );
 		}
@@ -197,6 +205,10 @@ public sealed class GameManager : Component, Component.INetworkListener
 		return _LocalPlayer != null;
 	}
 
+	/// <summary>
+	/// Only host receives this, on pc connect
+	/// </summary>
+	/// <param name="connection"></param>
 	void INetworkListener.OnActive( Connection connection )
 	{
 		var spawned = SpawnPlayerHelper();
@@ -209,9 +221,19 @@ public sealed class GameManager : Component, Component.INetworkListener
 
 		_LocalPlayer.GetComponent<DrunkCC>().ConnectionID = connection.Id;
 		_LocalPlayer.Enabled = false;
-		_serverActive = true;
+		InitialClientSetupHelper(_startingBar, connection);
 	}
-	
-	
+
+	[Rpc.Broadcast]
+	private void InitialClientSetupHelper( int seed, Connection connection )
+	{
+		if ( connection == Connection.Local )
+		{
+			Log.Info("IS LOCAL CONNECTION GETTING H CLIENT SETUP HELPER"  );
+			_serverActive = true;
+			_localRandom =  new Random(seed);
+			_startingBar = seed;
+		}
+	}
 }
 

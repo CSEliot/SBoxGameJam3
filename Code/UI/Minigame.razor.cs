@@ -11,7 +11,7 @@
 //
 // Description:
 // Bar mini-game overlay: RENDERING-ONLY half of the Minigame partial class.
-// All game state and simulation logic live in ../Minigame.cs. This file
+// All game state and simulation logic live in ../Minigame.Logic.cs. This file
 // only holds display-formatting values consumed by Minigame.razor markup
 // (percent text, timer text, title punch scale) and the render-tree hash.
 
@@ -25,7 +25,7 @@ public partial class Minigame : PanelComponent
 {
 	// RENDERING-ONLY: formatting/display values consumed by the .razor markup.
 	// Game state (Progress, Beers, _punch, _endsAt) and all simulation logic
-	// live in ../Minigame.cs.
+	// live in ../Minigame.Logic.cs.
 
 	int Percent => (int)MathF.Round( Progress * 100f );
 	int SecondsLeft => Math.Max( 0, (int)MathF.Ceiling( _endsAt.Relative ) );
@@ -33,5 +33,5 @@ public partial class Minigame : PanelComponent
 
 	// Rebuild every frame while a round is running so the bar, percentage, timer and
 	// title punch track their values; idle panel hashes to a constant and stays put.
-	protected override int BuildHash() => IsActive ? HashCode.Combine( IsActive, RealTime.Now ) : HashCode.Combine( IsActive );
+	protected override int BuildHash() => IsPlaying ? HashCode.Combine( IsPlaying, RealTime.Now ) : HashCode.Combine( IsPlaying );
 }

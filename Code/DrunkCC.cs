@@ -24,8 +24,29 @@ public sealed class DrunkCC : Component
 		KnockedDown,
 	}
 	
+	/// <summary>
+	/// Todo: delete if remain unused - ecs
+	/// </summary>
 	[Sync]
 	public Guid ConnectionID { get; set; }
+	
+	/// <summary>
+	/// How many beers the player has in them. No maximum.
+	/// </summary>
+	[Property] public float BeerLevel { get; set; } = 1;
+
+	/// <summary>
+	/// Debug: hard-zero spin and orientation on this axis every tick.
+	/// </summary>
+	[Property] public bool LockPitch { get; set; }
+	/// <summary>
+	/// Debug: hard-zero spin and orientation on this axis every tick.
+	/// </summary>
+	[Property] public bool LockYaw   { get; set; }
+	/// <summary>
+	/// Debug: hard-zero spin and orientation on this axis every tick.
+	/// </summary>
+	[Property] public bool LockRoll  { get; set; }
 	
 	public State CurrentState { get; set; } = State.Running;
 
@@ -96,20 +117,6 @@ public sealed class DrunkCC : Component
 	/// Search radius (units) when snapping the recovery point onto the navmesh.
 	/// </summary>
 	[Property] private float _RecoveryNavSearchRadius { get; set; } = 1024f;
-
-	
-	/// <summary>
-	/// Debug: hard-zero spin and orientation on this axis every tick.
-	/// </summary>
-	[Property] public bool LockPitch { get; set; }
-	/// <summary>
-	/// Debug: hard-zero spin and orientation on this axis every tick.
-	/// </summary>
-	[Property] public bool LockYaw   { get; set; }
-	/// <summary>
-	/// Debug: hard-zero spin and orientation on this axis every tick.
-	/// </summary>
-	[Property] public bool LockRoll  { get; set; }
 	
 	/// <summary>
 	/// Upright spring stiffness: corrective torque per degree of roll beyond _RollResponseFloor.
@@ -149,6 +156,11 @@ public sealed class DrunkCC : Component
 	[Property] private float _YawGain { get; set; } = 1f;
 
 	/// <summary>
+	/// How fast a character goes per beers gained.
+	/// </summary>
+	[Property, MinMax(0, 100)] private float _BeerToSpeedMultiplier { get; set; } = 1.1f;
+	
+	/// <summary>
 	/// Sideways force per unit of lateral velocity. Makes the sphere carve with its heading
 	/// instead of sliding on its old line. 0 = ice.
 	/// </summary>
@@ -184,11 +196,6 @@ public sealed class DrunkCC : Component
 	/// Seconds spent ragdolling after a knockdown before reset.
 	/// </summary>
 	[Property] private float _KnockdownRecoveryTime { get; set; } = 1;
-	
-	/// <summary>
-	/// How many beers the player has in them. No maximum.
-	/// </summary>
-	[Property] private float _BeerLevel { get; set; } = 1;
 	
 	/// <summary>
 	/// The acute angle at which the forward ray cast will trigger a "hasHitObstacle" event.
@@ -302,7 +309,8 @@ public sealed class DrunkCC : Component
 		// Rule 1 / 7: always running, always gaining speed up to the ceiling.
 		if ( _Rigidbody.Velocity.Length < _VelocityCeiling )
 		{
-			_Rigidbody.ApplyForce( _Rigidbody.WorldRotation.Forward * _MaxRunningForce );
+			float beerSpeedMultiplier = (_BeerToSpeedMultiplier + 1) * BeerLevel;
+			_Rigidbody.ApplyForce( _Rigidbody.WorldRotation.Forward * _MaxRunningForce * beerSpeedMultiplier );
 		}
 
 		// Lateral grip: oppose sideways velocity so the heading change from yaw actually turns
@@ -321,7 +329,7 @@ public sealed class DrunkCC : Component
 		if ( Input.Down( "Right" ) )  leanDir += 1f;
 		if ( leanDir != 0f )
 		{
-			float impulse = _LeanImpulse * ( 1f + _BeerLevel * _DrunkLeanScale );
+			float impulse = _LeanImpulse * ( 1f + BeerLevel * _DrunkLeanScale );
 			_Rigidbody.PhysicsBody?.ApplyTorque( _Rigidbody.WorldRotation.Forward * leanDir * impulse );
 		}
 
@@ -377,7 +385,7 @@ public sealed class DrunkCC : Component
 		// Recovery rewinds further back the drunker you are. Pull the sample from
 		// rewindSeconds ago; if history is shorter than that (early game, or beer just spiked),
 		// fall back to the oldest sample we have.
-		float rewindSeconds = _BeerLevel * _SecondsPerBeer;
+		float rewindSeconds = BeerLevel * _SecondsPerBeer;
 		var restore = GetRewoundSample( rewindSeconds );
 
 		_knockdownRestorePosition = restore.Position;
@@ -408,7 +416,7 @@ public sealed class DrunkCC : Component
 		} );
 
 		// Keep buffer sized to the deepest rewind we might need plus headroom.
-		float window = _BeerLevel * _SecondsPerBeer + _RecoveryHistoryHeadroom;
+		float window = BeerLevel * _SecondsPerBeer + _RecoveryHistoryHeadroom;
 		float cutoff = Time.Now - window;
 		int keepFrom = 0;
 		while ( keepFrom < _history.Count - 1 && _history[keepFrom].Time < cutoff )

@@ -18,3 +18,6 @@ X Player prefabs exist in a line. When EnterBar(playerID) (a global call amongst
 when player plays minigame, we spawn Beer at only that BeerSpawnLocation of THAT Drinker/BarCam/BeerSpawnLocation.
 
 
+
+
+Every Minute, the starting seed that is passed to connecting players is changed.

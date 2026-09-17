@@ -1,5 +1,5 @@
 // Project: sboxgamejam3
-// File:    Minigame.cs
+// File:    Minigame.Logic.cs
 // Author:  cseliot
 // Created: 2026.09.15.22.09.46
 //
@@ -38,10 +38,7 @@ public partial class Minigame
 	// (PanelComponent) and rendering-only members are declared in the .razor
 	// and .razor.cs parts of this partial class.
 	
-	/// <summary>Fired when the countdown hits zero. Argument is the number of beers drunk this round.</summary>
-	public Action<float> OnFinished { get; set; }
-
-	public bool IsActive { get; private set; }
+	public bool IsPlaying { get; private set; }
 
 	/// <summary>Current bar fill, 0..1. Resets to 0 each time it reaches 1.</summary>
 	public float Progress { get; private set; }
@@ -88,12 +85,12 @@ public partial class Minigame
 		Beers = 0;
 		_punch = 0f;
 		_endsAt = durationSeconds;
-		IsActive = true;
+		IsPlaying = true;
 	}
 
 	protected override void OnUpdate()
 	{
-		if ( !IsActive )
+		if ( !IsPlaying )
 			return;
 
 		if ( Input.Keyboard.Pressed( "space" ) )
@@ -115,14 +112,13 @@ public partial class Minigame
 
 		if ( _endsAt )
 		{
-			IsActive = false;
-			// OnFinished?.Invoke( Beers );
+			IsPlaying = false;
 		}
 	}
 
 	[Rpc.Broadcast(NetFlags.Unreliable)]
 	public void SpawnABeerHelper()
 	{
-		// _Mug.Clone( _BeerSpawnLocation.WorldPosition, _BeerSpawnLocation.WorldRotation );
+		_Mug.Clone( BeerSpawnLocation );
 	}
 }
