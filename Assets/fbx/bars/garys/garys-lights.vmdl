@@ -6,18 +6,6 @@
 		children = 
 		[
 			{
-				_class = "MaterialGroupList"
-				children = 
-				[
-					{
-						_class = "DefaultMaterialGroup"
-						remaps = [  ]
-						use_global_default = true
-						global_default_material = "bar_2_material.vmat"
-					},
-				]
-			},
-			{
 				_class = "PhysicsShapeList"
 				children = 
 				[
@@ -38,7 +26,7 @@
 				[
 					{
 						_class = "RenderMeshFile"
-						filename = "bar 2.fbx"
+						filename = "fbx/bars/garys/garys-lights.fbx"
 						import_translation = [ 0.0, 0.0, 0.0 ]
 						import_rotation = [ 0.0, 0.0, 0.0 ]
 						import_scale = 1.0
@@ -51,9 +39,23 @@
 							exclude_by_default = true
 							exception_list = 
 							[
-								"Cube_020",
+								"Cube_001",
+								"Cube_002",
+								"Cube_003",
 							]
 						}
+					},
+				]
+			},
+			{
+				_class = "MaterialGroupList"
+				children = 
+				[
+					{
+						_class = "DefaultMaterialGroup"
+						remaps = [  ]
+						use_global_default = true
+						global_default_material = "fbx/bars/garys/garys.vmat"
 					},
 				]
 			},

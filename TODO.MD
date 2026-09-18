@@ -1,4 +1,7 @@
-## Character Controller & Physics
+### Art
+ + Add color to bar glow shader 
+
+### Character Controller & Physics
 
  + upon exit of bar, when spawning player, if spawns inside existing player, those 2 cant collide.
  - - upon exit of bar: Add "noncollidable" tag to exitting character for 2 seconds. cc-body && obstacles can't interact w each other.

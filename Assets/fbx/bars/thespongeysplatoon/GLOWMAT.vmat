@@ -1,0 +1,13 @@
+// THIS FILE IS AUTO-GENERATED
+
+Layer0
+{
+	shader "shaders/bar_glow.shader"
+
+	//---- Emission ----
+	g_flEmissionStrength "3.000"
+	g_vEmissionColor "[1.000000 0.800000 0.301961 0.000000]"
+
+	//---- Fog ----
+	g_bFogEnabled "1"
+}
