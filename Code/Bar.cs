@@ -27,10 +27,12 @@ using Sandbox.UI;
 
 namespace Sandbox;
 
-public sealed class Bar : Component
+public sealed class Bar : Component, Component.ITriggerListener
 {
 
 	public Bar NextBar;
+	public Action<Guid, Bar> NotifyGameManagerOfPlayerTriggerEnter;
+	public Action<Guid> NotifyGameManagerOfPlayerTriggerExit;
 
 	/// <summary>
 	/// Players currently playing the minigame at this bar, by their client id (or whatever sandbox offers).
@@ -38,20 +40,16 @@ public sealed class Bar : Component
 	private List<int> CurrentPlayers = [];
 
 	[Sync, Property, ReadOnly] private int _CurrentPatronCount { get; set; } = 0;
-	
 	/// <summary>
 	/// Unique ID for this bar instance.
 	/// </summary>
 	// [Property, ReadOnly] private int? _ID { get; set; } //todo: BARS NO LONGER TRACK THEIR IDs??? -ecs
 	[Property, ReadOnly] private string _activeModule { get; set; } = "";
-	private GameManager _gameManager = null;
-	
-	private readonly List<BarModule> _barModules = [];
 	[Property] private GameObject[] _Drinkers { get; set; }
-	
+	[Property] public GameObject PlayerSpawnLocation { get; private set; }
+	private GameManager _gameManager = null;
+	private readonly List<BarModule> _barModules = [];
 	private Dictionary<Guid, int> _connectionToPatronIndex =  new();
-	
-	
 	
 	protected override void OnStart()
 	{
@@ -79,6 +77,7 @@ public sealed class Bar : Component
 	[Rpc.Broadcast]
 	public void SitDownPlayer( Connection playerConnection, Minigame minigame )
 	{
+		Log.Info( "SITTING DOWN: " + playerConnection.Id );
 		_CurrentPatronCount++;
 		
 		// Get next available drinker
@@ -105,8 +104,11 @@ public sealed class Bar : Component
 
 		availableDrinker.Enabled = true;
 		_connectionToPatronIndex.Add( playerConnection.Id, drinkerIndex );
-		
-		Log.Info( "SITTING DOWN" );
+
+		// Dress the drinker in the sitting player's account clothing. Runs on every client
+		// since this whole method is [Rpc.Broadcast]. Drinkers aren't tied to one player, so
+		// this gets undone again in SitUpPlayer.
+		DressDrinkerHelper( availableDrinker, playerConnection );
 		
 		if ( IsProxy == false)
 		{
@@ -117,13 +119,17 @@ public sealed class Bar : Component
 	}
 	
 	[Rpc.Broadcast]
-	public void ExitPlayer( Connection playerConnection )
+	public void SitUpPlayer( Connection playerConnection )
 	{
 		_CurrentPatronCount--;
 		
 		// Get next available drinker
-		int exitingDrinkerIndex = _connectionToPatronIndex[playerConnection.Id];
-		GameObject exitingDrinker = _Drinkers[exitingDrinkerIndex];
+		if ( _connectionToPatronIndex.TryGetValue( playerConnection.Id, out int exitingDrinkerIndex ) == false )
+		{
+			Log.Warning( "SitUpPlayer called for a connection that isn't seated at this bar; ignoring." );
+			return;
+		}
+		var exitingDrinker = _Drinkers[exitingDrinkerIndex];
 
 		if ( exitingDrinker == null )
 		{
@@ -134,12 +140,74 @@ public sealed class Bar : Component
 		var drinkerCam = exitingDrinker.GetTagInChildren( "barcam" ).First();
 
 		_connectionToPatronIndex.Remove( playerConnection.Id );
+
+		// Undo the account clothing applied in SitDownPlayer so the drinker goes back to
+		// its own default outfit before it's handed to the next player.
+		UndressDrinkerHelper( exitingDrinker );
 		
 		if ( IsProxy == false)
 		{
-			drinkerCam.Enabled = true;
+			drinkerCam.Enabled = false;
 		}
-		exitingDrinker.Enabled = true;
+		exitingDrinker.Enabled = false;
+	}
+
+	/// <summary>
+	/// Applies the sitting player's account clothing (Steam avatar) to a drinker's Dresser.
+	/// Note: RemoveUnownedItems(Connection) only actually filters unowned items when called
+	/// by the host or for the local connection (see ClothingContainer.cs) - on non-host clients
+	/// receiving this broadcast for a remote player, the ownership filter silently no-ops and
+	/// the outfit renders unfiltered. Accepted as a cosmetic-only limitation for this NPC.
+	/// </summary>
+	private async void DressDrinkerHelper( GameObject drinker, Connection playerConnection )
+	{
+		var dresser = drinker.GetComponent<Dresser>();
+		if ( dresser is null || !dresser.BodyTarget.IsValid() )
+		{
+			Log.Error( "Drinker has no valid Dresser/BodyTarget, cannot apply account clothing." );
+			return;
+		}
+
+		var clothing = ClothingContainer.CreateFromConnection( playerConnection );
+		await clothing.ApplyAsync( dresser.BodyTarget, default );
+	}
+
+	/// <summary>
+	/// Reverts a drinker's Dresser back to its own manually-configured outfit.
+	/// Fire-and-forget: not sequenced against DressDrinkerHelper's ApplyAsync, so a very fast
+	/// re-seat of the same drinker slot could theoretically race with an in-flight revert.
+	/// Not observed in practice since the drinker's own manual clothing list has no pending
+	/// downloads, but would need proper sequencing (e.g. via Dresser.IsDressing) if that changes.
+	/// </summary>
+	private void UndressDrinkerHelper( GameObject drinker )
+	{
+		var dresser = drinker.GetComponent<Dresser>();
+		if ( dresser is null || !dresser.BodyTarget.IsValid() )
+		{
+			Log.Error( "Drinker has no valid Dresser/BodyTarget, cannot revert clothing." );
+			return;
+		}
+
+		_ = dresser.Apply();
+	}
+
+	public void OnTriggerExit( Collider other )
+	{
+		if(other.GameObject.Network.IsOwner)
+		{
+			NotifyGameManagerOfPlayerTriggerExit?.Invoke(other.GameObject.Network.OwnerId);
+			Log.Info("COLLIDdER EXIT: " + other.GameObject.Name + "Tags: " + other.GameObject.Tags);
+		}
+
+	}
+
+	public void OnTriggerEnter( Collider other )
+	{
+		if(other.GameObject.Network.IsOwner)
+		{
+			NotifyGameManagerOfPlayerTriggerEnter?.Invoke(other.GameObject.Network.OwnerId, this);
+			Log.Info("COLLIDER Enter: " + other.GameObject.Name + "Tags: " + other.GameObject.Tags);
+		}
 	}
 
 }

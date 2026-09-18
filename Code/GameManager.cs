@@ -31,7 +31,7 @@ public sealed class GameManager : Component, Component.INetworkListener
 {
 	public enum LocalGameState
 	{
-		Crawling,
+		PubCrawling,
 		WaitingToStartMinigame,
 		PlayingMinigame,
 	}
@@ -40,8 +40,8 @@ public sealed class GameManager : Component, Component.INetworkListener
 	
 	[Property] private bool _ImmediatelySpawnRunner { get; set; } = false;
 	[Property] private GameObject _PlayerPrefab { get; set; }
-	[Property] private GameObject _SpawnLocation { get; set; }
-	[Property] private GameObject _MinigameLocation { get; set; }
+	[Property] private GameObject _DefaultSpawnLocation { get; set; }
+	[Property] private GameObject _CCCamera { get; set; }
 	[Sync, Property, ReadOnly] private long _SecondsUptime { get; set; }
 	private bool _canUpdateBars = false;
 	private GameObject _LocalPlayer { get; set; }
@@ -49,6 +49,12 @@ public sealed class GameManager : Component, Component.INetworkListener
 	private bool _SpawnPlayerHelperCalled { get; set; }
 	private Rigidbody _LocalPlayerRigidbody { get; set; }
 	private LocalGameState _localGameState = LocalGameState.WaitingToStartMinigame;
+	/// <summary>
+	/// Gate so a finished minigame can't immediately restart: the player must
+	/// physically leave the bar trigger before another minigame can begin.
+	/// Cleared when a minigame ends, re-armed on bar trigger exit.
+	/// </summary>
+	private bool _canStartMinigameAtBar = true;
 	/// <summary>
 	/// Where the bar index in the array is its ID.
 	/// </summary>
@@ -91,8 +97,12 @@ public sealed class GameManager : Component, Component.INetworkListener
 		_startTime = Time.Now;
 		for ( int i = 0; i < _Bars.Length; i++ )
 		{
-			if(_Bars[i] != null)
+			if ( _Bars[i] != null )
+			{
 				_totalBars++;
+				_Bars[i].NotifyGameManagerOfPlayerTriggerEnter += HandlePlayerBarTriggerEnter;
+				_Bars[i].NotifyGameManagerOfPlayerTriggerExit += HandlePlayerBarTriggerExit;
+			}
 		}
 	}
 
@@ -103,21 +113,26 @@ public sealed class GameManager : Component, Component.INetworkListener
 			 ResetPlayerHelper();
 		}
 
+		if ( _localGameState == LocalGameState.PlayingMinigame && _minigameController.IsPlaying == false )
+		{
+			if ( EndMiniGameHelper( _targetBarWaiting ) )
+			{	
+				_localGameState = LocalGameState.PubCrawling;
+				_canStartMinigameAtBar = false;
+				ResetPlayerHelper(_Bars[_targetBarWaiting].PlayerSpawnLocation);
+			}
+			else
+			{
+				Log.Error("Failed to end mini game!");
+			}
+		}
+		
 		if ( _localGameState == LocalGameState.WaitingToStartMinigame )
 		{
 			if(StartMiniGameHelper(_targetBarWaiting))
 				_localGameState = LocalGameState.PlayingMinigame;
 			else
 				Log.Error("Failed to start mini game!");
-		}
-
-		if ( _localGameState == LocalGameState.PlayingMinigame && _minigameController.IsPlaying == false )
-		{
-			_localGameState = LocalGameState.Crawling;
-			_LocalDrunkCC.BeerLevel += _minigameController.Beers;
-			UpdateNextBarData();
-			
-			ResetPlayerHelper();
 		}
 
 		if ( Networking.IsHost )
@@ -135,11 +150,23 @@ public sealed class GameManager : Component, Component.INetworkListener
 
 	private bool StartMiniGameHelper( int targetBar )
 	{
+		Log.Info("Starting mini game");
 		_Bars[targetBar].SitDownPlayer( Connection.Local, _minigameController );
 		_minigameController.Begin();
-		
+		_CCCamera.Enabled = false;
 		return true;
 	}
+
+	private bool EndMiniGameHelper( int targetBar )
+	{
+		_Bars[targetBar].SitUpPlayer( Connection.Local);
+		_LocalDrunkCC.BeerLevel += _minigameController.Beers;
+		_CCCamera.Enabled = true;
+		UpdateNextBarData();
+		// _minigameController.End(); - mingame ends itself, itself. -ecs
+		return true;
+	}
+
 	
 	/// <summary>
 	/// Determine their nextbar.
@@ -166,15 +193,17 @@ public sealed class GameManager : Component, Component.INetworkListener
 	/// <summary>
 	/// Resets all physics incoming and outgoing relative to Player and also 
 	/// </summary>
-	private void ResetPlayerHelper()
+	private void ResetPlayerHelper(GameObject spawnLocation = null)
 	{
+		spawnLocation ??= _DefaultSpawnLocation;
+		
 		if ( _LocalPlayerRigidbody == null )
 		{
 			Log.Error( "LocalPlayer Rigidbody is null in ResetPlayerHelper(), called too early or ref lost!" );
 			return;
 		}
-		_LocalPlayer.WorldPosition = _SpawnLocation.WorldPosition;
-		_LocalPlayer.WorldRotation = _SpawnLocation.WorldRotation;
+		_LocalPlayer.WorldPosition = spawnLocation.WorldPosition;
+		_LocalPlayer.WorldRotation = spawnLocation.WorldRotation;
 		_LocalPlayerRigidbody.Velocity = Vector3.Zero;
 		_LocalPlayerRigidbody.AngularVelocity = Vector3.Zero;
 		_LocalPlayerRigidbody.Sleeping = true;
@@ -234,6 +263,32 @@ public sealed class GameManager : Component, Component.INetworkListener
 			_localRandom =  new Random(seed);
 			_startingBar = seed;
 		}
+	}
+
+	private void HandlePlayerBarTriggerEnter( Guid playerID, Bar enteredBar )
+	{
+		// Only begin a mini-game from the overworld. Ignoring triggers while
+		// already waiting/playing prevents mid-round retarget (which would
+		// re-seat a second drinker and crash SitUpPlayer on the wrong bar),
+		// and the gate stops the post-round respawn-inside-trigger re-loop.
+		if ( _localGameState != LocalGameState.PubCrawling )
+			return;
+		if ( !_canStartMinigameAtBar )
+			return;
+
+		int barIndex = Array.IndexOf( _Bars, enteredBar );
+		if ( barIndex < 0 )
+		{
+			Log.Error( "Entered bar not found in _Bars!" );
+			return;
+		}
+		_targetBarWaiting = barIndex;
+		_localGameState = LocalGameState.WaitingToStartMinigame;
+	}
+	
+	private void HandlePlayerBarTriggerExit( Guid playerID )
+	{
+		_canStartMinigameAtBar = true;
 	}
 }
 

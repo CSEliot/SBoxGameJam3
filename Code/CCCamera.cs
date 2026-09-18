@@ -110,12 +110,14 @@ public sealed class CCCamera : Component
 		if ( (TryResolveGetTargetHelper() && TryResolveGetDrunkHelper()) == false)
 			return;
 
-		var targetPosition = _Target.WorldPosition + _Offset;
+		var followTarget = GetFollowTargetHelper();
+
+		var targetPosition = followTarget.WorldPosition + _Offset;
 		WorldPosition = Vector3.Lerp( WorldPosition, targetPosition, _FollowSpeed * Time.Delta );
 
 		if ( _LookAtTarget )
 		{
-			var lookRotation = Rotation.LookAt( _Target.WorldPosition - WorldPosition );
+			var lookRotation = Rotation.LookAt( followTarget.WorldPosition - WorldPosition );
 			WorldRotation = Rotation.Lerp( WorldRotation, lookRotation, _LookAtSpeed * Time.Delta );
 		}
 		
@@ -133,20 +135,33 @@ public sealed class CCCamera : Component
 		}
 
 		if(_drunkCC.CurrentState == DrunkCC.State.Running)
-			EnforceBehindCap();
+			EnforceBehindCap( followTarget );
 		
-		EnforceMinDistance();
+		EnforceMinDistance( followTarget );
+	}
+
+	/// <summary>
+	/// Picks which GameObject to actually follow this frame. Normally _Target itself, but while
+	/// the local DrunkCC is KnockedDown (ragdolling) _Target's own transform can flail around with
+	/// the ragdoll, so we temporarily follow _Target's parent instead for a steadier camera.
+	/// </summary>
+	private GameObject GetFollowTargetHelper()
+	{
+		if ( _drunkCC.CurrentState == DrunkCC.State.KnockedDown && _Target.Parent.IsValid() )
+			return _Target.Parent;
+
+		return _Target;
 	}
 
 	/// <summary>
 	/// Pushes the camera back out to _MinDistance if it has drifted closer than that to the target.
 	/// Direction from the target is preserved, only the distance is corrected.
 	/// </summary>
-	private void EnforceMinDistance()
+	private void EnforceMinDistance( GameObject target )
 	{
 		if ( _MinDistance <= 0f ) return;
 
-		var currentOffset = WorldPosition - _Target.WorldPosition;
+		var currentOffset = WorldPosition - target.WorldPosition;
 		var distance = currentOffset.Length;
 
 		if ( distance >= _MinDistance ) return;
@@ -154,27 +169,27 @@ public sealed class CCCamera : Component
 		// Degenerate case: camera sitting on top of the target gives no usable direction,
 		// so fall back to placing it directly behind.
 		var direction = distance < 0.0001f
-			? -_Target.WorldRotation.Forward
+			? -target.WorldRotation.Forward
 			: currentOffset.Normal;
 
-		WorldPosition = _Target.WorldPosition + direction * _MinDistance;
+		WorldPosition = target.WorldPosition + direction * _MinDistance;
 	}
 
 	/// <summary>
 	/// Constrains the camera to stay within an angular cone behind the target.
 	/// _BehindCap is 0-1 where 0 = locked perfectly behind, 1 = no constraint.
 	/// </summary>
-	private void EnforceBehindCap()
+	private void EnforceBehindCap( GameObject target )
 	{
 		if ( _BehindCap >= 1f ) return;
 
-		var currentOffset = WorldPosition - _Target.WorldPosition;
+		var currentOffset = WorldPosition - target.WorldPosition;
 		if ( currentOffset.LengthSquared < 0.0001f ) return;
 
 		var distance = currentOffset.Length;
-		var forwardDir = _Target.WorldRotation.Forward;
-		var idealBehindPos = _Target.WorldPosition - forwardDir * distance;
-		var idealOffset = idealBehindPos - _Target.WorldPosition;
+		var forwardDir = target.WorldRotation.Forward;
+		var idealBehindPos = target.WorldPosition - forwardDir * distance;
+		var idealOffset = idealBehindPos - target.WorldPosition;
 
 		// Check angle between current position and ideal behind
 		var dot = Vector3.Dot( currentOffset.Normal, idealOffset.Normal ).Clamp( -1f, 1f );
@@ -188,7 +203,7 @@ public sealed class CCCamera : Component
 		var correctedDir = Vector3.Slerp( currentOffset.Normal, idealOffset.Normal, correctionFactor );
 		var correctedOffset = correctedDir * distance;
 
-		WorldPosition = _Target.WorldPosition + correctedOffset;
+		WorldPosition = target.WorldPosition + correctedOffset;
 	}
 
 	/// <summary>

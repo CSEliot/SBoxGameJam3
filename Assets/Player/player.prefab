@@ -81,7 +81,7 @@
         "__guid": "36b954c9-53ed-4a23-8947-9e8f035f61a0",
         "__enabled": true,
         "Flags": 0,
-        "_BeerLevel": 0,
+        "_BeerToSpeedMultiplier": 1.1,
         "_CitizenAnimationHelper": {
           "_type": "component",
           "component_id": "0600e1f6-7303-864c-a2f5-aca1beb26385",
@@ -128,6 +128,7 @@
         "_VelocityCeiling": 500,
         "_WillCollideApproachAngle": 0,
         "_YawGain": 10,
+        "BeerLevel": 1,
         "LockPitch": true,
         "LockRoll": false,
         "LockYaw": false,
@@ -3983,7 +3984,7 @@
             ]
           },
           {
-            "__guid": "898d8e05-9292-46d9-a3af-f996ec75b240",
+            "__guid": "6268e7b2-78d4-4ed7-be30-428391cc54ac",
             "__version": 2,
             "Flags": 0,
             "Name": "Clothing - baseball_cap",
@@ -4000,7 +4001,7 @@
             "Components": [
               {
                 "__type": "Sandbox.SkinnedModelRenderer",
-                "__guid": "70f92f83-9648-4590-b280-fbb12d77a5e9",
+                "__guid": "7f16556f-530d-40b1-95fc-1918aa1d541a",
                 "__enabled": true,
                 "Flags": 0,
                 "AnimationGraph": null,
@@ -4052,7 +4053,7 @@
             "Children": []
           },
           {
-            "__guid": "634ee37d-5548-48fc-a240-8a98e2efaef3",
+            "__guid": "b3bcba8e-4102-4904-968f-78fc7511d757",
             "__version": 2,
             "Flags": 0,
             "Name": "Clothing - trackie_bottoms_black",
@@ -4069,7 +4070,7 @@
             "Components": [
               {
                 "__type": "Sandbox.SkinnedModelRenderer",
-                "__guid": "f34d42ac-ea66-4e1c-968a-36d634fe319b",
+                "__guid": "75f3c380-4fc3-4d6f-8241-cee04255d131",
                 "__enabled": true,
                 "Flags": 0,
                 "AnimationGraph": null,
@@ -4121,7 +4122,7 @@
             "Children": []
           },
           {
-            "__guid": "abb6aaf5-45e6-4872-bda3-38d63ab3a842",
+            "__guid": "6aeba94c-a313-4d3d-a43b-903197540d63",
             "__version": 2,
             "Flags": 0,
             "Name": "Clothing - hawaiian shirt",
@@ -4138,7 +4139,7 @@
             "Components": [
               {
                 "__type": "Sandbox.SkinnedModelRenderer",
-                "__guid": "e573e1d6-e6cd-4bf7-9416-2c225d42bd91",
+                "__guid": "524d42b6-06d6-412a-b371-6d4d01249233",
                 "__enabled": true,
                 "Flags": 0,
                 "AnimationGraph": null,
@@ -4190,7 +4191,7 @@
             "Children": []
           },
           {
-            "__guid": "315ddac7-b748-4ead-9ce6-70e38c728419",
+            "__guid": "a41d9870-e256-4f9b-bf48-2890a63285a5",
             "__version": 2,
             "Flags": 0,
             "Name": "Clothing - sneakers",
@@ -4207,7 +4208,7 @@
             "Components": [
               {
                 "__type": "Sandbox.SkinnedModelRenderer",
-                "__guid": "bc6b36c0-aa0b-41d2-90f1-71f85ab359de",
+                "__guid": "d220d486-de9b-46e6-af8b-d6be3327749f",
                 "__enabled": true,
                 "Flags": 0,
                 "AnimationGraph": null,
@@ -4259,7 +4260,7 @@
             "Children": []
           },
           {
-            "__guid": "51bdf302-3edd-4b50-9fe6-696802ac2d69",
+            "__guid": "fb8ed0ce-168e-4864-910a-1aa96b4f9c5e",
             "__version": 2,
             "Flags": 0,
             "Name": "Clothing - biker_jacket",
@@ -4276,7 +4277,7 @@
             "Components": [
               {
                 "__type": "Sandbox.SkinnedModelRenderer",
-                "__guid": "403d3bee-3f07-4a90-8226-c48d356338fc",
+                "__guid": "b84eb2d2-abdf-4f55-ae4b-99e5a9ffd144",
                 "__enabled": true,
                 "Flags": 0,
                 "AnimationGraph": null,
@@ -4328,7 +4329,7 @@
             "Children": []
           },
           {
-            "__guid": "835d5cce-1a9f-4b23-9976-d7556da261e7",
+            "__guid": "34a1847c-1510-4cd1-ac37-f87a26fc2d42",
             "__version": 2,
             "Flags": 0,
             "Name": "Clothing - nerdy_glasses",
@@ -4345,7 +4346,7 @@
             "Components": [
               {
                 "__type": "Sandbox.SkinnedModelRenderer",
-                "__guid": "0397f8ef-f129-4e6b-aba9-8a0454e478f8",
+                "__guid": "fe69f381-a33c-4bdb-bee4-927117ab80a6",
                 "__enabled": true,
                 "Flags": 0,
                 "AnimationGraph": null,
@@ -4403,7 +4404,7 @@
         "__version": 2,
         "Flags": 0,
         "Name": "FOLLOW_ME",
-        "Position": "0,0,91.8788986",
+        "Position": "-68.4869766,0,91.8788986",
         "Rotation": "0,0,0,1",
         "Scale": "0.276001751,0.276001751,0.276001751",
         "Tags": "follow-target",
