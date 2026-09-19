@@ -42,6 +42,7 @@ public sealed class GameManager : Component, Component.INetworkListener
 	[Property] private GameObject _PlayerPrefab { get; set; }
 	[Property] private GameObject _DefaultSpawnLocation { get; set; }
 	[Property] private GameObject _CCCamera { get; set; }
+	[Property] private GameObject _MiniGamePanel { get; set; }
 	[Sync, Property, ReadOnly] private long _SecondsUptime { get; set; }
 	private bool _canUpdateBars = false;
 	private GameObject _LocalPlayer { get; set; }
@@ -76,7 +77,7 @@ public sealed class GameManager : Component, Component.INetworkListener
 	protected override void OnStart()
 	{
 		_targetBarWaiting = _startingBar;
-		_minigameController = GetComponent<Minigame>();
+		_minigameController = _MiniGamePanel.GetComponent<Minigame>();
 		if ( _ImmediatelySpawnRunner && SpawnPlayerHelper() )
 		{
 			if( _LocalPlayer == null )
@@ -322,9 +323,6 @@ public sealed class GameManager : Component, Component.INetworkListener
 			return;
 		}
 
-		if ( !_LocalPlayer.IsLocalPlayer )
-			return;
-
 		var arrowObject = new GameObject( _LocalPlayer, true, "bar_arrow_indicator" );
 		_LocalArrowIndicator = arrowObject.AddComponent<BarArrowIndicator>();
 	}
@@ -337,7 +335,7 @@ public sealed class GameManager : Component, Component.INetworkListener
 	{
 		var spawned = SpawnPlayerHelper();
 		if(spawned)
-			_LocalPlayer.NetworkSpawn( connection );
+			_LocalPlayer.NetworkSpawn( connection ); //todo: ASAP - is "network spawn" not to be done w .Clone??
 		else
 		{
 			Log.Error( "Failed to spawn net player" );
