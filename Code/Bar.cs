@@ -121,8 +121,6 @@ public sealed class Bar : Component, Component.ITriggerListener
 	[Rpc.Broadcast]
 	public void SitUpPlayer( Connection playerConnection )
 	{
-		_CurrentPatronCount--;
-		
 		// Get next available drinker
 		if ( _connectionToPatronIndex.TryGetValue( playerConnection.Id, out int exitingDrinkerIndex ) == false )
 		{
@@ -136,6 +134,9 @@ public sealed class Bar : Component, Component.ITriggerListener
 			Log.Error( "Exiting Drinker not found! Guid issue?" );
 			return;
 		}
+
+		// Only decrement once we know this connection really held a seat here.
+		_CurrentPatronCount--;
 		
 		var drinkerCam = exitingDrinker.GetTagInChildren( "barcam" ).First();
 
