@@ -22,6 +22,8 @@
 // arising from, out of, or in connection with the software or the use or
 // other dealings in the software.
 
+using System.Threading.Tasks;
+
 namespace Sandbox;
 
 public static class Extensions
@@ -93,5 +95,48 @@ public static class Extensions
 				children.Add(child);
 		}
 		return children.ToArray();
+	}
+
+	/// <summary>
+	/// Applies only the Clothing list from an account's ClothingContainer to this Dresser's
+	/// BodyTarget - Height, Age and Tint are overwritten with the Dresser's own preset
+	/// (Manual*) values first, so an account's appearance data never overrides a character's
+	/// designed look (e.g. a drinker NPC or the player body's baked height/age/tint). Height
+	/// is neutralized to 1 when ApplyHeightScale is off, matching Dresser.Apply()'s own
+	/// convention for "don't scale this body at all".
+	///
+	/// Only meaningful when dresser.Source == Manual: that's the only mode where ManualHeight/
+	/// ManualAge/ManualTint are fixed author-set presets rather than a readback of whatever the
+	/// last-applied ClothingContainer (LocalUser/OwnerConnection - i.e. a real account's own
+	/// data) produced. Called on a non-Manual Dresser this would feed a real account's
+	/// height/age/tint back in as the "preset", silently defeating the whole point.
+	///
+	/// Also cancels any in-flight/queued dressing on this Dresser first. Dresser.OnAwake() fires
+	/// its own fire-and-forget Apply() on every non-proxy Dresser the moment the GameObject is
+	/// created (e.g. immediately on Clone(), before a caller gets a chance to call this), and
+	/// both paths call ClothingContainer.ApplyAsync on the SAME BodyTarget (Reset + recreate
+	/// clothing children) with no other coordination - unsequenced, last-to-finish wins.
+	/// </summary>
+	public static async Task ApplyClothingOnlyAsync( this Dresser dresser, ClothingContainer accountClothing )
+	{
+		if ( dresser is null || accountClothing is null || !dresser.BodyTarget.IsValid() )
+			return;
+
+		if ( dresser.Source != Dresser.ClothingSource.Manual )
+		{
+			Log.Warning( $"ApplyClothingOnlyAsync called on a Dresser with Source={dresser.Source}, not Manual - " +
+				"Height/Age/Tint presets aren't fixed in that mode, refusing to apply." );
+			return;
+		}
+
+		// Cancel Dresser's own OnAwake auto-apply (or any other in-flight Apply()) so it can't
+		// race with the ApplyAsync below on the same BodyTarget.
+		dresser.CancelDressing();
+
+		accountClothing.Height = dresser.ApplyHeightScale ? dresser.ManualHeight : 1f;
+		accountClothing.Age = dresser.ManualAge;
+		accountClothing.Tint = dresser.ManualTint;
+
+		await accountClothing.ApplyAsync( dresser.BodyTarget, default );
 	}
 }

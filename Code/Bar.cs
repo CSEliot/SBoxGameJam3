@@ -154,7 +154,9 @@ public sealed class Bar : Component, Component.ITriggerListener
 	}
 
 	/// <summary>
-	/// Applies the sitting player's account clothing (Steam avatar) to a drinker's Dresser.
+	/// Applies the sitting player's account clothing (Steam avatar) to a drinker's Dresser,
+	/// leaving the drinker's own preset Height/Age/Tint untouched (see
+	/// Extensions.ApplyClothingOnlyAsync - only the Clothing list comes from the account).
 	/// Note: RemoveUnownedItems(Connection) only actually filters unowned items when called
 	/// by the host or for the local connection (see ClothingContainer.cs) - on non-host clients
 	/// receiving this broadcast for a remote player, the ownership filter silently no-ops and
@@ -170,7 +172,7 @@ public sealed class Bar : Component, Component.ITriggerListener
 		}
 
 		var clothing = ClothingContainer.CreateFromConnection( playerConnection );
-		await clothing.ApplyAsync( dresser.BodyTarget, default );
+		await dresser.ApplyClothingOnlyAsync( clothing );
 	}
 
 	/// <summary>

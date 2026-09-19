@@ -118,3 +118,7 @@
 
 - [ ] Ensure the final Score Cash-in and Item Pickups are validated on the server to prevent cheating.
 - [ ] Mini-game results should be sent from Client to Server via RPC for validation before adding time.
+
+## Known Limitations
+
++ Extensions.ApplyClothingOnlyAsync (account clothing on players/drinkers) mitigates the race with Dresser's own OnAwake auto-Apply() via CancelDressing(), but that only cancels the token-checked/not-yet-started portion. Dresser.Apply()'s synchronous work (Reset + garment recreation) can't be interrupted once started - a true fix needs an IsDressing/generation-counter guard added at the Dresser level itself, which is out of scope for a project-side extension method.

@@ -250,7 +250,30 @@ public sealed class GameManager : Component, Component.INetworkListener
 
 		_LocalPlayer.GetComponent<DrunkCC>().ConnectionID = connection.Id;
 		_LocalPlayer.Enabled = false;
+		DressPlayerHelper( _LocalPlayer, connection );
 		InitialClientSetupHelper(_startingBar, connection);
+	}
+
+	/// <summary>
+	/// Applies the owning player's account clothing (Steam avatar) to their own player body's
+	/// Dresser. [Rpc.Broadcast] so every currently-connected client sees the same outfit on that
+	/// player, mirroring the drinker-dressing pattern in Bar.cs's DressDrinkerHelper. Only the
+	/// Clothing list comes from the account - Height/Age/Tint stay whatever the player prefab's
+	/// Dresser was preset to (see Extensions.ApplyClothingOnlyAsync), so every player keeps the
+	/// same body proportions regardless of their account avatar.
+	/// </summary>
+	[Rpc.Broadcast]
+	private async void DressPlayerHelper( GameObject player, Connection playerConnection )
+	{
+		var dresser = player.GetComponentInChildren<Dresser>( true );
+		if ( dresser is null || !dresser.BodyTarget.IsValid() )
+		{
+			Log.Error( "Player has no valid Dresser/BodyTarget, cannot apply account clothing." );
+			return;
+		}
+
+		var clothing = ClothingContainer.CreateFromConnection( playerConnection );
+		await dresser.ApplyClothingOnlyAsync( clothing );
 	}
 
 	[Rpc.Broadcast]
