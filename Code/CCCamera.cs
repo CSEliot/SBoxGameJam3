@@ -81,11 +81,26 @@ public sealed class CCCamera : Component
 	[Property] private Vector3 _Offset { get; set; }
 
 	/// <summary>
-	/// How far the camera is allowed to drift angularly from directly behind the target.
+	/// The behind-cap's resting/ceiling value: how far the camera is allowed to drift angularly
+	/// from directly behind the target before any squeeze has kicked in.
 	/// 0 = locked perfectly behind (0 radians). 1 = up to PI radians (no real constraint).
-	/// Typical values: 0.15 (~27 deg) to 0.5 (~90 deg).
+	/// Typical values: 0.15 (~27 deg) to 0.5 (~90 deg). The actual cap enforced each frame
+	/// (_currentBehindCap) starts here and can only shrink from it via the squeeze below.
 	/// </summary>
-	[Property, MinMax(0f, 1f)] private float _BehindCap { get; set; } = 0.25f;
+	[Property, MinMax(0f, 1f)] private float _MaxDefaultBehindCap { get; set; } = 0.25f;
+
+	/// <summary>
+	/// Seconds the camera is allowed to sit off dead-center before the behind-cap starts
+	/// squeezing back in. Resets whenever the camera actually reaches dead-center.
+	/// </summary>
+	[Property] private float _ReturnToCenterSpeed { get; set; } = 1.5f;
+
+	/// <summary>
+	/// Once squeezing has started (see _ReturnToCenterSpeed), how fast the effective behind-cap
+	/// shrinks toward 0, in cap-units (0-1) per second. This is what actually forces the camera
+	/// back toward dead-center over time, independent of _MaxDefaultBehindCap.
+	/// </summary>
+	[Property] private float _BehindCapSqueezeSpeed { get; set; } = 0.15f;
 
 	/// <summary>
 	/// Closest the camera is allowed to get to the target, in units.
@@ -95,6 +110,20 @@ public sealed class CCCamera : Component
 	[Property] private float _MinDistance { get; set; } = 150f;
 
 	private float _startJerkTime;
+
+	/// <summary>
+	/// How long (seconds) the camera has continuously sat off dead-center. Reset to 0 whenever
+	/// the camera reaches dead-center; once it exceeds _ReturnToCenterSpeed the behind-cap starts
+	/// squeezing (see _currentBehindCap).
+	/// </summary>
+	private float _timeOffCenter;
+
+	/// <summary>
+	/// The behind-cap actually enforced this frame. Starts at/resets to _MaxDefaultBehindCap and
+	/// shrinks toward 0 at _BehindCapSqueezeSpeed once _timeOffCenter exceeds _ReturnToCenterSpeed.
+	/// </summary>
+	private float _currentBehindCap;
+
 	/// <summary>
 	/// Manual target override. If unset, the local (non-proxy) DrunkCC in the scene is used.
 	/// </summary>
@@ -102,7 +131,7 @@ public sealed class CCCamera : Component
 
 	protected override void OnStart()
 	{
-		
+		_currentBehindCap = _MaxDefaultBehindCap;
 	}
 
 	protected override void OnUpdate()
@@ -135,7 +164,10 @@ public sealed class CCCamera : Component
 		}
 
 		if(_drunkCC.CurrentState == DrunkCC.State.Running)
+		{
+			UpdateBehindCapSqueezeHelper( followTarget );
 			EnforceBehindCap( followTarget );
+		}
 		
 		EnforceMinDistance( followTarget );
 	}
@@ -176,12 +208,46 @@ public sealed class CCCamera : Component
 	}
 
 	/// <summary>
+	/// Tracks how long the camera has sat off dead-center behind the target and, once that
+	/// exceeds _ReturnToCenterSpeed seconds, starts squeezing _currentBehindCap down toward 0 at
+	/// _BehindCapSqueezeSpeed. EnforceBehindCap then has less and less room to work with, which is
+	/// what actually forces the camera back to dead-center over time regardless of _MaxDefaultBehindCap
+	/// or continued jerk input. Reaching dead-center resets both the timer and the cap back to
+	/// _MaxDefaultBehindCap.
+	/// </summary>
+	private void UpdateBehindCapSqueezeHelper( GameObject target )
+	{
+		var currentOffset = WorldPosition - target.WorldPosition;
+		var forwardDir = target.WorldRotation.Forward;
+
+		var dot = currentOffset.LengthSquared < 0.0001f
+			? 1f
+			: Vector3.Dot( currentOffset.Normal, -forwardDir ).Clamp( -1f, 1f );
+		var angle = MathF.Acos( dot );
+
+		// Dead-center (or degenerate zero-offset case): relax back to the default cap.
+		if ( angle <= 0.001f )
+		{
+			_timeOffCenter = 0f;
+			_currentBehindCap = _MaxDefaultBehindCap;
+			return;
+		}
+
+		_timeOffCenter += Time.Delta;
+
+		if ( _timeOffCenter < _ReturnToCenterSpeed ) return;
+
+		_currentBehindCap = MathF.Max( 0f, _currentBehindCap - _BehindCapSqueezeSpeed * Time.Delta );
+	}
+
+	/// <summary>
 	/// Constrains the camera to stay within an angular cone behind the target.
-	/// _BehindCap is 0-1 where 0 = locked perfectly behind, 1 = no constraint.
+	/// _currentBehindCap is 0-1 where 0 = locked perfectly behind, 1 = no constraint; it starts
+	/// at _MaxDefaultBehindCap and is squeezed down over time by UpdateBehindCapSqueezeHelper.
 	/// </summary>
 	private void EnforceBehindCap( GameObject target )
 	{
-		if ( _BehindCap >= 1f ) return;
+		if ( _currentBehindCap >= 1f ) return;
 
 		var currentOffset = WorldPosition - target.WorldPosition;
 		if ( currentOffset.LengthSquared < 0.0001f ) return;
@@ -194,7 +260,7 @@ public sealed class CCCamera : Component
 		// Check angle between current position and ideal behind
 		var dot = Vector3.Dot( currentOffset.Normal, idealOffset.Normal ).Clamp( -1f, 1f );
 		var angle = MathF.Acos( dot );
-		var maxAngle = _BehindCap * MathF.PI;
+		var maxAngle = _currentBehindCap * MathF.PI;
 
 		if ( angle <= maxAngle ) return;
 
