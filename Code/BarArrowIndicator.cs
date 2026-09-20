@@ -57,9 +57,18 @@ public sealed class BarArrowIndicator : Component
 	[Property] private float _ArrowThickness { get; set; } = 2f;
 
 	/// <summary>
-	/// Baked-in vertex color. Defaults to Design.md's primary glow (#4C74E5).
+	/// Overall size multiplier for the arrow mesh, set by GameManager (from its editor-exposed
+	/// slider) right after AddComponent, before this component's OnStart runs. Scales
+	/// _ArrowLength/_ArrowWidth/_ArrowThickness uniformly so the arrow stays proportional.
 	/// </summary>
-	[Property] private Color _ArrowColor { get; set; } = new Color( 0.298f, 0.455f, 0.898f );
+	public float SizeMultiplier { get; set; } = 1f;
+
+	/// <summary>
+	/// Baked-in vertex color, set by GameManager (from its editor-exposed color property) right
+	/// after AddComponent, before this component's OnStart runs. Defaults to Design.md's primary
+	/// glow (#4C74E5) for the rare case this component is added without GameManager setting it.
+	/// </summary>
+	public Color ArrowColor { get; set; } = new Color( 0.298f, 0.455f, 0.898f );
 
 	private ModelRenderer _modelRenderer;
 	private Vector3? _targetWorldPosition;
@@ -68,6 +77,13 @@ public sealed class BarArrowIndicator : Component
 	{
 		LocalPosition = Vector3.Up * _HeightAboveHead;
 		LocalRotation = Rotation.Identity;
+
+		// [Range] on GameManager's slider doesn't self-enforce (Clamped defaults false), so a
+		// manually-typed value could go negative/zero and produce a degenerate/inverted mesh.
+		float safeMultiplier = Math.Clamp( SizeMultiplier, 0.1f, 5f );
+		_ArrowLength *= safeMultiplier;
+		_ArrowWidth *= safeMultiplier;
+		_ArrowThickness *= safeMultiplier;
 
 		_modelRenderer = Components.GetOrCreate<ModelRenderer>();
 		_modelRenderer.Model = BuildArrowModelHelper();
@@ -195,7 +211,7 @@ public sealed class BarArrowIndicator : Component
 	private Vertex MakeVertexHelper( Vector3 position, Vector3 normal )
 	{
 		var vertex = new Vertex( position, normal, Vector3.Left, Vector4.Zero );
-		vertex.Color = _ArrowColor;
+		vertex.Color = ArrowColor;
 		return vertex;
 	}
 
