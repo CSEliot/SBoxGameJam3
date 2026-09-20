@@ -1,0 +1,274 @@
+@*
+// Project: sboxgamejam3
+// File:    EndGame.razor
+// Author:  cseliot
+// Created: 2026.09.19
+//
+// Copyright (c) 2026 KiteLion Games, LLC. All rights reserved.
+//
+// This source code is the property of KiteLion Games, LLC and may not be
+// copied, distributed, modified, or used in any way without prior written
+// permission from KiteLion Games, LLC.
+//
+// Description:
+// End-Game screen (Design.md Screen 4): shown once the local player's run
+// has Ended (timeout/score-wipe or voluntary cash-in). Embeds the Top 10
+// leaderboard inline (Design.md Screen 5's row spec), the local player's own
+// score beneath it (WASTED stamp on an exact-zero score), then Try Again /
+// Quit. Markup + the OnTryAgain event live here; display-formatting binding
+// lives in EndGame.razor.cs.
+//
+// OnTryAgain is declared in this file's inline @code block (not
+// EndGame.razor.cs) specifically because GameManager.cs subscribes to it
+// from outside this panel - matching BarMenu's inline-@code pattern avoids a
+// Rider project-index bug where a code-behind-only member referenced from an
+// external file fails to resolve. See
+// 3-Documentation/3-Research/sbox-rider-razor-codebehind-not-resolving.md.
+*@
+
+@namespace Sandbox.UI
+
+@using System
+@using Sandbox
+@using Sandbox.UI
+
+@inherits PanelComponent
+
+<root>
+	@if ( Visible )
+	{
+		<div class="backdrop"></div>
+
+		<div class="content">
+			<div class="title @( TitleColorClass )">@( TitleText )</div>
+
+			<div class="leaderboard">
+				<div class="lb-title">@( "BEST DRUNKARDS" )</div>
+				@* <div class="lb-title">@( "\U0001F3C6 BEST DRUNKARDS \U0001F3C6" )</div> *@
+
+			    @foreach ( var row in TopRows )
+				{
+					<div class="lb-row rank-@( row.Rank ) @( row.IsLocal ? "local" : "" )">
+						<div class="lb-rank">@( row.Rank ).</div>
+						<div class="lb-name">@( row.Entry.DisplayName )</div>
+					<div class="lb-score">@( ( (int)row.Entry.Value ).ToString( "D4" ) )</div>
+					</div>
+				}
+
+				@if ( LocalPinnedRow.HasValue )
+				{
+					<div class="lb-divider"></div>
+					<div class="lb-row local pinned">
+						<div class="lb-rank">@( LocalPinnedRow.Value.Rank ).</div>
+						<div class="lb-name">@( LocalPinnedRow.Value.Entry.DisplayName )</div>
+					<div class="lb-score">@( ( (int)LocalPinnedRow.Value.Entry.Value ).ToString( "D4" ) )</div>
+					</div>
+				}
+			</div>
+
+			<div class="your-score-wrap">
+				<div class="your-score @( IsWasted ? "wasted" : "" )">YOUR SCORE: @( ScoreText )</div>
+				@if ( IsWasted )
+				{
+					<div class="wasted-stamp" style="transform: rotate( @( WastedRotationDeg )deg );">WASTED</div>
+				}
+			</div>
+
+			<div class="stats">
+				@* <div class="beers-drunk">Beers Drunk: @( BeersText )<span class="beer-glyph">@( "\U0001F37A" )</span></div> *@
+				<div class="beers-drunk">Beers Drunk: @( BeersText )<span class="beer-glyph">@( "" )</span></div>
+				<div class="bars-visited">Bars Visited: @( BarsVisited )</div>
+			</div>
+
+			<div class="buttons">
+				<div class="button try-again" onclick=@TryAgainClicked>TRY AGAIN</div>
+				<div class="button quit" onclick=@QuitClicked>QUIT</div>
+			</div>
+		</div>
+	}
+</root>
+
+@code
+{
+	
+	/// <summary>Raised when the player clicks "TRY AGAIN". GameManager subscribes and resets
+	/// the local run (PlayerProgress.ResetRun) then respawns the player.</summary>
+	public Action OnTryAgain;
+	
+	/// <summary>One leaderboard row as rendered on this screen: its 1-based rank, the entry
+	/// data, and whether it belongs to the local player (for the highlight glow).</summary>
+	public readonly struct Row
+	{
+		public int Rank { get; init; }
+		public Sandbox.Services.Leaderboards.Board2.Entry Entry { get; init; }
+		public bool IsLocal { get; init; }
+	}
+	
+	/// <summary>
+	/// The scene's GameManager, the source of the local player's PlayerProgress/DrunkCC.
+	/// Set this explicitly in the scene (do NOT rely on GetComponent on this panel's own
+	/// GameObject - mirrors Hud's wiring pattern).
+	/// </summary>
+	[Property] private GameManager _GameManager { get; set; }
+
+	/// <summary>Design.md Screen 4/5: how many leaderboard rows to show before pinning the
+	/// local player's row separately if they're outside this range.</summary>
+	[Property] private int _DisplayTopCount { get; set; } = 10;
+
+
+	private PlayerProgress _progress;
+	private DrunkCC _drunk;
+	private Sandbox.Services.Leaderboards.Board2 _leaderboard;
+	private bool _leaderboardLoaded;
+
+	protected override void OnStart()
+	{
+		if ( _GameManager is null )
+			Log.Warning( "EndGame: _GameManager is not wired - the End-Game screen will stay hidden. Set the GameManager property on the UI-EndGame GameObject in the scene." );
+
+		// Initialize the s&box API leaderboard for the "score" stat
+		_leaderboard = Sandbox.Services.Leaderboards.GetFromStat( "score" );
+		_leaderboard.SetSortDescending(); // Highest scores first
+		_leaderboard.MaxEntries = 100; // Fetch more than we display to find local player
+	}
+
+	private void TryAgainClicked()
+	{
+		OnTryAgain?.Invoke();
+	}
+	protected override void OnUpdate()
+	{
+		_progress = _GameManager?.GetLocalPlayerProgress();
+		_drunk = _GameManager?.GetLocalDrunkCC();
+
+		// Refresh leaderboard when screen becomes visible
+		if ( Visible && !_leaderboardLoaded && _leaderboard != null )
+		{
+			_ = RefreshLeaderboardAsync();
+		}
+
+	}
+
+	private async System.Threading.Tasks.Task RefreshLeaderboardAsync()
+	{
+		if ( _leaderboard == null )
+			return;
+
+		await _leaderboard.Refresh();
+		_leaderboardLoaded = true;
+	}
+
+	/// <summary>Shown once the local run has Ended (timeout/score-wipe or cash-in).</summary>
+	private bool Visible => _progress?.RunState == PlayerProgress.RunStateEnum.Ended;
+
+	/// <summary>Design Screen 4: "GAME OVER" on timeout, "YOU CASHED IN" on voluntary cash-in.</summary>
+	private string TitleText => ( _progress?.EndedByCashOut ?? false ) ? "YOU CASHED IN" : "GAME OVER";
+
+	/// <summary>Design Screen 4: orange for game over, yellow for cash-in.</summary>
+	private string TitleColorClass => ( _progress?.EndedByCashOut ?? false ) ? "cashed-in" : "game-over";
+
+	/// <summary>Design Screen 4: frozen final score (0 on a wiped timeout run).</summary>
+	private int FinalScore => _progress?.FinalScore ?? 0;
+
+	/// <summary>4-digit zero-padded, e.g. 0042 or 0000.</summary>
+	private string ScoreText => FinalScore.ToString( "D4" );
+
+	/// <summary>Design Screen 4: WASTED stamp triggers on an EXACT zero score only.</summary>
+	private bool IsWasted => FinalScore == 0;
+
+	/// <summary>
+	/// Crooked WASTED stamp rotation, -12 to -18 degrees (Design Screen 4), varied per local
+	/// player/run via a deterministic hash rather than a fixed angle so repeat WASTED screens
+	/// don't look identically neat. Purely cosmetic - not gameplay data.
+	/// </summary>
+	private float WastedRotationDeg
+	{
+		get
+		{
+			int seed = ( LocalDisplayName?.GetHashCode() ?? 0 ) ^ BarsVisited;
+			float t = MathF.Abs( seed % 100 ) / 100f;
+			return -12f - t * 6f;
+		}
+	}
+
+	private string BeersText => ( _drunk?.BeerLevel ?? 0f ).ToString( "F1" );
+
+	private int BarsVisited => _progress?.BarsVisited ?? 0;
+
+	private string LocalDisplayName => Connection.Local?.DisplayName ?? "";
+
+	private IReadOnlyList<Sandbox.Services.Leaderboards.Board2.Entry> Leaderboard => _leaderboard?.Entries ?? Array.Empty<Sandbox.Services.Leaderboards.Board2.Entry>();
+
+	/// <summary>
+	/// Index of the local player's entry in the leaderboard, or -1 if they haven't submitted
+	/// a score yet or aren't in the fetched entries.
+	/// </summary>
+	private int LocalRankIndex
+	{
+		get
+		{
+			var list = Leaderboard;
+			var localSteamId = Connection.Local.SteamId;
+
+			for ( int i = 0; i < list.Count; i++ )
+			{
+				if ( list[i].SteamId == localSteamId )
+					return i;
+			}
+			return -1;
+		}
+	}
+
+	/// <summary>Design Screen 4/5: the always-visible Top N rows, local player highlighted
+	/// in place if they happen to be within range.</summary>
+	private List<Row> TopRows
+	{
+		get
+		{
+			var list = Leaderboard;
+			int localIndex = LocalRankIndex;
+			var rows = new List<Row>();
+			int count = Math.Min( _DisplayTopCount, list.Count );
+			for ( int i = 0; i < count; i++ )
+			{
+				rows.Add( new Row { Rank = i + 1, Entry = list[i], IsLocal = i == localIndex } );
+			}
+			return rows;
+		}
+	}
+
+	/// <summary>
+	/// Design Screen 4: if the local player is outside the visible Top N, their row is pinned
+	/// below it (separated by a divider) so they can always see their own placement. Null when
+	/// they're within the Top N already (already shown in TopRows) or have no entry yet.
+	/// </summary>
+	private Row? LocalPinnedRow
+	{
+		get
+		{
+			int localIndex = LocalRankIndex;
+			if ( localIndex < 0 || localIndex < _DisplayTopCount )
+				return null;
+
+			return new Row { Rank = localIndex + 1, Entry = Leaderboard[localIndex], IsLocal = true };
+		}
+	}
+
+	private void QuitClicked()
+	{
+		// Mirrors EscMenu.LeaveToMainMenu: exits playmode in editor, closes to platform main
+		// menu in retail.
+		Game.Close();
+	}
+
+	// Unlike Minigame/Hud (which rebuild every frame for live-animating bars/timers with no
+	// clickable elements), this screen has TRY AGAIN/QUIT buttons - rebuilding the whole tree
+	// every single frame via RealTime.Now tore down and recreated those button elements out
+	// from under the mouse on every tick, so hover/click could never settle on them. Throttle
+	// to once a second instead: still catches other clients' leaderboard entries arriving
+	// while this screen is up, without fighting input on every frame. Constant hash while
+	// hidden so the idle panel stays put.
+	protected override int BuildHash() => Visible
+		? HashCode.Combine( Visible, (int)RealTime.Now )
+		: HashCode.Combine( Visible );
+}

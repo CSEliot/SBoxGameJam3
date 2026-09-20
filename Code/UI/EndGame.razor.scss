@@ -1,0 +1,260 @@
+// Design.md Screen 4: End-Game screen. Full-screen modal-style overlay (card+backdrop
+// pattern, like EscMenu.razor.scss - NOT a bare-flex HUD overlay - since this fully
+// takes over the screen and blocks input to everything else).
+// Fonts do the styling: family names come from font metadata, not filename
+// (First Blood.ttf -> "First Blood", SNOWBLUE.ttf -> "Snow Blue").
+$display: First Blood;
+$body: Snow Blue;
+
+$warm: #FFD51B; // score, cash-in title
+$hot: #FF6120; // game-over title, quit button, wasted stamp
+$wild: #E03AC0; // beers drunk, try-again button
+$blue: #4C74E5; // borders, bars-visited, silver rank, divider
+
+EndGame
+{
+	position: absolute;
+	top: 0px;
+	left: 0px;
+	right: 0px;
+	bottom: 0px;
+	justify-content: center;
+	align-items: center;
+	// No background/blur/pointer-events here - root element renders unconditionally
+	// regardless of the razor's @if(Visible) guard (that only skips its CHILDREN), so
+	// painting the backdrop here would show through even while hidden. Both live on
+	// .backdrop/.content below, which only exist inside the @if block.
+	font-family: $body;
+
+	.backdrop
+	{
+		position: absolute;
+		top: 0px;
+		left: 0px;
+		right: 0px;
+		bottom: 0px;
+		background-color: rgba( #00166D, 0.92 );
+		backdrop-filter: blur( 6px );
+		pointer-events: all;
+	}
+
+	.content
+	{
+		position: relative;
+		flex-direction: column;
+		justify-content: center;
+		align-items: center;
+		pointer-events: all;
+	}
+
+	.title
+	{
+		font-family: $display;
+		font-size: 100px;
+		margin-bottom: 24px;
+
+		&.game-over
+		{
+			color: $hot;
+			text-shadow: 0px 0px 16px rgba( $hot, 0.7 );
+		}
+
+		&.cashed-in
+		{
+			color: $warm;
+			text-shadow: 0px 0px 16px rgba( $warm, 0.7 );
+		}
+	}
+
+	.leaderboard
+	{
+		flex-direction: column;
+		align-items: stretch;
+		min-width: 640px;
+		padding: 24px 32px;
+		background-color: rgba( #00166D, 0.6 );
+		border: 2px solid $blue;
+		border-radius: 12px;
+		margin-bottom: 24px;
+
+		.lb-title
+		{
+			font-family: $display;
+			font-size: 40px;
+			color: $warm;
+			text-align: center;
+			margin-bottom: 12px;
+		}
+
+		.lb-row
+		{
+			flex-direction: row;
+			justify-content: space-between;
+			font-size: 24px;
+			padding: 4px 8px;
+			color: white;
+
+			.lb-rank
+			{
+				min-width: 40px;
+			}
+
+			.lb-name
+			{
+				flex-grow: 1;
+			}
+
+			.lb-score
+			{
+				min-width: 90px;
+				text-align: right;
+			}
+
+			.lb-beers
+			{
+				min-width: 90px;
+				text-align: right;
+			}
+
+			&.rank-1
+			{
+				color: $warm;
+			}
+
+			&.rank-2
+			{
+				color: $blue;
+			}
+
+			&.rank-3
+			{
+				color: $hot;
+			}
+
+			&.local
+			{
+				color: $wild;
+				text-shadow: 0px 0px 10px rgba( $wild, 0.7 );
+			}
+		}
+
+		.lb-divider
+		{
+			height: 2px;
+			background-color: $blue;
+			margin: 8px 0px;
+		}
+	}
+
+	.your-score-wrap
+	{
+		position: relative;
+		margin-bottom: 16px;
+	}
+
+	.your-score
+	{
+		font-family: $display;
+		font-size: 70px;
+		color: $warm;
+
+		// Exact-zero score (Design Screen 4 "WASTED" treatment): strikethrough the digits,
+		// the WASTED stamp overlays on top via .wasted-stamp below.
+		&.wasted
+		{
+			text-decoration: line-through;
+		}
+	}
+
+	// Crookedly stamped over a zero score. Rotation angle is set inline per-instance
+	// (EndGame.razor.cs's WastedRotationDeg) so it doesn't look too neat/uniform.
+	.wasted-stamp
+	{
+		position: absolute;
+		top: -10px;
+		left: 0px;
+		right: 0px;
+		text-align: center;
+		font-family: $display;
+		font-size: 90px;
+		color: $hot;
+		text-shadow: 0px 0px 10px rgba( $hot, 0.6 );
+		transform-origin: center;
+		// Purely decorative: without this it inherits .content's pointer-events: all,
+		// and its rotated, full-width, negative-top box can visually spill over the
+		// TRY AGAIN/QUIT buttons below (worse with a short/empty leaderboard collapsing
+		// the layout), silently eating clicks meant for those buttons.
+		pointer-events: none;
+	}
+
+	.stats
+	{
+		flex-direction: column;
+		align-items: center;
+		gap: 8px;
+		margin-bottom: 32px;
+		font-family: $display;
+		font-size: 40px;
+
+		.beers-drunk
+		{
+			flex-direction: row;
+			align-items: center;
+			color: $wild;
+		}
+
+		.bars-visited
+		{
+			color: $blue;
+		}
+
+		.beer-glyph
+		{
+			font-family: "Segoe UI Emoji", "Noto Color Emoji", $body;
+		}
+	}
+
+	.buttons
+	{
+		flex-direction: column;
+		align-items: center;
+		gap: 20px;
+	}
+
+	.button
+	{
+		width: 400px;
+		height: 70px;
+		justify-content: center;
+		align-items: center;
+		font-family: $display;
+		font-size: 26px;
+		border-radius: 8px;
+		cursor: pointer;
+		transition: all 0.15s ease-out;
+
+		&.try-again
+		{
+			background-color: $wild;
+			color: white;
+
+			&:hover
+			{
+				box-shadow: 0px 0px 20px rgba( $wild, 0.8 );
+			}
+		}
+
+		&.quit
+		{
+			background-color: transparent;
+			border: 2px solid $hot;
+			color: $hot;
+
+			&:hover
+			{
+				background-color: $hot;
+				color: white;
+			}
+		}
+	}
+}
