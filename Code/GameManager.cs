@@ -23,6 +23,8 @@
 // other dealings in the software.
 
 using System;
+using System.Linq;
+using Sandbox.Services;
 using Sandbox.UI;
 
 namespace Sandbox;
@@ -32,29 +34,107 @@ public sealed class GameManager : Component, Component.INetworkListener
 	public enum LocalGameState
 	{
 		PubCrawling,
+		/// <summary>
+		/// Player is in a bar trigger, past the starting bar, deciding via the BarMenu
+		/// ("ONE MORE ROUND?") whether to play the mini-game again or cash in their score.
+		/// The starting bar (RunState still PreRun) skips this and goes straight to
+		/// WaitingToStartMinigame - see HandlePlayerBarTriggerEnter.
+		/// </summary>
+		AtBarMenu,
 		WaitingToStartMinigame,
 		PlayingMinigame,
 	}
 	
 	public LocalGameState GetLocalGameState() => _localGameState;
+
+
+
+	/// <summary>
+	/// The local player's PlayerProgress (timer/score/bars/emergency-beer source), or null
+	/// before the player has spawned/replicated. Read-only accessor for HUD/UI: PlayerProgress
+	/// is owner-authoritative, so callers must only READ it. Resolves by ownership on demand
+	/// (see ResolveLocalPlayerHelper), so it is correct on every client, not just the host.
+	/// </summary>
+	public PlayerProgress GetLocalPlayerProgress()
+	{
+		ResolveLocalPlayerHelper();
+		return _LocalPlayerProgress;
+	}
+
+	/// <summary>
+	/// The local player's DrunkCC (BeerLevel / drunkenness source), or null before the player
+	/// has spawned/replicated. Read-only accessor for HUD/UI. Resolves by ownership on demand.
+	/// </summary>
+	public DrunkCC GetLocalDrunkCC()
+	{
+		ResolveLocalPlayerHelper();
+		return _LocalDrunkCC;
+	}
 	
 	[Property] private bool _ImmediatelySpawnRunner { get; set; } = false;
+	[Property] private Clothing _HeartUnderwear { get; set; }
 	[Property] private GameObject _PlayerPrefab { get; set; }
 	[Property] private GameObject _DefaultSpawnLocation { get; set; }
 	[Property] private GameObject _CCCamera { get; set; }
 	[Property] private GameObject _MiniGamePanel { get; set; }
+	/// <summary>
+	/// [Property] GameObject pointing at the scene's BarMenu UI panel object, mirroring
+	/// _MiniGamePanel's wiring pattern. Resolved to _barMenuController in OnStart.
+	/// </summary>
+	[Property] private GameObject _BarMenuPanel { get; set; }
+	/// <summary>
+	/// [Property] GameObject pointing at the scene's End-Game UI panel object (Design.md
+	/// Screen 4), mirroring _MiniGamePanel/_BarMenuPanel's wiring pattern. Resolved to
+	/// _endGameController in OnStart.
+	/// </summary>
+	[Property] private GameObject _EndGamePanel { get; set; }
+	/// <summary>
+	/// Overall size multiplier for the local player's bar-direction arrow indicator. Changing
+	/// this at runtime destroys and respawns the arrow with the new size baked into its mesh -
+	/// see CheckArrowSizeChangedHelper (arrow geometry is built once in BarArrowIndicator.OnStart,
+	/// so a live value change can't resize it in place).
+	/// </summary>
+	[Property, Range( 0.1f, 5f )] private float _ArrowSizeMultiplier { get; set; } = 1f;
+	/// <summary>
+	/// Color baked into the local player's bar-direction arrow indicator. Changing this at
+	/// runtime respawns the arrow just like _ArrowSizeMultiplier - see
+	/// CheckArrowSizeChangedHelper/CheckArrowColorChangedHelper (color is baked per-vertex at
+	/// mesh-build time, so a live value change can't recolor it in place).
+	/// </summary>
+	[Property] private Color _ArrowColor { get; set; } = new Color( 0.298f, 0.455f, 0.898f );
 	[Sync, Property, ReadOnly] private long _SecondsUptime { get; set; }
+
+	/// <summary>
+	/// Where the bar index in the array is its ID. // todo: move these private var comments to same-line
+	/// </summary>
+	[Sync, Property] private Bar[] _Bars { get; set; } = new Bar[10];
+
 	private bool _canUpdateBars = false;
 	private GameObject _LocalPlayer { get; set; }
 	private DrunkCC _LocalDrunkCC { get; set; }
+	private PlayerProgress _LocalPlayerProgress { get; set; }
 	private bool _SpawnPlayerHelperCalled { get; set; }
 	private Rigidbody _LocalPlayerRigidbody { get; set; }
 	private BarArrowIndicator _LocalArrowIndicator { get; set; }
-	private LocalGameState _localGameState = LocalGameState.WaitingToStartMinigame;
 	/// <summary>
-	/// Where the bar index in the array is its ID.
+	/// Value of _ArrowSizeMultiplier last baked into the live arrow's mesh. Starts at a value
+	/// no slider can produce so the very first spawn always applies whatever's configured.
 	/// </summary>
-	[Sync, Property] private Bar[] _Bars { get; set; } = new Bar[10];
+	private float _appliedArrowSizeMultiplier = -1f;
+	/// <summary>
+	/// Value of _ArrowColor last baked into the live arrow's mesh. Starts transparent black so
+	/// no real editor color can match it, guaranteeing the very first spawn applies whatever's
+	/// configured.
+	/// </summary>
+	private Color _appliedArrowColor = Color.Transparent;
+	private LocalGameState _localGameState = LocalGameState.WaitingToStartMinigame;
+	private EndGame _endGameController;
+	/// <summary>
+	/// One-shot latch so the local player/camera freeze on entering PlayerProgress.RunState.
+	/// Ended runs exactly once per Ended transition (see OnUpdate) - Try Again clears it by
+	/// driving RunState back to PreRun via PlayerProgress.ResetRun().
+	/// </summary>
+	private bool _endGameActive;
 	/// <summary>
 	/// Is also the SEED for joiners' local Random!
 	/// </summary>
@@ -65,6 +145,7 @@ public sealed class GameManager : Component, Component.INetworkListener
 	private Random _localRandom = new(0);
 	private Random _randomForNewJoiners = new(0);
 	private Minigame _minigameController;
+	private BarMenu _barMenuController;
 	/// <summary>
 	/// The bar that player will start minigame in upon collision of sphere.
 	/// </summary>
@@ -78,6 +159,25 @@ public sealed class GameManager : Component, Component.INetworkListener
 	{
 		_targetBarWaiting = _startingBar;
 		_minigameController = _MiniGamePanel.GetComponent<Minigame>();
+		_barMenuController = _BarMenuPanel != null ? _BarMenuPanel.GetComponent<BarMenu>() : null;
+		if ( _barMenuController is null )
+		{
+			Log.Error( "_BarMenuPanel is unset or has no BarMenu component; bar menu feature disabled, bars will start the mini-game directly." );
+		}
+		else
+		{
+			_barMenuController.OnPlayMiniGame += HandleBarMenuPlayMiniGame;
+			_barMenuController.OnCashOut += HandleBarMenuCashOut;
+		}
+		_endGameController = _EndGamePanel != null ? _EndGamePanel.GetComponent<EndGame>() : null;
+		if ( _endGameController is null )
+		{
+			Log.Error( "_EndGamePanel is unset or has no EndGame component; End-Game screen disabled." );
+		}
+		else
+		{
+			_endGameController.OnTryAgain += HandleEndGameTryAgain;
+		}
 		if ( _ImmediatelySpawnRunner && SpawnPlayerHelper() )
 		{
 			if( _LocalPlayer == null )
@@ -104,9 +204,30 @@ public sealed class GameManager : Component, Component.INetworkListener
 
 	protected override void OnUpdate()
 	{
+		ResolveLocalPlayerHelper();
+
 		if ( Input.Keyboard.Down( "R" ) )
 		{
 			 ResetPlayerHelper();
+		}
+
+		// Design.md Screen 4: freeze the local player/camera the moment the run ends
+		// (timeout or cash-in) so they don't keep running under the End-Game overlay.
+		// One-shot via _endGameActive - Try Again re-enables both in HandleEndGameTryAgain.
+		if ( _LocalPlayerProgress != null )
+		{
+			bool ended = _LocalPlayerProgress.RunState == PlayerProgress.RunStateEnum.Ended;
+			if ( ended && !_endGameActive )
+			{
+				_endGameActive = true;
+				_CCCamera.Enabled = false;
+				if ( _LocalPlayer != null )
+					_LocalPlayer.Enabled = false;
+			}
+			else if ( !ended && _endGameActive )
+			{
+				_endGameActive = false;
+			}
 		}
 
 		if ( _localGameState == LocalGameState.PlayingMinigame && _minigameController.IsPlaying == false )
@@ -147,7 +268,26 @@ public sealed class GameManager : Component, Component.INetworkListener
 				_canUpdateBars = true;
 		}
 
+		CheckArrowSizeChangedHelper();
 		UpdateArrowIndicatorHelper();
+	}
+
+	/// <summary>
+	/// Destroys and respawns the local arrow indicator when _ArrowSizeMultiplier or _ArrowColor
+	/// has changed since it was last baked into the live arrow's mesh. Necessary because
+	/// BarArrowIndicator builds its mesh once in OnStart - there's no in-place resize/recolor.
+	/// </summary>
+	private void CheckArrowSizeChangedHelper()
+	{
+		if ( _LocalArrowIndicator == null )
+			return;
+
+		if ( _ArrowSizeMultiplier == _appliedArrowSizeMultiplier && _ArrowColor == _appliedArrowColor )
+			return;
+
+		_LocalArrowIndicator.GameObject.Destroy();
+		_LocalArrowIndicator = null;
+		SpawnArrowIndicatorHelper();
 	}
 
 	/// <summary>
@@ -186,6 +326,7 @@ public sealed class GameManager : Component, Component.INetworkListener
 		_Bars[targetBar].SitDownPlayer( Connection.Local, _minigameController );
 		_minigameController.Begin();
 		_CCCamera.Enabled = false;
+		_LocalPlayer.Enabled = false; //todo: is this networked? -ecs
 		return true;
 	}
 
@@ -194,6 +335,28 @@ public sealed class GameManager : Component, Component.INetworkListener
 		_Bars[targetBar].SitUpPlayer( Connection.Local);
 		_LocalDrunkCC.BeerLevel += _minigameController.Beers;
 		_CCCamera.Enabled = true;
+		_CCCamera.WorldPosition = _Bars[targetBar].WorldPosition;
+
+		// Score & Timer Architecture - v0 plan, section 3: AddTime must run BEFORE the
+		// state flips back to PubCrawling/ResumeTimer, or the first tick of the resumed
+		// timer races the reward. First-drink case (starting bar, RunState still
+		// PreRun): start the timer instead of paying a reward into a run that hasn't
+		// begun yet.
+		if ( _LocalPlayerProgress != null )
+		{
+			_LocalPlayerProgress.RegisterBarVisit();
+			if ( _LocalPlayerProgress.RunState == PlayerProgress.RunStateEnum.PreRun )
+			{
+				_LocalPlayerProgress.StartTimer();
+			}
+			else
+			{
+				float won = ((int)_minigameController.Beers) * _LocalPlayerProgress.SecPerBeerWon;
+				_LocalPlayerProgress.AddTime( won );
+				_LocalPlayerProgress.ResumeTimer();
+			}
+		}
+
 		UpdateNextBarData();
 		// Advance the target to this bar's freshly-assigned NextBar so the player
 		// must reach a DIFFERENT bar to start again; respawning inside the just-
@@ -275,7 +438,9 @@ public sealed class GameManager : Component, Component.INetworkListener
 			return;
 		}
 		_LocalPlayer.WorldPosition = spawnLocation.WorldPosition;
-		_LocalPlayer.WorldRotation = spawnLocation.WorldRotation;
+		_LocalPlayer.WorldRotation = spawnLocation.Parent.LocalRotation; //todo: ASAP is this fix?!
+		_CCCamera.WorldPosition = spawnLocation.WorldPosition;
+		_CCCamera.WorldRotation = _LocalPlayer.WorldRotation;
 		_LocalPlayerRigidbody.Velocity = Vector3.Zero;
 		_LocalPlayerRigidbody.AngularVelocity = Vector3.Zero;
 		_LocalPlayerRigidbody.Sleeping = true;
@@ -299,12 +464,57 @@ public sealed class GameManager : Component, Component.INetworkListener
 		_LocalPlayer = _PlayerPrefab.Clone();
 		_LocalPlayerRigidbody = _LocalPlayer.GetComponent<Rigidbody>();
 		_LocalDrunkCC = _LocalPlayer.GetComponent<DrunkCC>();
+		_LocalPlayerProgress = _LocalPlayer.GetComponent<PlayerProgress>();
 		if(_LocalPlayerRigidbody == null) {
 			Log.Error( "LocalPlayer Rigidbody is null, despite successful spawn!" );
+		}
+		if ( _LocalPlayerProgress == null )
+		{
+			Log.Error( "LocalPlayer PlayerProgress is null, despite successful spawn!" );
 		}
 		SpawnArrowIndicatorHelper();
 		ResetPlayerHelper();
 		return _LocalPlayer != null;
+	}
+
+	/// <summary>
+	/// Ensures _LocalPlayer / _LocalDrunkCC / _LocalPlayerProgress / _LocalPlayerRigidbody /
+	/// _LocalArrowIndicator all point at the player THIS client owns, resolving by ownership
+	/// on demand. Necessary because SpawnPlayerHelper only runs host-side in
+	/// INetworkListener.OnActive, once per connecting client - so on the host those fields get
+	/// clobbered to the last-joined player, and on non-host clients they are never assigned at
+	/// all. Mirrors the ownership-resolve pattern in CCCamera
+	/// (Scene.GetAllComponents&lt;T&gt;().FirstOrDefault(!IsProxy) + IsMine()). Cheap early-out
+	/// once a valid owned ref is cached; only rescans while the cache is null/stale. Read-only
+	/// use: never mutates PlayerProgress (owner-authoritative).
+	/// </summary>
+	private void ResolveLocalPlayerHelper()
+	{
+		// Already holding the player we own - nothing to do.
+		if ( _LocalPlayerProgress.IsValid() && _LocalPlayerProgress.GameObject.Network.IsMine()
+			&& _LocalDrunkCC.IsValid() && _LocalDrunkCC.GameObject.Network.IsMine() )
+			return;
+
+		var progress = Scene.GetAllComponents<PlayerProgress>().FirstOrDefault( p => p.GameObject.Network.IsMine() );
+		if ( progress is null )
+			return;
+
+		_LocalPlayerProgress = progress;
+		_LocalPlayer = progress.GameObject;
+		_LocalDrunkCC = progress.GetComponent<DrunkCC>();
+		_LocalPlayerRigidbody = progress.GetComponent<Rigidbody>();
+
+		// The arrow indicator is a child GameObject of whichever player owned it when it was
+		// built - if the owned player changed out from under us (host re-resolving after a new
+		// client's SpawnPlayerHelper call clobbered the cache, or a non-host client resolving
+		// for the first time), the cached indicator is either missing or still hanging off the
+		// wrong/stale player. Drop it and let SpawnArrowIndicatorHelper rebuild against the
+		// player we now actually own.
+		if ( _LocalArrowIndicator == null || _LocalArrowIndicator.GameObject.Parent != _LocalPlayer )
+		{
+			_LocalArrowIndicator = null;
+			SpawnArrowIndicatorHelper();
+		}
 	}
 
 	/// <summary>
@@ -325,6 +535,10 @@ public sealed class GameManager : Component, Component.INetworkListener
 
 		var arrowObject = new GameObject( _LocalPlayer, true, "bar_arrow_indicator" );
 		_LocalArrowIndicator = arrowObject.AddComponent<BarArrowIndicator>();
+		_LocalArrowIndicator.SizeMultiplier = _ArrowSizeMultiplier;
+		_LocalArrowIndicator.ArrowColor = _ArrowColor;
+		_appliedArrowSizeMultiplier = _ArrowSizeMultiplier;
+		_appliedArrowColor = _ArrowColor;
 	}
 
 	/// <summary>
@@ -385,6 +599,33 @@ public sealed class GameManager : Component, Component.INetworkListener
 		}
 	}
 
+	/// <summary>
+	/// Score & Timer Architecture - v0 plan, section 5/6: finalization is reported to
+	/// the host, which appends/updates the host-authoritative leaderboard and keeps it
+	/// sorted (highest score first), capped to _MaxLeaderboardEntries. Called by
+	/// PlayerProgress.EndRun on the owning client; only actually runs on the host
+	/// thanks to [Rpc.Host].
+	/// </summary>
+
+
+	/// <summary>
+	/// EndGame.OnTryAgain: player chose "TRY AGAIN" on the End-Game screen. Resets the local
+	/// player's run state and respawns at the original default spawn (mirrors SpawnPlayerHelper's
+	/// own initial ResetPlayerHelper() call, not the just-finished bar used mid-run), clears
+	/// drunkenness back to sober, and un-freezes the camera/player that HandlePlayerBarTriggerEnter's
+	/// End-Game freeze block disabled.
+	/// </summary>
+	private void HandleEndGameTryAgain()
+	{
+		_LocalPlayerProgress?.ResetRun();
+		if ( _LocalDrunkCC != null )
+			_LocalDrunkCC.BeerLevel = 0f;
+		_targetBarWaiting = _startingBar;
+		_localGameState = LocalGameState.PubCrawling;
+		_CCCamera.Enabled = true;
+		ResetPlayerHelper();
+	}
+
 	private void HandlePlayerBarTriggerEnter( Guid playerID, Bar enteredBar )
 	{
 		// Only begin a mini-game from the overworld, and only at the bar the
@@ -399,12 +640,74 @@ public sealed class GameManager : Component, Component.INetworkListener
 		if ( barIndex != _targetBarWaiting )
 			return;
 
+		// Design #45: timer freezes in the bar. No-op on the starting bar (RunState
+		// still PreRun - the timer hasn't started yet, see PlayerProgress.PauseTimer).
+		_LocalPlayerProgress?.PauseTimer();
+
+		// Starting bar (run hasn't begun, nothing to cash out yet): skip the "ONE MORE
+		// ROUND?" menu entirely and go straight into the mini-game, same as before this
+		// feature existed.
+		if ( _LocalPlayerProgress == null || _LocalPlayerProgress.RunState == PlayerProgress.RunStateEnum.PreRun )
+		{
+			_localGameState = LocalGameState.WaitingToStartMinigame;
+			return;
+		}
+
+		// Run already ended (cashed out or timed out): nothing left to decide at a bar.
+		if ( _LocalPlayerProgress.RunState == PlayerProgress.RunStateEnum.Ended )
+		{
+			_localGameState = LocalGameState.PubCrawling;
+			return;
+		}
+
+		_localGameState = LocalGameState.AtBarMenu;
+		_barMenuController?.Open( _LocalPlayerProgress.Score );
+		// _CCCamera.Enabled = false;
+		_LocalPlayer.Enabled = false; 
+	}
+
+	/// <summary>
+	/// BarMenu.OnPlayMiniGame: player chose "PLAY MINI-GAME". Hands off to the existing
+	/// WaitingToStartMinigame -> StartMiniGameHelper flow, same as the starting-bar path.
+	/// </summary>
+	private void HandleBarMenuPlayMiniGame()
+	{
+		if ( _localGameState != LocalGameState.AtBarMenu )
+			return;
+
 		_localGameState = LocalGameState.WaitingToStartMinigame;
+	}
+
+	/// <summary>
+	/// BarMenu.OnCashOut: player chose "CASH IN SCORE". Ends the run (Design Section 2 /
+	/// Architecture.md "Score &amp; Timer Architecture - v0 plan" section 5) and reports the
+	/// final score to the host-authoritative leaderboard via PlayerProgress.EndRun. No Game
+	/// Over screen exists yet (sboxgamejam3-ui-context: Design Screen 4 is design-only), so
+	/// this only updates state/leaderboard - left as-is, out of scope for this feature.
+	/// Must release _localGameState from AtBarMenu or HandlePlayerBarTriggerEnter's
+	/// PubCrawling guard would silently swallow every future bar trigger for this client.
+	/// </summary>
+	private void HandleBarMenuCashOut()
+	{
+		if ( _localGameState != LocalGameState.AtBarMenu )
+			return;
+
+		_localGameState = LocalGameState.PubCrawling;
+		_LocalPlayerProgress?.EndRun( scoreWiped: false );
 	}
 	
 	private void HandlePlayerBarTriggerExit( Guid playerID )
 	{
-		
+		// // Player physically left the bar trigger without picking a BarMenu option (e.g.
+		// // walked back out). Cancel the pending decision instead of leaving the timer
+		// // paused and the modal stuck open forever - close the menu and resume the run
+		// // exactly like never having entered the trigger.
+		// if ( _localGameState == LocalGameState.AtBarMenu )
+		// {
+		// 	_barMenuController?.Close();
+		// 	_localGameState = LocalGameState.PubCrawling;
+		// 	_LocalPlayerProgress?.ResumeTimer();
+		// }
 	}
 }
 
