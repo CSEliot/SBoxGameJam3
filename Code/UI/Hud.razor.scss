@@ -1,0 +1,140 @@
+// Pub-crawling HUD styles (Design.md, Screen 1). Flat overlay straight on the fullscreen
+// root - HUD, not a modal, so no card/backdrop/radius (mirrors Minigame.razor.scss).
+// Fonts do the styling: family names come from font metadata, not filename
+// (First Blood.ttf -> "First Blood", SNOWBLUE.ttf -> "Snow Blue").
+$display: First Blood;
+$body: Snow Blue;
+
+// Design Section 3 palette roles.
+$warm: #FFD51B; // timer / score
+$hot: #FF6120; // danger, <30s timer
+$wild: #E03AC0; // drunkenness
+
+Hud
+{
+	position: absolute;
+	top: 0px;
+	left: 0px;
+	right: 0px;
+	bottom: 0px;
+	flex-direction: column;
+	align-items: center;
+	// Non-interactive readout: never eat clicks meant for world/other panels.
+	pointer-events: none;
+	font-family: $body;
+
+	.row
+	{
+		flex-direction: row;
+		align-items: flex-start;
+		width: 100%;
+		padding: 40px 60px;
+		// Design Screen 1: timer top-left, score top-center, drunkenness top-right.
+		// Three equal-width columns (flex 1 1 0) so the score column is always the exact
+		// middle third of the row and stays truly centered regardless of the timer's or
+		// drunkenness's intrinsic text width (e.g. "2:00" vs "10:00"). Each column aligns
+		// its own contents to its edge/center below.
+
+		&.paused
+		{
+			opacity: 0.5;
+		}
+	}
+
+	.stat
+	{
+		flex: 1 1 0%;
+		flex-direction: column;
+		font-family: $display;
+
+		.label
+		{
+			font-size: 24px;
+			color: #4C74E5;
+		}
+	}
+
+	.stat.timer
+	{
+		align-items: flex-start;
+
+		.value
+		{
+			font-size: 80px;
+			color: $warm;
+		}
+
+		// Design Screen 1: <30s orange.
+		&.warning .value
+		{
+			color: $hot;
+		}
+
+		// Design Screen 1: <10s flashes.
+		&.critical .value
+		{
+			color: $hot;
+			animation-name: hud-flash;
+			animation-duration: 0.5s;
+			animation-iteration-count: infinite;
+			animation-timing-function: ease-in-out;
+		}
+	}
+
+	.stat.score
+	{
+		align-items: center;
+
+		.value
+		{
+			font-size: 80px;
+			color: $warm;
+		}
+	}
+
+	.stat.drunk
+	{
+		align-items: flex-end;
+
+		.value
+		{
+			flex-direction: row;
+			align-items: center;
+			font-size: 60px;
+			color: $wild;
+		}
+
+		// The display font ("First Blood") has no emoji glyph. Scope a fallback family
+		// that a system emoji font can satisfy onto the beer glyph only, so it doesn't
+		// render as a missing-glyph box. (Emoji fallback still needs an in-editor check.)
+		.beer-glyph
+		{
+			font-family: "Segoe UI Emoji", "Noto Color Emoji", $body;
+		}
+	}
+
+	.paused-banner
+	{
+		font-family: $display;
+		font-size: 40px;
+		color: $hot;
+	}
+}
+
+@keyframes hud-flash
+{
+	0%
+	{
+		opacity: 1;
+	}
+
+	50%
+	{
+		opacity: 0.3;
+	}
+
+	100%
+	{
+		opacity: 1;
+	}
+}

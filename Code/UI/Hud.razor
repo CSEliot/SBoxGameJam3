@@ -1,0 +1,62 @@
+@*
+// Project: sboxgamejam3
+// File:    Hud.razor
+// Author:  cseliot
+// Created: 2026.09.19
+//
+// Copyright (c) 2026 KiteLion Games, LLC. All rights reserved.
+//
+// This source code is the property of KiteLion Games, LLC and may not be
+// copied, distributed, modified, or used in any way without prior written
+// permission from KiteLion Games, LLC.
+//
+// Description:
+// Pub-crawling HUD overlay (Design.md, Screen 1). Always-visible-during-run
+// readout of Timer (top-left), Score (top-center) and Drunkenness (top-right).
+// Read-only view over the local player's PlayerProgress/DrunkCC, resolved via
+// a [Property] GameManager ref. Hidden during the mini-game (that overlay owns
+// the screen) and before the player has spawned. Markup only; display formatting
+// lives in Hud.razor.cs.
+//
+// Not implemented here (no backing data yet): the Pants Level indicator
+// (Design Screen 1, bottom-left) - no pants field/state exists on DrunkCC or
+// PlayerProgress. The Arrow Indicator is a 3D world-space mesh (BarArrowIndicator),
+// not a razor element. The Drunk Effect System (Design lines 116-123, 150, 157,
+// 164: wobble/blur/chromatic-aberration on timer/score/drunkenness at high beer
+// counts) is a deferred separate pass - unimplemented project-wide, not just here.
+*@
+
+@namespace Sandbox.UI
+
+@using System
+@using Sandbox
+@using Sandbox.UI
+
+@inherits PanelComponent
+
+<root>
+	@if ( Visible )
+	{
+		<div class="row @( IsPaused ? "paused" : "" )">
+			<div class="stat timer @( TimerClass )">
+				<div class="label">TIME</div>
+				<div class="value">@TimerText</div>
+			</div>
+
+			<div class="stat score">
+				<div class="label">SCORE</div>
+				<div class="value">@ScoreText</div>
+			</div>
+
+			<div class="stat drunk">
+				<div class="label">BEERS</div>
+				<div class="value"><span class="beer-glyph">@( "\U0001F37A" )</span>@BeersText</div>
+			</div>
+		</div>
+
+		@if ( IsPaused )
+		{
+			<div class="paused-banner">TIMER PAUSED</div>
+		}
+	}
+</root>
