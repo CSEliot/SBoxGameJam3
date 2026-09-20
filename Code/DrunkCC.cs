@@ -48,7 +48,7 @@ public sealed class DrunkCC : Component
 	/// </summary>
 	[Property] public bool LockRoll  { get; set; }
 	
-	public State CurrentState { get; set; } = State.Running;
+	[Sync] public State CurrentState { get; set; } = State.Running;
 
 	/// <summary>
 	/// True from the moment a jump launches until we detect a fresh landing. Gates re-jumping.
@@ -107,6 +107,11 @@ public sealed class DrunkCC : Component
 	/// already have trail to rewind into. Buffer length = _BeerLevel * _SecondsPerBeer + this.
 	/// </summary>
 	[Property] private float _RecoveryHistoryHeadroom { get; set; } = 3f;
+
+	/// <summary>
+	/// Rec Distance No Matter Beer Level
+	/// </summary>
+	[Property] private float _RecoveryMinTracking { get; set; } = 2f;
 
 	/// <summary>
 	/// Seconds between recorded HistorySamples. Smaller = finer rewind, more memory.
@@ -169,17 +174,12 @@ public sealed class DrunkCC : Component
 	/// <summary>
 	/// Constant forward drive while below _VelocityCeiling.
 	/// </summary>
-	[Property] private float _MaxRunningForce { get; set; } = 1;
+	[Property] private float _RunningForce { get; set; } = 1;
 
 	/// <summary>
 	/// Drive cuts out above this speed.
 	/// </summary>
 	[Property] private float _VelocityCeiling { get; set; } = 1;
-	
-	/// <summary>
-	/// How much effort into hitting max speed.
-	/// </summary>
-	[Property, Range(0, 1)] private float _RunningAcceleration { get; set; } = 1;
 	
 	/// <summary>
 	/// How strong the character will jump.
@@ -196,19 +196,30 @@ public sealed class DrunkCC : Component
 	/// Seconds spent ragdolling after a knockdown before reset.
 	/// </summary>
 	[Property] private float _KnockdownRecoveryTime { get; set; } = 1;
-	
-	/// <summary>
-	/// The acute angle at which the forward ray cast will trigger a "hasHitObstacle" event.
-	/// </summary>
-	[Property] private float _WillCollideApproachAngle { get; set; }
 
 	/// <summary>
-	/// The acute angle at which the forward ray cast will trigger a "hasHitObstacle" event.
+	/// Distance (units) forward from the body that the wall-trace casts.
+	/// 0 disables the wall-trace check entirely.
 	/// </summary>
-	[Property] private bool _HasHitObstacle { get; set; }
-	
+	[Property, Range(0, 1000)] private float _WallHitDistance { get; set; }
+
 	/// <summary>
-	/// The source of the forward ray cast.
+	/// Max angle (degrees) between player forward and the inward-facing wall normal (-trace.Normal).
+	/// Measures how squarely the player is driving into the wall: 0 = perfectly straight-on,
+	/// 90 = grazing parallel. Only hits with approach angle AT MOST this trigger knockdown.
+	/// 0 disables the wall-trace check regardless of _WallHitDistance.
+	/// </summary>
+	[Property, Range(0, 90)] private float _WillCollideApproachAngle { get; set; }
+
+	/// <summary>
+	/// True while the wall-trace connects this tick (regardless of whether the
+	/// angle gate passes). Driven every tick by CheckWallHit — not [Sync], local-only.
+	/// </summary>
+	private bool _HasHitObstacle { get; set; }
+
+	/// <summary>
+	/// Forward offset (units) from the body origin at which to start the wall-trace.
+	/// Defaults to 0 (start at body centre).
 	/// </summary>
 	[Property] private float _ForwardRayCastPosition { get; set; }
 
@@ -300,6 +311,14 @@ public sealed class DrunkCC : Component
 			return;
 		}
 
+		// Wall-trace knockdown: forward raytrace + approach-angle gate.
+		CheckWallHit();
+		if ( _HasHitObstacle )
+		{
+			EnterKnockedDown();
+			return;
+		}
+
 		// Spin in the body's own frame. Source convention: +X forward, +Y left, +Z up, so
 		// .x = roll rate (about forward), .y = pitch rate, .z = yaw rate. Radians/s.
 		var localAv = _Rigidbody.WorldRotation.Inverse * _Rigidbody.AngularVelocity;
@@ -309,8 +328,8 @@ public sealed class DrunkCC : Component
 		// Rule 1 / 7: always running, always gaining speed up to the ceiling.
 		if ( _Rigidbody.Velocity.Length < _VelocityCeiling )
 		{
-			float beerSpeedMultiplier = (_BeerToSpeedMultiplier + 1) * BeerLevel;
-			_Rigidbody.ApplyForce( _Rigidbody.WorldRotation.Forward * _MaxRunningForce * beerSpeedMultiplier );
+			float beerSpeedMultiplier = (_BeerToSpeedMultiplier + 1) * (BeerLevel + 1); // todo: consider better handle to edge case than " add 1" -ecs
+			_Rigidbody.ApplyForce( _Rigidbody.WorldRotation.Forward * _RunningForce * beerSpeedMultiplier );
 		}
 
 		// Lateral grip: oppose sideways velocity so the heading change from yaw actually turns
@@ -509,6 +528,44 @@ public sealed class DrunkCC : Component
 			.IgnoreGameObjectHierarchy( GameObject )
 			.Run();
 		return trace.Hit;
+	}
+
+	/// <summary>
+	/// Forward wall-trace + approach-angle gate. Sets _HasHitObstacle this tick.
+	/// Only returns true (triggers knockdown) when the trace hits AND the angle
+	/// between player forward and inward wall normal (-trace.Normal) is <= _WillCollideApproachAngle.
+	/// Both _WallHitDistance == 0 or _WillCollideApproachAngle == 0 disable the check.
+	/// Ignores the player's own hierarchy so neither the sphere nor ragdoll bones count.
+	/// </summary>
+	private void CheckWallHit()
+	{
+		if ( _WallHitDistance <= 0f || _WillCollideApproachAngle <= 0f )
+		{
+			_HasHitObstacle = false;
+			return;
+		}
+
+		var rb = _Rigidbody;
+		var origin = rb.WorldPosition + rb.WorldRotation.Forward * _ForwardRayCastPosition;
+		var end = origin + rb.WorldRotation.Forward * _WallHitDistance;
+
+		var trace = Scene.Trace.Ray( origin, end )
+			.IgnoreGameObjectHierarchy( GameObject )
+			.Run();
+
+		if ( !trace.Hit )
+		{
+			_HasHitObstacle = false;
+			return;
+		}
+
+		// Inward-facing wall normal: negate trace.Normal so 0° = running straight into the wall.
+		Vector3 inwardNormal = -trace.Normal;
+		float dot = Vector3.Dot( rb.WorldRotation.Forward, inwardNormal );
+		dot = Math.Clamp( dot, -1f, 1f ); // guard against floating-point overshoot
+		float approachDeg = MathF.Acos( dot ).RadianToDegree();
+
+		_HasHitObstacle = approachDeg <= _WillCollideApproachAngle;
 	}
 
 	/// <summary>
