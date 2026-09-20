@@ -1,0 +1,112 @@
+// Fonts do the styling, matching Minigame.razor.scss's convention (not EscMenu's
+// Poppins - sboxgamejam3-ui-context skill flags that as an inconsistency to
+// reconcile; new menu UI should prefer the project's own fonts).
+$display: First Blood;
+$body: Snow Blue;
+
+BarMenu
+{
+	position: absolute;
+	top: 0px;
+	left: 0px;
+	right: 0px;
+	bottom: 0px;
+	justify-content: center;
+	align-items: center;
+	font-family: $body;
+
+	.backdrop
+	{
+		position: absolute;
+		top: 0px;
+		left: 0px;
+		right: 0px;
+		bottom: 0px;
+		background-color: rgba( #00166D, 0.8 );
+		backdrop-filter: blur( 6px );
+		pointer-events: all;
+	}
+
+	.menu
+	{
+		flex-direction: column;
+		align-items: center;
+		gap: 24px;
+		min-width: 500px;
+		padding: 40px;
+		background-color: rgba( #00166D, 0.9 );
+		border: 2px solid #4C74E5;
+		border-radius: 12px;
+		box-shadow: 0px 0px 24px rgba( #4C74E5, 0.5 );
+		pointer-events: all;
+
+		.title
+		{
+			font-family: $display;
+			font-size: 60px;
+			color: #FFD51B;
+			text-shadow: 0px 0px 12px rgba( #FFD51B, 0.7 );
+		}
+
+		// Cash In Score: Design.md Section 2 - blue border, blue->yellow-glow hover.
+		.button
+		{
+			flex-direction: column;
+			align-items: center;
+			justify-content: center;
+			width: 400px;
+			height: 80px;
+			border-radius: 8px;
+			border: 2px solid #4C74E5;
+			background-color: transparent;
+			cursor: pointer;
+			transition: all 0.15s ease-out;
+
+			.button-title
+			{
+				font-family: $display;
+				font-size: 26px;
+				color: #4C74E5;
+			}
+
+			.button-subtitle
+			{
+				font-size: 16px;
+				color: #4C74E5;
+			}
+
+			&:hover
+			{
+				background-color: #4C74E5;
+
+				.button-title, .button-subtitle
+				{
+					color: #FFD51B;
+					text-shadow: 0px 0px 10px rgba( #FFD51B, 0.7 );
+				}
+			}
+
+			// Play Mini-Game: Design.md Section 2 - magenta border/hover (temptation visual).
+			&.play
+			{
+				border-color: #E03AC0;
+
+				.button-title, .button-subtitle
+				{
+					color: #E03AC0;
+				}
+
+				&:hover
+				{
+					background-color: #E03AC0;
+
+					.button-title, .button-subtitle
+					{
+						color: #FFD51B;
+						text-shadow: 0px 0px 10px rgba( #FFD51B, 0.7 );
+					}
+				}
+			}
+		}
+	}
+}

@@ -1,0 +1,110 @@
+@*
+// Project: sboxgamejam3
+// File:    BarMenu.razor
+// Author:  cseliot
+// Created: 2026.09.19
+//
+// Copyright (c) 2026 KiteLion Games, LLC. All rights reserved.
+//
+// This source code is the property of KiteLion Games, LLC and may not be
+// copied, distributed, modified, or used in any way without prior written
+// permission from KiteLion Games, LLC.
+//
+// Description:
+// "One more round?" bar menu (Design.md, Screen 2). Opened by GameManager when
+// the player enters a bar trigger AFTER their run has started - the starting
+// bar (RunState still PreRun, nothing to cash out yet) skips straight to the
+// mini-game as before; see GameManager.HandlePlayerBarTriggerEnter. Lets the
+// player choose to play the drinking mini-game again or cash in their score
+// and end the run (PlayerProgress.EndRun). Self-contained like EscMenu.razor:
+// no game state here beyond IsOpen/ScoreAtOpen, so there's no partial-class
+// stylesheet-naming trap to worry about (see Minigame.Logic.cs's header).
+//
+// License:
+// This code is provided "as is," without warranty of any kind, express or
+// implied, including but not limited to the warranties of merchantability,
+// fitness for a particular purpose, and noninfringement. In no event shall
+// the authors or copyright holders be liable for any claim, damages, or
+// other liability, whether in an action of contract, tort, or otherwise,
+// arising from, out of, or in connection with the software or the use or
+// other dealings in the software.
+*@
+
+@namespace Sandbox.UI
+
+@using System
+@using Sandbox
+@using Sandbox.UI
+
+@inherits PanelComponent
+
+<root>
+	@if ( IsOpen )
+	{
+		<div class="backdrop"></div>
+		<div class="menu">
+			<div class="title">ONE MORE ROUND?</div>
+
+			<div class="button cash-out" onclick=@CashOutClicked>
+				<div class="button-title">CASH IN SCORE</div>
+				<div class="button-subtitle">End run, save @( ScoreText ) points</div>
+			</div>
+
+			<div class="button play" onclick=@PlayMiniGameClicked>
+				<div class="button-title">PLAY MINI-GAME</div>
+				<div class="button-subtitle">Drink more, get drunker, get time</div>
+			</div>
+		</div>
+	}
+</root>
+
+@code
+{
+	/// <summary>Raised when the player picks "PLAY MINI-GAME". GameManager subscribes and
+	/// transitions _localGameState to WaitingToStartMinigame, which auto-starts it.</summary>
+	public Action OnPlayMiniGame;
+
+	/// <summary>Raised when the player picks "CASH IN SCORE". GameManager subscribes and
+	/// calls PlayerProgress.EndRun(scoreWiped: false).</summary>
+	public Action OnCashOut;
+
+	public bool IsOpen { get; private set; }
+
+	/// <summary>
+	/// Score snapshot taken when Open() was called, for the cash-out subtitle. A snapshot
+	/// pushed in by GameManager rather than a live pull - mirrors Minigame.BeerSpawnLocation
+	/// (set externally by Bar.SitDownPlayer), the "push, don't pull" pattern already used for
+	/// panels a GameManager transition drives, as opposed to Hud's continuous per-frame pull.
+	/// </summary>
+	public float ScoreAtOpen { get; private set; }
+
+	/// <summary>Design Screen 2 / 4: 4-digit zero-padded score, matching Hud.ScoreText.</summary>
+	private string ScoreText => ( (int)MathF.Floor( ScoreAtOpen ) ).ToString( "D4" );
+
+	/// <summary>Opens the menu with the given score snapshot. Called by GameManager when the
+	/// player enters a bar trigger after the run has started.</summary>
+	public void Open( float score )
+	{
+		ScoreAtOpen = score;
+		IsOpen = true;
+	}
+
+	public void Close()
+	{
+		IsOpen = false;
+	}
+
+	private void PlayMiniGameClicked()
+	{
+		Close();
+		OnPlayMiniGame?.Invoke();
+	}
+
+	private void CashOutClicked()
+	{
+		Close();
+		OnCashOut?.Invoke();
+	}
+
+	protected override int BuildHash() => HashCode.Combine( IsOpen, ScoreAtOpen );
+}
