@@ -39,7 +39,6 @@ public sealed class Bar : Component, Component.ITriggerListener
 	/// </summary>
 	private List<int> CurrentPlayers = [];
 
-	[Sync, Property, ReadOnly] private int _CurrentPatronCount { get; set; } = 0;
 	/// <summary>
 	/// Unique ID for this bar instance.
 	/// </summary>
@@ -78,7 +77,6 @@ public sealed class Bar : Component, Component.ITriggerListener
 	public void SitDownPlayer( Connection playerConnection, Minigame minigame )
 	{
 		Log.Info( "SITTING DOWN: " + playerConnection.Id );
-		_CurrentPatronCount++;
 		
 		// Get next available drinker
 		GameObject availableDrinker = null;
@@ -110,9 +108,8 @@ public sealed class Bar : Component, Component.ITriggerListener
 		// this gets undone again in SitUpPlayer.
 		DressDrinkerHelper( availableDrinker, playerConnection );
 		
-		if ( IsProxy == false)
+		if ( playerConnection == Connection.Local )
 		{
-			Log.Info( "NOT PROXY" );
 			drinkerCam.Enabled = true;
 			minigame.BeerSpawnLocation = drinkerBeerSpawnLocation.WorldPosition;
 		}
@@ -136,7 +133,6 @@ public sealed class Bar : Component, Component.ITriggerListener
 		}
 
 		// Only decrement once we know this connection really held a seat here.
-		_CurrentPatronCount--;
 		
 		var drinkerCam = exitingDrinker.GetTagInChildren( "barcam" ).First();
 
@@ -146,7 +142,7 @@ public sealed class Bar : Component, Component.ITriggerListener
 		// its own default outfit before it's handed to the next player.
 		UndressDrinkerHelper( exitingDrinker );
 		
-		if ( IsProxy == false)
+		if ( playerConnection == Connection.Local )
 		{
 			drinkerCam.Enabled = false;
 		}
