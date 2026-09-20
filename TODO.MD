@@ -1,3 +1,7 @@
+## OTHER
+
+ + Arrow falls like physical object on knockdown.
+
 ### Art
  + Add color to bar glow shader 
 
