@@ -290,7 +290,14 @@ Pants Level
 
 ---
 
-## Screen 4: Game Over
+## Screen 4: End-Game Screen (Game Over / Cashed In)
+
+Triggered by either losing all score to a zeroed timer (Game Over) or a voluntary
+Cash In at a bar (You Cashed In). Unlike the old design, the leaderboard is NOT
+behind a button here - the Top 10 renders inline on this screen, with the local
+player's own score directly beneath it, followed by the exit buttons. This screen
+owns the same leaderboard row spec as Screen 5 below (Screen 5 is the reusable
+component definition; this is its embedded, always-expanded use).
 
 ### Layout
 ```
@@ -298,12 +305,19 @@ Pants Level
 ┌─────────────────────────────────────┐
 │      GAME OVER / YOU CASHED IN      │
 │                                     │
-│  Final Score: 0042                  │
+│         🏆 BEST DRUNKARDS 🏆        │
+│  1. PlayerName1    0987   12.5🍺    │
+│  2. PlayerName2    0742   10.0🍺    │
+│  3. PlayerName3    0521    8.5🍺    │
+│  ...                                │
+│  10. PlayerName10   0102   3.0🍺    │
+│                                     │
+│  YOUR SCORE: 0042                   │
+│      (or: 0̶0̶0̶0̶ w/ "WASTED" stamp)  │
 │  Beers Drunk: 7.5 🍺               │
 │  Bars Visited: 3                    │
 │                                     │
-│  [LEADERBOARD]                      │
-│  [PLAY AGAIN]                       │
+│  [TRY AGAIN]                        │
 │  [QUIT]                             │
 └─────────────────────────────────────┘
 ```
@@ -317,20 +331,34 @@ Pants Level
 - Behavior: Fades in with glow
 - Drunk effect: None (game over, player is sober now)
 
+**Leaderboard (Top 10, embedded)**
+- Same row spec as Screen 5's Leaderboard Rows (format, rank colors, current-player
+  highlight), but always Top 10 and always visible on this screen - no CLOSE button,
+  no open/close state, it just renders as part of the End-Game layout.
+- If the local player is outside the Top 10, their row still appears (highlighted)
+  pinned below rank 10, separated by a thin #4C74E5 divider, so they can always see
+  their own placement even off the visible leaderboard.
+- Sits directly beneath the Title and above Your Score.
+
+**Your Score**
+- Text: `YOUR SCORE: 0042`, 4-digit, #FFD51B (yellow), 70px display font
+- Sits directly beneath the embedded leaderboard, above Beers Drunk / Bars Visited
+- **Zero-score treatment ("WASTED")**: if Final Score == 0, the `0000` digits get a
+  strikethrough (line through the text, matching text color) and the word `WASTED`
+  is stamped on top of/over the score, rotated crooked (roughly -12 to -18 degrees,
+  vary per instance so it doesn't look too neat), in the display font, large enough
+  to overlap the crossed-out score. Color: #FF6120 (orange) - reads as a rubber-stamp
+  "you get nothing" gag, not a somber failure state. This only triggers on an EXACT
+  zero score, not just "low" scores.
+
 **Stats**
-- Final Score: 4-digit, #FFD51B (yellow)
 - Beers Drunk: Decimal + beer emoji, #E03AC0 (magenta)
 - Bars Visited: Integer, #4C74E5 (blue)
 - Size: 60px display font each
-- Layout: Vertical stack, left-aligned
+- Layout: Vertical stack, left-aligned, beneath Your Score
 
-**Button: Leaderboard**
-- Text: `LEADERBOARD`
-- Opens leaderboard overlay
-- Style: Same as bar menu buttons
-
-**Button: Play Again**
-- Text: `PLAY AGAIN`
+**Button: Try Again**
+- Text: `TRY AGAIN`
 - Background: Fill #E03AC0 (magenta)
 - Hover: Brighter glow
 
@@ -341,7 +369,12 @@ Pants Level
 
 ---
 
-## Screen 5: Leaderboard (Overlay)
+## Screen 5: Leaderboard (Row Spec / Standalone Overlay)
+
+Defines the leaderboard row rendering used by Screen 4's embedded Top 10. Whether
+this ALSO still exists as an independently-opened overlay elsewhere (e.g. from the
+ESC menu, mid-run) is an open question now that the End-Game screen embeds it
+directly - not decided here, flagging rather than assuming either way.
 
 ### Layout
 ```
@@ -349,15 +382,22 @@ Pants Level
 ┌─────────────────────────────────────┐
 │         🏆 BEST DRUNKARDS 🏆        │
 │                                     │
-│  1. PlayerName1    0987   12.5🍺    │
-│  2. PlayerName2    0742   10.0🍺    │
-│  3. PlayerName3    0521    8.5🍺    │
-│  4. PlayerName4    0421    7.0🍺    │
-│  5. PlayerName5    0312    6.5🍺    │
+│  1. PlayerName1     0987   12.5🍺   │
+│  2. PlayerName2     0742   10.0🍺   │
+│  3. PlayerName3     0521    8.5🍺   │
+│  4. PlayerName4     0421    7.0🍺   │
+│  5. PlayerName5     0312    6.5🍺   │
+│  6. PlayerName6     0288    6.0🍺   │
+│  7. PlayerName7     0255    5.5🍺   │
+│  8. PlayerName8     0201    5.0🍺   │
+│  9. PlayerName9     0178    4.5🍺   │
+│ 10. PlayerName10    0102    3.0🍺   │
 │                                     │
 │  [CLOSE]                            │
 └─────────────────────────────────────┘
 ```
+(`[CLOSE]` only applies if used as a standalone overlay - not present in Screen 4's
+embedded use.)
 
 ### Elements
 
@@ -369,15 +409,17 @@ Pants Level
 
 **Leaderboard Rows**
 - Format: `Rank. Name    Score    Beers`
+- Shows Top 10 (was Top 5 in an earlier draft - now Top 10 per current spec)
 - Rank 1: #FFD51B (gold/yellow)
 - Rank 2: #4C74E5 (silver/blue)
 - Rank 3: #FF6120 (bronze/orange)
 - Rank 4+: White/dim
 - Size: 40px sans-serif
 - Layout: Monospace alignment for numbers
-- Current player's row highlighted with #E03AC0 glow
+- Current player's row highlighted with #E03AC0 glow (see Screen 4: if the local
+  player isn't in the Top 10, their row is pinned below it instead of omitted)
 
-**Close Button**
+**Close Button** (standalone overlay use only)
 - Text: `CLOSE` or `X` in corner
 - Standard button style
 
