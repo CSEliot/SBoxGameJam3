@@ -75,6 +75,21 @@ public sealed class CCCamera : Component
 	[Property] private bool _LookAtTarget { get; set; }
 
 	/// <summary>
+	/// Distance along the camera's forward axis for the obstruction box trace.
+	/// </summary>
+	[Property] private float _FadeDetectionDistance { get; set; } = 400f;
+
+	/// <summary>
+	/// Half-size of the box trace used for obstruction detection (X/Y extents).
+	/// </summary>
+	[Property] private Vector2 _FadeDetectionSize { get; set; } = new( 50f, 50f );
+
+	/// <summary>
+	/// Speed at which rendered models fade in/out when obstruction is detected.
+	/// </summary>
+	[Property] private float _CameraFadeSpeed { get; set; } = 5f;
+
+	/// <summary>
 	/// How quickly this object turns to face the target when _LookAtTarget is enabled. Higher is snappier.
 	/// </summary>
 	[Property] private float _LookAtSpeed { get; set; } = 5f;
@@ -129,6 +144,12 @@ public sealed class CCCamera : Component
 	/// </summary>
 	private DrunkCC _drunkCC;
 
+	/// <summary>
+	/// Tracks which ModelRenderers are currently obstructed and how far each has faded.
+	/// Values range 0..1 where 1 = fully opaque (default).
+	/// </summary>
+	private readonly Dictionary<ModelRenderer, float> _rendererFadeOut = new();
+
 	protected override void OnStart()
 	{
 		_currentBehindCap = _MaxDefaultBehindCap;
@@ -170,6 +191,82 @@ public sealed class CCCamera : Component
 		}
 		
 		EnforceMinDistance( followTarget );
+
+		UpdateObstructionFade( followTarget );
+	}
+
+	/// <summary>
+	/// Casts a box from the camera towards the follow-target and fades out any
+	/// ModelRenderer it hits, while fading back in those no longer obstructed.
+	/// </summary>
+	private void UpdateObstructionFade( GameObject followTarget )
+	{
+		if ( _FadeDetectionDistance <= 0f || _FadeDetectionSize == Vector2.Zero ) return;
+
+		var camPos = WorldPosition;
+		var dirToTarget = (followTarget.WorldPosition - camPos);
+		var distToTarget = dirToTarget.Length;
+		if ( distToTarget < 0.001f ) return;
+
+		var forwardDir = dirToTarget.Normal;
+		var endPos = camPos + forwardDir * _FadeDetectionDistance.Clamp( 1f, distToTarget );
+		var zThick = 2f;
+		var extents = new BBox( new Vector3( -_FadeDetectionSize.x, -_FadeDetectionSize.y, -zThick ),
+		                        new Vector3(  _FadeDetectionSize.x,  _FadeDetectionSize.y,  zThick ) );
+
+		// Build rotation so the Z-axis points toward the target (box traces are unrotated unless we supply Rotated).
+		var rot = Rotation.LookAt( forwardDir );
+
+		var trace = Scene.Trace
+			.Box( extents, camPos, endPos )
+			.Rotated( rot )
+			.IgnoreGameObjectHierarchy( GameObject )
+			.Run();
+
+		var currentlyObstructed = new HashSet<ModelRenderer>();
+		if ( trace.Hit )
+		{
+			var obj = trace.GameObject;
+			while ( obj.IsValid() )
+			{
+				var mr = obj.GetComponent<ModelRenderer>();
+				if ( mr.IsValid() )
+				{
+					currentlyObstructed.Add( mr );
+				}
+				obj = obj.Parent;
+			}
+		}
+
+		// Fade out any newly obstructed renderer.
+		foreach ( var mr in currentlyObstructed )
+		{
+			if ( !mr.IsValid() ) continue;
+			if ( !_rendererFadeOut.ContainsKey( mr ) )
+				_rendererFadeOut[mr] = mr.Tint.a;
+			_rendererFadeOut[mr] = MathF.Max( 0f, _rendererFadeOut[mr] - _CameraFadeSpeed * Time.Delta );
+			var alpha = _rendererFadeOut[mr].Clamp( 0f, 1f );
+			mr.Tint = new Color( mr.Tint.r, mr.Tint.g, mr.Tint.b, alpha );
+		}
+
+		// Fade in any renderer that is no longer obstructed.
+		var toRemove = new List<ModelRenderer>();
+		foreach ( var kvp in _rendererFadeOut )
+		{
+			var mr = kvp.Key;
+			if ( !mr.IsValid() ) continue;
+			if ( !currentlyObstructed.Contains( mr ) )
+			{
+				var currentVal = kvp.Value + _CameraFadeSpeed * Time.Delta;
+				mr.Tint = new Color( mr.Tint.r, mr.Tint.g, mr.Tint.b, currentVal.Clamp( 0f, 1f ) );
+				if ( currentVal >= 1f )
+					toRemove.Add( mr );
+				else
+					_rendererFadeOut[mr] = currentVal;
+			}
+		}
+		foreach ( var mr in toRemove )
+			_rendererFadeOut.Remove( mr );
 	}
 
 	/// <summary>
