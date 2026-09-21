@@ -335,7 +335,7 @@ public sealed class GameManager : Component, Component.INetworkListener
 		_Bars[targetBar].SitUpPlayer( Connection.Local);
 		_LocalDrunkCC.BeerLevel += _minigameController.Beers;
 		_CCCamera.Enabled = true;
-		_CCCamera.WorldPosition = _Bars[targetBar].WorldPosition;
+		_CCCamera.WorldPosition = _Bars[targetBar].PlayerSpawnLocation.WorldPosition;
 
 		// Score & Timer Architecture - v0 plan, section 3: AddTime must run BEFORE the
 		// state flips back to PubCrawling/ResumeTimer, or the first tick of the resumed
@@ -440,7 +440,7 @@ public sealed class GameManager : Component, Component.INetworkListener
 		_LocalPlayer.WorldPosition = spawnLocation.WorldPosition;
 		_LocalPlayer.WorldRotation = spawnLocation.Parent.LocalRotation; //todo: ASAP is this fix?!
 		_CCCamera.WorldPosition = spawnLocation.WorldPosition;
-		_CCCamera.WorldRotation = _LocalPlayer.WorldRotation;
+		_CCCamera.WorldRotation = spawnLocation.Parent.LocalRotation;
 		_LocalPlayerRigidbody.Velocity = Vector3.Zero;
 		_LocalPlayerRigidbody.AngularVelocity = Vector3.Zero;
 		_LocalPlayerRigidbody.Sleeping = true;
@@ -448,7 +448,7 @@ public sealed class GameManager : Component, Component.INetworkListener
 		_LocalPlayer.Enabled = true;
 	}
 
-	// todo: how does this work w multiplaeyr???
+	// todo: how does this work w multiplayer???
 	/// <summary>
 	/// 
 	/// </summary>
