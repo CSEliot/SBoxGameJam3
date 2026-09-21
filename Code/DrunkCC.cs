@@ -114,6 +114,9 @@ public sealed class DrunkCC : Component
 	/// </summary>
 	private TimeSince _sinceLastSample;
 	private bool _hasCheckedHistObstacle;
+	private float _rollSin;
+	private float _rollCos;
+	private float _rollDeg;
 
 	/// <summary>
 	/// Seconds of rewind per beer. rewindSeconds = _BeerLevel * this. Default 1 -> 1 beer rewinds ~1s.
@@ -126,10 +129,10 @@ public sealed class DrunkCC : Component
 	/// </summary>
 	[Property] private float _RecoveryHistoryHeadroom { get; set; } = 3f;
 
-	/// <summary>
-	/// Rec Distance No Matter Beer Level
-	/// </summary>
-	[Property] private float _RecoveryMinTracking { get; set; } = 2f;
+	// /// <summary>
+	// /// Rec Distance No Matter Beer Level
+	// /// </summary>
+	// [Property] private float _RecoveryMinTracking { get; set; } = 2f;
 
 	/// <summary>
 	/// Seconds between recorded HistorySamples. Smaller = finer rewind, more memory.
@@ -215,19 +218,19 @@ public sealed class DrunkCC : Component
 	/// </summary>
 	[Property] private float _KnockdownRecoveryTime { get; set; } = 1;
 
-	/// <summary>
-	/// Distance (units) forward from the body that the wall-trace casts.
-	/// 0 disables the wall-trace check entirely.
-	/// </summary>
-	[Property, Range(0, 1000)] private float _WallHitDistance { get; set; }
-
-	/// <summary>
-	/// Max angle (degrees) between player forward and the inward-facing wall normal (-trace.Normal).
-	/// Measures how squarely the player is driving into the wall: 0 = perfectly straight-on,
-	/// 90 = grazing parallel. Only hits with approach angle AT MOST this trigger knockdown.
-	/// 0 disables the wall-trace check regardless of _WallHitDistance.
-	/// </summary>
-	[Property, Range(0, 90)] private float _WillCollideApproachAngle { get; set; }
+	// /// <summary>
+	// /// Distance (units) forward from the body that the wall-trace casts.
+	// /// 0 disables the wall-trace check entirely.
+	// /// </summary>
+	// [Property, Range(0, 1000)] private float _WallHitDistance { get; set; }
+	//
+	// /// <summary>
+	// /// Max angle (degrees) between player forward and the inward-facing wall normal (-trace.Normal).
+	// /// Measures how squarely the player is driving into the wall: 0 = perfectly straight-on,
+	// /// 90 = grazing parallel. Only hits with approach angle AT MOST this trigger knockdown.
+	// /// 0 disables the wall-trace check regardless of _WallHitDistance.
+	// /// </summary>
+	// [Property, Range(0, 90)] private float _WillCollideApproachAngle { get; set; }
 
 	/// <summary>
 	/// True while the wall-trace connects this tick (regardless of whether the
@@ -235,11 +238,11 @@ public sealed class DrunkCC : Component
 	/// </summary>
 	private bool _HasHitObstacle { get; set; }
 
-	/// <summary>
-	/// Forward offset (units) from the body origin at which to start the wall-trace.
-	/// Defaults to 0 (start at body centre).
-	/// </summary>
-	[Property] private float _ForwardRayCastPosition { get; set; }
+	// /// <summary>
+	// /// Forward offset (units) from the body origin at which to start the wall-trace.
+	// /// Defaults to 0 (start at body centre).
+	// /// </summary>
+	// [Property] private float _ForwardRayCastPosition { get; set; }
 
 	/// <summary>
 	/// Roll (degrees, either sign) at which the CC is knocked down. 0 disables knockdown.
@@ -291,15 +294,22 @@ public sealed class DrunkCC : Component
 	{
 		if ( _Rigidbody == null ) return;
 
-		switch ( CurrentState )
+		if ( CurrentState == State.Running)
 		{
-			case State.Running:
 				HandleRunning();
-				break;
-			case State.KnockedDown:
-				HandleKnockedDown();
-				break;
+				// Rule 5: leaned too far -> knocked down.
+				if ( _MaxHitRoll > 0f && MathF.Abs( _rollDeg ) > _MaxHitRoll )
+				{
+					EnterKnockedDown();
+				}
+				else if ( _HasHitObstacle )
+				{
+					_HasHitObstacle = false;
+					EnterKnockedDown();
+				}
 		}
+		if(CurrentState == State.KnockedDown)
+			HandleKnockedDown();
 	}
 
 	private void HandleRunning()
@@ -317,7 +327,7 @@ public sealed class DrunkCC : Component
 		// become a stand-up target: falling off the map would otherwise poison the trail and
 		// recovery would teleport the player to a point they were never validly standing on.
 		if ( grounded )
-			RecordHistory();
+			RecordRunningHistoryHelper();
 		if ( _isJumping )
 		{
 			if ( !grounded )
@@ -330,23 +340,10 @@ public sealed class DrunkCC : Component
 		// world up, so projecting it onto forward gives a signed roll that doesn't depend on Euler
 		// sign conventions. Sign: matches the +fwd torque direction, so +K*roll along fwd restores.
 		// Verified in-editor with the earlier torque version.
-		float rollSin = Vector3.Dot( Vector3.Cross( _Rigidbody.WorldRotation.Up, Vector3.Up ), _Rigidbody.WorldRotation.Forward );
-		float rollCos = Vector3.Dot( _Rigidbody.WorldRotation.Up, Vector3.Up );
-		float rollDeg = MathF.Atan2( rollSin, rollCos ).RadianToDegree();
-
-		// Rule 5: leaned too far -> knocked down.
-		if ( _MaxHitRoll > 0f && MathF.Abs( rollDeg ) > _MaxHitRoll )
-		{
-			EnterKnockedDown();
-			return;
-		}
-
-		if ( CheckWallHit() )
-		{
-			EnterKnockedDown();
-			return;
-		}
-
+		_rollSin = Vector3.Dot( Vector3.Cross( _Rigidbody.WorldRotation.Up, Vector3.Up ), _Rigidbody.WorldRotation.Forward );
+		_rollCos = Vector3.Dot( _Rigidbody.WorldRotation.Up, Vector3.Up );
+		_rollDeg = MathF.Atan2( _rollSin, _rollCos ).RadianToDegree();
+		
 		// Spin in the body's own frame. Source convention: +X forward, +Y left, +Z up, so
 		// .x = roll rate (about forward), .y = pitch rate, .z = yaw rate. Radians/s.
 		var localAv = _Rigidbody.WorldRotation.Inverse * _Rigidbody.AngularVelocity;
@@ -384,10 +381,10 @@ public sealed class DrunkCC : Component
 		// Positive roll (left lean) needs +fwd torque to come back, so the spring is +K*roll.
 		// The damper opposes whatever spin about fwd exists, so it is -Kd*rate.
 		float spring = 0f;
-		if ( MathF.Abs( rollDeg ) > _RollResponseFloor )
+		if ( MathF.Abs( _rollDeg ) > _RollResponseFloor )
 		{
 			// Error measured from the floor edge so response ramps smoothly instead of stepping.
-			float error = rollDeg - MathF.Sign( rollDeg ) * _RollResponseFloor;
+			float error = _rollDeg - MathF.Sign( _rollDeg ) * _RollResponseFloor;
 			spring = error * _CorrectionStrength;
 		}
 		float damping = _CorrectionDamping > 0f ? _CorrectionDamping : CriticalRollDamping( _Rigidbody );
@@ -397,7 +394,7 @@ public sealed class DrunkCC : Component
 		// about the body's up axis rather than setting angular velocity. Standing still or moving
 		// backward the target is zero, which also damps out residual yaw.
 		float forwardSpeed = Vector3.Dot( _Rigidbody.Velocity, _Rigidbody.WorldRotation.Forward );
-		float targetYawRateDeg = forwardSpeed > 0f ? rollDeg * _RollTurnRate : 0f;
+		float targetYawRateDeg = forwardSpeed > 0f ? _rollDeg * _RollTurnRate : 0f;
 		_Rigidbody.ApplyTorque( _Rigidbody.WorldRotation.Up * ( targetYawRateDeg - yawRateDeg ) * _YawGain );
 
 		ApplyDebugLocks( _Rigidbody );
@@ -421,7 +418,6 @@ public sealed class DrunkCC : Component
 	}
 	
 	
-
 	private void EnterKnockedDown()
 	{
 		CurrentState = State.KnockedDown;
@@ -438,6 +434,8 @@ public sealed class DrunkCC : Component
 		_knockdownRestorePosition = restore.Position;
 		_knockdownHeading = restore.Heading;
 		if ( _knockdownHeading.IsNearlyZero() ) _knockdownHeading = Vector3.Forward;
+		
+		Log.Info("Entering Knockdown.");
 	}
 
 	/// <summary>
@@ -445,7 +443,7 @@ public sealed class DrunkCC : Component
 	/// window we need: current beer's rewind plus headroom, so higher future beer levels already
 	/// have trail to rewind into. Called only while Running.
 	/// </summary>
-	private void RecordHistory()
+	private void RecordRunningHistoryHelper()
 	{
 		if ( _sinceLastSample < _RecoverySampleInterval && _history.Count > 0 )
 			return;
@@ -559,72 +557,6 @@ public sealed class DrunkCC : Component
 	}
 
 	/// <summary>
-	/// Forward wall-trace + approach-angle gate. Sets _HasHitObstacle this tick.
-	/// Only returns true (triggers knockdown) when the trace hits AND the angle
-	/// between player forward and inward wall normal (-trace.Normal) is <= _WillCollideApproachAngle.
-	/// Both _WallHitDistance == 0 or _WillCollideApproachAngle == 0 disable the check.
-	/// Ignores the player's own hierarchy so neither the sphere nor ragdoll bones count.
-	/// </summary>
-	private bool CheckWallHit()
-	{
-		if ( _hasCheckedHistObstacle == false )
-		{
-			_hasCheckedHistObstacle = true;
-			if ( _HasHitObstacle )
-			{
-				_HasHitObstacle = false;
-				return true;
-			}
-		}
-
-		return false;
-		// if ( _WallHitDistance <= 0f || _WillCollideApproachAngle <= 0f )
-		// {
-		// 	_HasHitObstacle = false;
-		// 	return;
-		// }
-
-		// var rb = _Rigidbody;
-		// var origin = rb.WorldPosition + rb.WorldRotation.Forward * _ForwardRayCastPosition;
-		// var end = origin + rb.WorldRotation.Forward * _WallHitDistance;
-
-		// var boxCenter = WorldPosition + new Vector3(
-		// 	CollisionBoxRelativeStartX,
-		// 	CollisionBoxRelativeStartY,
-		// 	CollisionBoxRelativeStartZ
-		// 	);
-		//
-		// if(ShowCollisionBox)
-		// 	DebugOverlay.Box( boxCenter, CollisionBoxExtents, Color.Red, overlay: true );
-		//
-		// var boxRayOrigin = boxCenter.WithX( boxCenter.x / 2 );
-		//
-		// var boxRay = new Ray( boxRayOrigin, WorldRotation.Forward );
-		// var trace = Scene.Trace.Box( CollisionBoxExtents, boxRay, CollisionBoxExtents.x )
-		// 	.IgnoreGameObjectHierarchy( GameObject )
-		// 	.UsePhysicsWorld(  )
-		// 	.UseHitboxes(  )
-		// 	.UseRenderMeshes(  )
-		// 	.Run();
-
-		// if ( !trace.Hit )
-		// {
-		// 	_HasHitObstacle = false;
-		// 	return;
-		// }
-
-		// Log.Info( "Hit: " + trace.GameObject.Name );
-
-		// // // Inward-facing wall normal: negate trace.Normal so 0° = running straight into the wall.
-		// Vector3 inwardNormal = -trace.Normal;
-		// float dot = Vector3.Dot( rb.WorldRotation.Forward, inwardNormal );
-		// dot = Math.Clamp( dot, -1f, 1f ); // guard against floating-point overshoot
-		// float approachDeg = MathF.Acos( dot ).RadianToDegree();
-		//
-		// _HasHitObstacle = approachDeg <= _WillCollideApproachAngle;
-	}
-
-	/// <summary>
 	/// Rule 7: stand back up at the rewound recovery point, facing that moment's heading, at zero velocity.
 	/// </summary>
 	private void ResetFromKnockdown()
@@ -632,6 +564,8 @@ public sealed class DrunkCC : Component
 		_Ragdoll.Mode = RagdollMode.None;
 		if(IsProxy)
 			return;
+		
+		Log.Info("Resetting From Knockdown.");
 		
 		var rb = _Rigidbody;
 
@@ -693,7 +627,7 @@ public sealed class DrunkCC : Component
 	{
 		Log.Info("Istrigger: " + other.IsTrigger + "---OnWallHitColliderEnter + " + other);
 
-		if ( other.IsTrigger )
+		if ( other.IsTrigger || CurrentState == State.KnockedDown)
 			return;
 		
 		_HasHitObstacle = true;
