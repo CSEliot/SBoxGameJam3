@@ -899,7 +899,7 @@
 							},
 							{
 								from = "polygoncity_mat_road_03.vmat"
-								to = "fbx/world/city01/textures/polygoncity_texture_road_03.vmat"
+								to = "fbx/world/city01/textures/polygoncity_texture_road_01.vmat"
 							},
 						]
 						use_global_default = false
