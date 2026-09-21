@@ -71498,7 +71498,7 @@
               "CreateAttachments": false,
               "LodOverride": null,
               "MaterialGroup": null,
-              "MaterialOverride": "fbx/world/city01/textures/polygoncity_texture_01_a.vmat",
+              "MaterialOverride": null,
               "Materials": null,
               "Model": "models/dev/box.vmdl",
               "OnComponentDestroy": null,
@@ -71514,7 +71514,7 @@
                 "AfterUILayer": false
               },
               "RenderType": "On",
-              "Tint": "0.97209,0.02713,0.02713,1"
+              "Tint": "1,1,1,1"
             },
             {
               "__type": "Sandbox.HullCollider",
@@ -71552,6 +71552,69 @@
           "Children": []
         }
       ]
+    },
+    {
+      "__guid": "f84bca3e-1164-48ba-9ad3-c9f230a78ec1",
+      "__version": 2,
+      "Flags": 0,
+      "Name": "citymesh",
+      "Position": "-708.041504,4850.02441,-164.376785",
+      "Rotation": "0,0,0,1",
+      "Scale": "0.449999988,0.449999988,0.449999988",
+      "Tags": "world",
+      "Enabled": true,
+      "NetworkMode": 2,
+      "NetworkFlags": 0,
+      "NetworkOrphaned": 0,
+      "NetworkTransmit": true,
+      "OwnerTransfer": 1,
+      "Components": [
+        {
+          "__type": "Sandbox.MeshComponent",
+          "__guid": "cd138368-cee9-4a06-bd84-007c43b3439f",
+          "__enabled": true,
+          "Flags": 0,
+          "ColliderFlags": 0,
+          "Collision": "Mesh",
+          "Color": "1,1,1,0",
+          "Elasticity": null,
+          "Friction": null,
+          "HideInGame": true,
+          "IsTrigger": false,
+          "Mesh": {
+            "Data": {
+              "$blob": "e694ee12-89f1-8cb4-bc03-c3c76c1ea83d"
+            },
+            "Materials": [
+              "materials/error.vmat",
+              "fbx/world/city01/textures/polygoncity_texture_glass.vmat",
+              "fbx/world/city01/textures/polygoncity_texture_01_a.vmat",
+              "fbx/world/city01/textures/polygoncity_texture_04_a.vmat",
+              "fbx/world/city01/textures/polygoncity_texture_03_a.vmat",
+              "fbx/world/city01/textures/polygoncity_texture_road_01.vmat",
+              "fbx/world/city01/textures/billboardads.vmat",
+              "fbx/world/city01/textures/polygoncity_texture_02_c.vmat"
+            ]
+          },
+          "OnComponentDestroy": null,
+          "OnComponentDisabled": null,
+          "OnComponentEnabled": null,
+          "OnComponentFixedUpdate": null,
+          "OnComponentStart": null,
+          "OnComponentUpdate": null,
+          "OnObjectTriggerEnter": null,
+          "OnObjectTriggerExit": null,
+          "OnTriggerEnter": null,
+          "OnTriggerExit": null,
+          "RenderType": "On",
+          "RollingResistance": null,
+          "SmoothingAngle": 180,
+          "Static": true,
+          "Surface": null,
+          "SurfaceVelocity": "0,0,0"
+        }
+      ],
+      "Children": []
     }
   ],
   "SceneProperties": {
