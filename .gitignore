@@ -31,3 +31,8 @@ code/Properties/*
 
 # Exported / standalone games
 Exports/
+
+# Stray editor/backup files
+*.save
+*.swp
+* (1).*
