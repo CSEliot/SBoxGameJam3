@@ -220,7 +220,7 @@ public sealed class GameManager : Component, Component.INetworkListener
 			if ( ended && !_endGameActive )
 			{
 				_endGameActive = true;
-				_CCCamera.Enabled = false;
+				// _CCCamera.Enabled = false;
 				if ( _LocalPlayer != null )
 					_LocalPlayer.Enabled = false;
 			}
@@ -621,7 +621,7 @@ public sealed class GameManager : Component, Component.INetworkListener
 		if ( _LocalDrunkCC != null )
 			_LocalDrunkCC.BeerLevel = 0f;
 		_targetBarWaiting = _startingBar;
-		_localGameState = LocalGameState.PubCrawling;
+		_localGameState = LocalGameState.WaitingToStartMinigame;
 		_CCCamera.Enabled = true;
 		ResetPlayerHelper();
 	}
