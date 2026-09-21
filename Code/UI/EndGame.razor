@@ -42,47 +42,51 @@
 		<div class="content">
 			<div class="title @( TitleColorClass )">@( TitleText )</div>
 
-			<div class="leaderboard">
-				<div class="lb-title">@( "BEST DRUNKARDS" )</div>
-				@* <div class="lb-title">@( "\U0001F3C6 BEST DRUNKARDS \U0001F3C6" )</div> *@
+			<div class="body">
+				<div class="leaderboard">
+					<div class="lb-title">@( "BEST DRUNKARDS" )</div>
+					@* <div class="lb-title">@( "\U0001F3C6 BEST DRUNKARDS \U0001F3C6" )</div> *@
 
-			    @foreach ( var row in TopRows )
-				{
-					<div class="lb-row rank-@( row.Rank ) @( row.IsLocal ? "local" : "" )">
-						<div class="lb-rank">@( row.Rank ).</div>
-						<div class="lb-name">@( row.Entry.DisplayName )</div>
-					<div class="lb-score">@( ( (int)row.Entry.Value ).ToString( "D4" ) )</div>
+	    		    @foreach ( var row in TopRows )
+					{
+						<div class="lb-row rank-@( row.Rank ) @( row.IsLocal ? "local" : "" )">
+							<div class="lb-rank">@( row.Rank ).</div>
+							<div class="lb-name">@( row.Entry.DisplayName )</div>
+						<div class="lb-score">@( ( (int)row.Entry.Value ).ToString( "D4" ) )</div>
+						</div>
+					}
+
+					@if ( LocalPinnedRow.HasValue )
+					{
+						<div class="lb-divider"></div>
+						<div class="lb-row local pinned">
+							<div class="lb-rank">@( LocalPinnedRow.Value.Rank ).</div>
+							<div class="lb-name">@( LocalPinnedRow.Value.Entry.DisplayName )</div>
+						<div class="lb-score">@( ( (int)LocalPinnedRow.Value.Entry.Value ).ToString( "D4" ) )</div>
+						</div>
+					}
+				</div>
+
+				<div class="center-column">
+					<div class="your-score-wrap">
+						<div class="your-score @( IsWasted ? "wasted" : "" )">YOUR SCORE: @( ScoreText )</div>
+						@if ( IsWasted )
+						{
+							<div class="wasted-stamp" style="transform: rotate( @( WastedRotationDeg )deg );">WASTED</div>
+						}
 					</div>
-				}
 
-				@if ( LocalPinnedRow.HasValue )
-				{
-					<div class="lb-divider"></div>
-					<div class="lb-row local pinned">
-						<div class="lb-rank">@( LocalPinnedRow.Value.Rank ).</div>
-						<div class="lb-name">@( LocalPinnedRow.Value.Entry.DisplayName )</div>
-					<div class="lb-score">@( ( (int)LocalPinnedRow.Value.Entry.Value ).ToString( "D4" ) )</div>
+					<div class="stats">
+						@* <div class="beers-drunk">Beers Drunk: @( BeersText )<span class="beer-glyph">@( "\U0001F37A" )</span></div> *@
+						<div class="beers-drunk">Beers Drunk: @( BeersText )<span class="beer-glyph">@( "" )</span></div>
+						<div class="bars-visited">Bars Visited: @( BarsVisited )</div>
 					</div>
-				}
-			</div>
 
-			<div class="your-score-wrap">
-				<div class="your-score @( IsWasted ? "wasted" : "" )">YOUR SCORE: @( ScoreText )</div>
-				@if ( IsWasted )
-				{
-					<div class="wasted-stamp" style="transform: rotate( @( WastedRotationDeg )deg );">WASTED</div>
-				}
-			</div>
-
-			<div class="stats">
-				@* <div class="beers-drunk">Beers Drunk: @( BeersText )<span class="beer-glyph">@( "\U0001F37A" )</span></div> *@
-				<div class="beers-drunk">Beers Drunk: @( BeersText )<span class="beer-glyph">@( "" )</span></div>
-				<div class="bars-visited">Bars Visited: @( BarsVisited )</div>
-			</div>
-
-			<div class="buttons">
-				<div class="button try-again" onclick=@TryAgainClicked>TRY AGAIN</div>
-				<div class="button quit" onclick=@QuitClicked>QUIT</div>
+					<div class="buttons">
+						<div class="button try-again" onclick=@TryAgainClicked>TRY AGAIN</div>
+						<div class="button quit" onclick=@QuitClicked>QUIT</div>
+					</div>
+				</div>
 			</div>
 		</div>
 	}
@@ -120,6 +124,7 @@
 	private DrunkCC _drunk;
 	private Sandbox.Services.Leaderboards.Board2 _leaderboard;
 	private bool _leaderboardLoaded;
+	private int _refreshKey;
 
 	protected override void OnStart()
 	{
@@ -156,6 +161,7 @@
 
 		await _leaderboard.Refresh();
 		_leaderboardLoaded = true;
+		_refreshKey++; // Force UI rebuild when entries arrive
 	}
 
 	/// <summary>Shown once the local run has Ended (timeout/score-wipe or cash-in).</summary>
@@ -269,6 +275,6 @@
 	// while this screen is up, without fighting input on every frame. Constant hash while
 	// hidden so the idle panel stays put.
 	protected override int BuildHash() => Visible
-		? HashCode.Combine( Visible, (int)RealTime.Now )
+		? HashCode.Combine( Visible, _refreshKey, (int)RealTime.Now )
 		: HashCode.Combine( Visible );
 }

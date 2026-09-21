@@ -40,18 +40,25 @@ EndGame
 
 	.content
 	{
-		position: relative;
+		position: absolute;
+		top: 0px;
+		left: 0px;
+		right: 0px;
+		bottom: 0px;
 		flex-direction: column;
 		justify-content: center;
 		align-items: center;
+		z-index: 1;
 		pointer-events: all;
 	}
 
 	.title
 	{
+		position: relative;
 		font-family: $display;
 		font-size: 100px;
 		margin-bottom: 24px;
+		z-index: 2;
 
 		&.game-over
 		{
@@ -66,16 +73,28 @@ EndGame
 		}
 	}
 
+	.body
+	{
+		position: relative;
+		flex-direction: row;
+		justify-content: center;
+		align-items: flex-start;
+		gap: 48px;
+		width: 100%;
+		z-index: 2;
+	}
+
 	.leaderboard
 	{
+		position: relative;
 		flex-direction: column;
 		align-items: stretch;
-		min-width: 640px;
+		min-width: 320px;
+		max-width: 400px;
 		padding: 24px 32px;
 		background-color: rgba( #00166D, 0.6 );
 		border: 2px solid $blue;
 		border-radius: 12px;
-		margin-bottom: 24px;
 
 		.lb-title
 		{
@@ -144,6 +163,14 @@ EndGame
 			background-color: $blue;
 			margin: 8px 0px;
 		}
+	}
+
+	.center-column
+	{
+		position: relative;
+		flex-direction: column;
+		justify-content: center;
+		align-items: center;
 	}
 
 	.your-score-wrap
