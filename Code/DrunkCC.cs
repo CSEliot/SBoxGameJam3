@@ -47,6 +47,23 @@ public sealed class DrunkCC : Component
 	/// Debug: hard-zero spin and orientation on this axis every tick.
 	/// </summary>
 	[Property] public bool LockRoll  { get; set; }
+	/// <summary>
+	/// Show DEBUG collision test box.
+	/// </summary>
+	[Property] public bool ShowCollisionBox  { get; set; }
+
+	[Property] public CollisionReporter WallHitColliderReporter  { get; set; }
+
+	/// <summary>
+	/// Size of the collider and direction.
+	/// </summary>
+	// [Property] public Vector3 CollisionBoxExtents  { get; set; }
+	// /// <summary>
+	// /// Where it starts from character.
+	// /// </summary>
+	// [Property] public float CollisionBoxRelativeStartX  { get; set; }
+	// [Property] public float CollisionBoxRelativeStartY  { get; set; }
+	// [Property] public float CollisionBoxRelativeStartZ  { get; set; }
 	
 	[Sync] public State CurrentState { get; set; } = State.Running;
 
@@ -96,6 +113,7 @@ public sealed class DrunkCC : Component
 	/// Timer gating how often a HistorySample is appended.
 	/// </summary>
 	private TimeSince _sinceLastSample;
+	private bool _hasCheckedHistObstacle;
 
 	/// <summary>
 	/// Seconds of rewind per beer. rewindSeconds = _BeerLevel * this. Default 1 -> 1 beer rewinds ~1s.
@@ -250,14 +268,23 @@ public sealed class DrunkCC : Component
 	
 	protected override void OnStart()
 	{
-		
+		WallHitColliderReporter.OnTriggerEnterCallback += OnWallHitColliderEnter;
+		WallHitColliderReporter.OnTriggerExitCallback += OnWallHitColliderExit;
 	}
 	
 	protected override void OnUpdate()
 	{
-		_CitizenAnimationHelper.MoveStyle = CitizenAnimationHelper.MoveStyles.Run;
-		_SkinnedModelRenderer.Set( "move_style", 2 );
-		_SkinnedModelRenderer.Set( "move_x", 10000 );
+		switch ( CurrentState )
+		{
+			case State.Running:
+				_CitizenAnimationHelper.MoveStyle = CitizenAnimationHelper.MoveStyles.Run;
+				_SkinnedModelRenderer.Set( "move_style", 2 );
+				_SkinnedModelRenderer.Set( "move_x", 10000 );
+				break;
+			case State.KnockedDown:
+				// nothing
+				break;
+		}
 	}
 
 	protected override void OnFixedUpdate()
@@ -282,6 +309,9 @@ public sealed class DrunkCC : Component
 		// IsGrounded here also lets the animgraph blend out of the jump/fall pose on landing.
 		bool grounded = IsGrounded();
 		_CitizenAnimationHelper.IsGrounded = grounded;
+		
+		if(IsProxy)
+			return;
 
 		// Only record recovery history while grounded. Airborne/off-map positions must never
 		// become a stand-up target: falling off the map would otherwise poison the trail and
@@ -311,9 +341,7 @@ public sealed class DrunkCC : Component
 			return;
 		}
 
-		// Wall-trace knockdown: forward raytrace + approach-angle gate.
-		CheckWallHit();
-		if ( _HasHitObstacle )
+		if ( CheckWallHit() )
 		{
 			EnterKnockedDown();
 			return;
@@ -537,35 +565,63 @@ public sealed class DrunkCC : Component
 	/// Both _WallHitDistance == 0 or _WillCollideApproachAngle == 0 disable the check.
 	/// Ignores the player's own hierarchy so neither the sphere nor ragdoll bones count.
 	/// </summary>
-	private void CheckWallHit()
+	private bool CheckWallHit()
 	{
-		if ( _WallHitDistance <= 0f || _WillCollideApproachAngle <= 0f )
+		if ( _hasCheckedHistObstacle == false )
 		{
-			_HasHitObstacle = false;
-			return;
+			_hasCheckedHistObstacle = true;
+			if ( _HasHitObstacle )
+			{
+				_HasHitObstacle = false;
+				return true;
+			}
 		}
 
-		var rb = _Rigidbody;
-		var origin = rb.WorldPosition + rb.WorldRotation.Forward * _ForwardRayCastPosition;
-		var end = origin + rb.WorldRotation.Forward * _WallHitDistance;
+		return false;
+		// if ( _WallHitDistance <= 0f || _WillCollideApproachAngle <= 0f )
+		// {
+		// 	_HasHitObstacle = false;
+		// 	return;
+		// }
 
-		var trace = Scene.Trace.Ray( origin, end )
-			.IgnoreGameObjectHierarchy( GameObject )
-			.Run();
+		// var rb = _Rigidbody;
+		// var origin = rb.WorldPosition + rb.WorldRotation.Forward * _ForwardRayCastPosition;
+		// var end = origin + rb.WorldRotation.Forward * _WallHitDistance;
 
-		if ( !trace.Hit )
-		{
-			_HasHitObstacle = false;
-			return;
-		}
+		// var boxCenter = WorldPosition + new Vector3(
+		// 	CollisionBoxRelativeStartX,
+		// 	CollisionBoxRelativeStartY,
+		// 	CollisionBoxRelativeStartZ
+		// 	);
+		//
+		// if(ShowCollisionBox)
+		// 	DebugOverlay.Box( boxCenter, CollisionBoxExtents, Color.Red, overlay: true );
+		//
+		// var boxRayOrigin = boxCenter.WithX( boxCenter.x / 2 );
+		//
+		// var boxRay = new Ray( boxRayOrigin, WorldRotation.Forward );
+		// var trace = Scene.Trace.Box( CollisionBoxExtents, boxRay, CollisionBoxExtents.x )
+		// 	.IgnoreGameObjectHierarchy( GameObject )
+		// 	.UsePhysicsWorld(  )
+		// 	.UseHitboxes(  )
+		// 	.UseRenderMeshes(  )
+		// 	.Run();
 
-		// Inward-facing wall normal: negate trace.Normal so 0° = running straight into the wall.
-		Vector3 inwardNormal = -trace.Normal;
-		float dot = Vector3.Dot( rb.WorldRotation.Forward, inwardNormal );
-		dot = Math.Clamp( dot, -1f, 1f ); // guard against floating-point overshoot
-		float approachDeg = MathF.Acos( dot ).RadianToDegree();
+		// if ( !trace.Hit )
+		// {
+		// 	_HasHitObstacle = false;
+		// 	return;
+		// }
 
-		_HasHitObstacle = approachDeg <= _WillCollideApproachAngle;
+		// Log.Info( "Hit: " + trace.GameObject.Name );
+
+		// // // Inward-facing wall normal: negate trace.Normal so 0° = running straight into the wall.
+		// Vector3 inwardNormal = -trace.Normal;
+		// float dot = Vector3.Dot( rb.WorldRotation.Forward, inwardNormal );
+		// dot = Math.Clamp( dot, -1f, 1f ); // guard against floating-point overshoot
+		// float approachDeg = MathF.Acos( dot ).RadianToDegree();
+		//
+		// _HasHitObstacle = approachDeg <= _WillCollideApproachAngle;
 	}
 
 	/// <summary>
@@ -573,6 +629,10 @@ public sealed class DrunkCC : Component
 	/// </summary>
 	private void ResetFromKnockdown()
 	{
+		_Ragdoll.Mode = RagdollMode.None;
+		if(IsProxy)
+			return;
+		
 		var rb = _Rigidbody;
 
 		// Snap the rewound point onto the navmesh if one exists. Quietly falls back to the raw
@@ -582,7 +642,6 @@ public sealed class DrunkCC : Component
 		rb.Velocity = Vector3.Zero;
 		rb.AngularVelocity = Vector3.Zero;
 		CurrentState = State.Running;
-		_Ragdoll.Mode = RagdollMode.None;
 
 		// A knockdown can interrupt a jump; clear the gate so recovery doesn't leave jumping stuck off.
 		_isJumping = false;
@@ -629,4 +688,21 @@ public sealed class DrunkCC : Component
 		if ( LockRoll )  angles.roll  = 0f;
 		rb.WorldRotation = angles.ToRotation();
 	}
+
+	private void OnWallHitColliderEnter( Collider other )
+	{
+		Log.Info("Istrigger: " + other.IsTrigger + "---OnWallHitColliderEnter + " + other);
+
+		if ( other.IsTrigger )
+			return;
+		
+		_HasHitObstacle = true;
+		_hasCheckedHistObstacle = false;
+	}
+	
+	private void OnWallHitColliderExit( Collider other )
+	{
+		// Log.Info("OnWallHitColliderExit + " + other);
+	}
+
 }
