@@ -101,6 +101,20 @@
         "Static": false,
         "Surface": null,
         "SurfaceVelocity": "0,0,0"
+      },
+      {
+        "__type": "Sandbox.DeleteMe",
+        "__guid": "94f597f8-40c3-4f88-bab7-ac3eab7a17f3",
+        "__enabled": true,
+        "Flags": 0,
+        "_TimeToDelete": 5,
+        "foo": null,
+        "OnComponentDestroy": null,
+        "OnComponentDisabled": null,
+        "OnComponentEnabled": null,
+        "OnComponentFixedUpdate": null,
+        "OnComponentStart": null,
+        "OnComponentUpdate": null
       }
     ],
     "Children": [],
