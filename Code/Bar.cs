@@ -73,35 +73,51 @@ public sealed class Bar : Component, Component.ITriggerListener
 
 	}
 
-	[Rpc.Broadcast]
+	// [Rpc.Host]: seat selection must happen exactly once, on one authoritative machine.
+	// Two clients sitting down at the same bar in the same window used to each broadcast
+	// their own independently-scanned "first Enabled == false" index; relative RPC arrival
+	// order isn't guaranteed to match across every receiver, so client A could end up
+	// holding seat 0 on the host and seat 1 on client C, with _connectionToPatronIndex
+	// disagreeing between machines. Routing seat selection through the host and then
+	// broadcasting the already-decided index removes that race - a non-host caller is
+	// automatically forwarded to the host by the Rpc framework.
+	[Rpc.Host]
 	public void SitDownPlayer( Connection playerConnection, Minigame minigame )
 	{
 		Log.Info( "SITTING DOWN: " + playerConnection.Id );
-		
+
 		// Get next available drinker
-		GameObject availableDrinker = null;
 		int drinkerIndex = -1;
 		for ( int i = 0; i < _Drinkers.Length; i++ )
 		{
 			if ( _Drinkers[i].Enabled == false )
 			{
-				availableDrinker = _Drinkers[i];
 				drinkerIndex = i;
 				break;
 			}
 		}
 
-		if ( availableDrinker == null )
+		if ( drinkerIndex == -1 )
 		{
 			Log.Error( "Drinker not found! Is the bar full?" );
 			return;
 		}
-		
+
+		ApplySitDownPlayer( playerConnection, minigame, drinkerIndex );
+	}
+
+	[Rpc.Broadcast]
+	private void ApplySitDownPlayer( Connection playerConnection, Minigame minigame, int drinkerIndex )
+	{
+		var availableDrinker = _Drinkers[drinkerIndex];
 		var drinkerCam = availableDrinker.GetTagInChildren( "barcam" ).First();
 		var drinkerBeerSpawnLocation = drinkerCam.GetTagInChildren( "beerspawnlocation" ).First();
 
 		availableDrinker.Enabled = true;
-		_connectionToPatronIndex.Add( playerConnection.Id, drinkerIndex );
+		if ( _connectionToPatronIndex.ContainsKey( playerConnection.Id ) )
+			_connectionToPatronIndex[playerConnection.Id] = drinkerIndex;
+		else
+			_connectionToPatronIndex.Add( playerConnection.Id, drinkerIndex );
 
 		// Dress the drinker in the sitting player's account clothing. Runs on every client
 		// since this whole method is [Rpc.Broadcast]. Drinkers aren't tied to one player, so
@@ -195,7 +211,7 @@ public sealed class Bar : Component, Component.ITriggerListener
 		if(other.GameObject.Network.IsOwner)
 		{
 			NotifyGameManagerOfPlayerTriggerExit?.Invoke(other.GameObject.Network.OwnerId);
-			Log.Info("COLLIDdER EXIT: " + other.GameObject.Name + "Tags: " + other.GameObject.Tags);
+			// Log.Info("COLLIDdER EXIT: " + other.GameObject.Name + "Tags: " + other.GameObject.Tags);
 		}
 
 	}
@@ -205,7 +221,7 @@ public sealed class Bar : Component, Component.ITriggerListener
 		if(other.GameObject.Network.IsOwner)
 		{
 			NotifyGameManagerOfPlayerTriggerEnter?.Invoke(other.GameObject.Network.OwnerId, this);
-			Log.Info("COLLIDER Enter: " + other.GameObject.Name + "Tags: " + other.GameObject.Tags);
+			// Log.Info("COLLIDER Enter: " + other.GameObject.Name + "Tags: " + other.GameObject.Tags);
 		}
 	}
 
