@@ -62,7 +62,11 @@ public sealed class CCCamera : Component
 	/// <summary>
 	/// Manual target override. If unset, the local (non-proxy) DrunkCC in the scene is used.
 	/// </summary>
-	[Property] private GameObject _Target { get; set; }
+	[Property] private GameObject _FollowTarget { get; set; }
+	/// <summary>
+	/// Manual target override. If unset, the local (non-proxy) DrunkCC in the scene is used.
+	/// </summary>
+	[Property] private GameObject _LookAtTarget { get; set; }
 	
 	/// <summary>
 	/// How quickly this object catches up to the target's position. Higher is snappier.
@@ -72,7 +76,7 @@ public sealed class CCCamera : Component
 	/// <summary>
 	/// If true, this object rotates to face the target instead of keeping a fixed rotation.
 	/// </summary>
-	[Property] private bool _LookAtTarget { get; set; }
+	[Property] private bool _LookAt { get; set; }
 
 	/// <summary>
 	/// Distance along the camera's forward axis for the obstruction box trace.
@@ -90,7 +94,7 @@ public sealed class CCCamera : Component
 	[Property] private float _CameraFadeSpeed { get; set; } = 5f;
 
 	/// <summary>
-	/// How quickly this object turns to face the target when _LookAtTarget is enabled. Higher is snappier.
+	/// How quickly this object turns to face the target when _LookAt is enabled. Higher is snappier.
 	/// </summary>
 	[Property] private float _LookAtSpeed { get; set; } = 5f;
 	[Property] private Vector3 _Offset { get; set; }
@@ -157,19 +161,8 @@ public sealed class CCCamera : Component
 
 	protected override void OnUpdate()
 	{
-		if ( (TryResolveGetTargetHelper() && TryResolveGetDrunkHelper()) == false)
+		if ( (TryResolveGetTargetLookAtHelper() && TryResolveGetTargetFollowHelper() && TryResolveGetDrunkHelper()) == false)
 			return;
-
-		var followTarget = GetFollowTargetHelper();
-
-		var targetPosition = followTarget.WorldPosition + _Offset;
-		WorldPosition = Vector3.Lerp( WorldPosition, targetPosition, _FollowSpeed * Time.Delta );
-
-		if ( _LookAtTarget )
-		{
-			var lookRotation = Rotation.LookAt( followTarget.WorldPosition - WorldPosition );
-			WorldRotation = Rotation.Lerp( WorldRotation, lookRotation, _LookAtSpeed * Time.Delta );
-		}
 		
 		if ( Input.Pressed( "Left" ) && Input.Pressed( "Right" ))
 		{
@@ -183,16 +176,25 @@ public sealed class CCCamera : Component
 		{
 			DoJerkHelper( true );
 		}
+		
+		if ( _LookAt )
+		{
+			var lookRotation = Rotation.LookAt( _LookAtTarget.WorldPosition - WorldPosition );
+			WorldRotation = Rotation.Lerp( WorldRotation, lookRotation, _LookAtSpeed * Time.Delta );
+		}
+		
+		var targetPosition = _FollowTarget.WorldPosition + _Offset;
+		WorldPosition = Vector3.Lerp( WorldPosition, targetPosition, _FollowSpeed * Time.Delta );
 
 		if(_drunkCC.CurrentState == DrunkCC.State.Running)
 		{
-			UpdateBehindCapSqueezeHelper( followTarget );
-			EnforceBehindCap( followTarget );
+			UpdateBehindCapSqueezeHelper( _FollowTarget );
+			EnforceBehindCap( _FollowTarget );
 		}
 		
-		EnforceMinDistance( followTarget );
+		EnforceMinDistance( _FollowTarget );
 
-		UpdateObstructionFade( followTarget );
+		UpdateObstructionFade( _FollowTarget );
 	}
 
 	/// <summary>
@@ -267,19 +269,6 @@ public sealed class CCCamera : Component
 		}
 		foreach ( var mr in toRemove )
 			_rendererFadeOut.Remove( mr );
-	}
-
-	/// <summary>
-	/// Picks which GameObject to actually follow this frame. Normally _Target itself, but while
-	/// the local DrunkCC is KnockedDown (ragdolling) _Target's own transform can flail around with
-	/// the ragdoll, so we temporarily follow _Target's parent instead for a steadier camera.
-	/// </summary>
-	private GameObject GetFollowTargetHelper()
-	{
-		if ( _drunkCC.CurrentState == DrunkCC.State.KnockedDown && _Target.Parent.IsValid() )
-			return _Target.Parent;
-
-		return _Target;
 	}
 
 	/// <summary>
@@ -396,19 +385,36 @@ public sealed class CCCamera : Component
 	/// Ensures _Target points at a valid GameObject, falling back to the scene's local DrunkCC.
 	/// </summary>
 	/// <returns>True if _Target is valid.</returns>
-	private bool TryResolveGetTargetHelper()
+	private bool TryResolveGetTargetLookAtHelper()
 	{
-		if ( _Target.IsValid() )
+		if ( _LookAtTarget.IsValid() )
+			return true;
+
+		var localCamTarget = Scene.FindAllWithTag( "lookat-target" ).FirstOrDefault( d => !d.IsProxy );
+		if ( localCamTarget is null || localCamTarget.Network.IsMine() == false)
+			return false;
+
+		_LookAtTarget = localCamTarget;
+		return _LookAtTarget.IsValid();
+	}
+
+	/// <summary>
+	/// Ensures _Target points at a valid GameObject, falling back to the scene's local DrunkCC.
+	/// </summary>
+	/// <returns>True if _Target is valid.</returns>
+	private bool TryResolveGetTargetFollowHelper()
+	{
+		if ( _FollowTarget.IsValid() )
 			return true;
 
 		var localCamTarget = Scene.FindAllWithTag( "follow-target" ).FirstOrDefault( d => !d.IsProxy );
 		if ( localCamTarget is null || localCamTarget.Network.IsMine() == false)
 			return false;
 
-		_Target = localCamTarget;
-		return _Target.IsValid();
+		_FollowTarget = localCamTarget;
+		return _FollowTarget.IsValid();
 	}
-	
+
 	/// <summary>
 	/// Ensures _Target points at a valid GameObject, falling back to the scene's local DrunkCC.
 	/// </summary>
@@ -423,6 +429,6 @@ public sealed class CCCamera : Component
 			return false;
 		
 		_drunkCC = drunkCC;
-		return _Target.IsValid();
+		return _LookAtTarget.IsValid() && _FollowTarget.IsValid();
 	}
 }
