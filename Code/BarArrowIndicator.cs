@@ -30,8 +30,10 @@ namespace Sandbox;
 /// resolves it off the local player's DrunkCC and calls PointAt every frame with the world
 /// position of the bar at _targetBarWaiting; this component owns the node's WORLD rotation,
 /// yawing it level at the target so it's always readable, matching Design.md's "Arrow
-/// indicator stays crisp, gameplay critical" rule. The model child keeps its own SpinMe
-/// propeller spin in local space, which doesn't fight the root's world-space aim.
+/// indicator stays crisp, gameplay critical" rule. Below this node the model hangs off an
+/// intermediate tilt node ("Object", pitched -90° about Y so the model's local Z lies along
+/// the pointing axis) and carries a SpinMe that rolls the arrow about its own shaft -
+/// local-space spin on descendants composes with this world-space aim instead of fighting it.
 /// The arrow is local-only (nobody feeds PointAt for remote players), so on proxies the
 /// node is disabled in OnStart - same visibility the old runtime-spawned indicator had.
 /// </summary>
