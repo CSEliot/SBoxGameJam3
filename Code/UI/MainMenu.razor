@@ -1,0 +1,179 @@
+@*
+// Project: sboxgamejam3
+// File:    MainMenu.razor
+// Author:  cseliot
+// Created: 2026.09.21
+//
+// Copyright (c) 2026 KiteLion Games, LLC. All rights reserved.
+//
+// This source code is the property of KiteLion Games, LLC and may not be
+// copied, distributed, modified, or used in any way without prior written
+// permission from KiteLion Games, LLC.
+//
+// Description:
+// Title-screen main menu, shown on its own dedicated scene (scenes/mainmenu.scene)
+// independent of gameplay. PLAY loads the game scene; SETTINGS opens the engine
+// settings modal (mirrors EscMenu.OpenSettings); CREDITS opens a small inline
+// modal; QUIT closes the game (mirrors EscMenu/EndGame's Game.Close()). Also
+// shows a compact Top-N leaderboard to the left of the menu column. Self-
+// contained inline @code, no code-behind partial - mirrors EscMenu/BarMenu so
+// there's no cross-file Rider codebehind-resolution trap to worry about.
+//
+// License:
+// This code is provided "as is," without warranty of any kind, express or
+// implied, including but not limited to the warranties of merchantability,
+// fitness for a particular purpose, and noninfringement. In no event shall
+// the authors or copyright holders be liable for any claim, damages, or
+// other liability, whether in an action of contract, tort, or otherwise,
+// arising from, out of, or in connection with the software or the use or
+// other dealings in the software.
+*@
+
+@namespace Sandbox.UI
+
+@using System
+@using Sandbox
+@using Sandbox.UI
+
+@inherits PanelComponent
+
+<root>
+	<div class="backdrop"></div>
+
+	<div class="content">
+		<div class="leaderboard">
+			<div class="lb-title">BEST DRUNKARDS</div>
+			@foreach ( var row in TopRows )
+			{
+				<div class="lb-row rank-@( row.Rank ) @( row.IsLocal ? "local" : "" )">
+					<div class="lb-rank">@( row.Rank ).</div>
+					<div class="lb-name">@( row.Entry.DisplayName )</div>
+					<div class="lb-score">@( ( (int)row.Entry.Value ).ToString( "D4" ) )</div>
+				</div>
+			}
+		</div>
+
+		<div class="menu-column">
+			<div class="title">SBOXGAMEJAM3</div>
+
+			<div class="buttons">
+				<div class="button play" onclick=@PlayClicked>PLAY</div>
+				<div class="button settings" onclick=@SettingsClicked>SETTINGS</div>
+				<div class="button credits" onclick=@CreditsClicked>CREDITS</div>
+				<div class="button quit" onclick=@QuitClicked>QUIT</div>
+			</div>
+		</div>
+	</div>
+
+	@if ( ShowCredits )
+	{
+		<div class="credits-backdrop" onclick=@CloseCredits></div>
+		<div class="credits-modal">
+			<div class="credits-title">CREDITS</div>
+			<div class="credits-body">Glasses models: CGTrader / mdaniel112</div>
+			<div class="button close" onclick=@CloseCredits>CLOSE</div>
+		</div>
+	}
+</root>
+
+@code
+{
+	/// <summary>Scene to load when PLAY is clicked.</summary>
+	[Property] private string _GameScenePath { get; set; } = "scenes/minimal.scene";
+
+	/// <summary>How many leaderboard rows to show, mirrors EndGame's _DisplayTopCount but
+	/// smaller since this shares the screen with the menu column rather than owning it.</summary>
+	[Property] private int _DisplayTopCount { get; set; } = 5;
+
+	/// <summary>One leaderboard row as rendered on this screen, mirrors EndGame.Row.</summary>
+	public readonly struct Row
+	{
+		public int Rank { get; init; }
+		public Sandbox.Services.Leaderboards.Board2.Entry Entry { get; init; }
+		public bool IsLocal { get; init; }
+	}
+
+	public bool ShowCredits { get; private set; }
+
+	private Sandbox.Services.Leaderboards.Board2 _leaderboard;
+	private bool _leaderboardLoaded;
+	private int _refreshKey;
+
+	protected override void OnStart()
+	{
+		_leaderboard = Sandbox.Services.Leaderboards.GetFromStat( "score" );
+		_leaderboard.SetSortDescending();
+		_leaderboard.MaxEntries = 100;
+	}
+
+	protected override void OnUpdate()
+	{
+		if ( !_leaderboardLoaded && _leaderboard != null )
+		{
+			_ = RefreshLeaderboardAsync();
+		}
+	}
+
+	private async System.Threading.Tasks.Task RefreshLeaderboardAsync()
+	{
+		if ( _leaderboard == null )
+			return;
+
+		// Guard against firing a second overlapping refresh while the first is in flight -
+		// OnUpdate keeps calling this every frame until _leaderboardLoaded flips true.
+		_leaderboardLoaded = true;
+
+		await _leaderboard.Refresh();
+		_refreshKey++;
+	}
+
+	private IReadOnlyList<Sandbox.Services.Leaderboards.Board2.Entry> Leaderboard => _leaderboard?.Entries ?? Array.Empty<Sandbox.Services.Leaderboards.Board2.Entry>();
+
+	private List<Row> TopRows
+	{
+		get
+		{
+			var list = Leaderboard;
+			SteamId localSteamId = Connection.Local?.SteamId ?? default;
+			var rows = new List<Row>();
+			int count = Math.Min( _DisplayTopCount, list.Count );
+			for ( int i = 0; i < count; i++ )
+			{
+				rows.Add( new Row { Rank = i + 1, Entry = list[i], IsLocal = list[i].SteamId == localSteamId } );
+			}
+			return rows;
+		}
+	}
+
+	private void PlayClicked()
+	{
+		if ( string.IsNullOrWhiteSpace( _GameScenePath ) )
+		{
+			Log.Error( "MainMenu: _GameScenePath is unset; cannot load the game scene." );
+			return;
+		}
+		Game.ActiveScene.LoadFromFile( _GameScenePath );
+	}
+
+	private void SettingsClicked()
+	{
+		Game.Overlay.ShowSettingsModal();
+	}
+
+	private void CreditsClicked()
+	{
+		ShowCredits = true;
+	}
+
+	private void CloseCredits()
+	{
+		ShowCredits = false;
+	}
+
+	private void QuitClicked()
+	{
+		Game.Close();
+	}
+
+	protected override int BuildHash() => HashCode.Combine( ShowCredits, _refreshKey );
+}

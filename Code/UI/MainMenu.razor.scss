@@ -1,0 +1,237 @@
+// Title-screen main menu. Full-screen modal-style overlay (card+backdrop, like
+// EscMenu/EndGame) since this panel owns the whole screen on its own dedicated scene.
+// Fonts do the styling: family names come from font metadata, not filename
+// (First Blood.ttf -> "First Blood", SNOWBLUE.ttf -> "Snow Blue").
+$display: First Blood;
+$body: Snow Blue;
+
+$warm: #FFD51B;
+$hot: #FF6120;
+$wild: #E03AC0;
+$blue: #4C74E5;
+
+MainMenu
+{
+	position: absolute;
+	top: 0px;
+	left: 0px;
+	right: 0px;
+	bottom: 0px;
+	justify-content: center;
+	align-items: center;
+	font-family: $body;
+
+	.backdrop
+	{
+		position: absolute;
+		top: 0px;
+		left: 0px;
+		right: 0px;
+		bottom: 0px;
+		background-color: #00166D;
+		pointer-events: all;
+	}
+
+	.content
+	{
+		position: absolute;
+		top: 0px;
+		left: 0px;
+		right: 0px;
+		bottom: 0px;
+		flex-direction: row;
+		justify-content: center;
+		align-items: center;
+		gap: 80px;
+		z-index: 1;
+		pointer-events: all;
+	}
+
+	// Sits to the left of the menu column (Design ask: "leaderboard to the left of center").
+	.leaderboard
+	{
+		flex-direction: column;
+		align-items: stretch;
+		min-width: 320px;
+		max-width: 400px;
+		padding: 24px 32px;
+		background-color: rgba( $blue, 0.08 );
+		border: 2px solid $blue;
+		border-radius: 12px;
+
+		.lb-title
+		{
+			font-family: $display;
+			font-size: 32px;
+			color: $warm;
+			text-align: center;
+			margin-bottom: 12px;
+		}
+
+		.lb-row
+		{
+			flex-direction: row;
+			justify-content: space-between;
+			font-size: 22px;
+			padding: 4px 8px;
+			color: white;
+
+			.lb-rank
+			{
+				min-width: 36px;
+			}
+
+			.lb-name
+			{
+				flex-grow: 1;
+			}
+
+			.lb-score
+			{
+				min-width: 80px;
+				text-align: right;
+			}
+
+			&.rank-1
+			{
+				color: $warm;
+			}
+
+			&.rank-2
+			{
+				color: $blue;
+			}
+
+			&.rank-3
+			{
+				color: $hot;
+			}
+
+			&.local
+			{
+				color: $wild;
+				text-shadow: 0px 0px 10px rgba( $wild, 0.7 );
+			}
+		}
+	}
+
+	.menu-column
+	{
+		flex-direction: column;
+		align-items: center;
+		gap: 40px;
+	}
+
+	.title
+	{
+		font-family: $display;
+		font-size: 90px;
+		color: $warm;
+		text-shadow: 0px 0px 16px rgba( $warm, 0.7 );
+	}
+
+	.buttons
+	{
+		flex-direction: column;
+		align-items: center;
+		gap: 18px;
+	}
+
+	.button
+	{
+		width: 380px;
+		height: 72px;
+		justify-content: center;
+		align-items: center;
+		font-family: $display;
+		font-size: 26px;
+		border-radius: 8px;
+		border: 2px solid $blue;
+		background-color: transparent;
+		color: $blue;
+		cursor: pointer;
+		transition: all 0.15s ease-out;
+
+		&:hover
+		{
+			background-color: $blue;
+			color: $warm;
+			text-shadow: 0px 0px 10px rgba( $warm, 0.7 );
+		}
+
+		&.play
+		{
+			border-color: $wild;
+			color: $wild;
+
+			&:hover
+			{
+				background-color: $wild;
+				color: $warm;
+			}
+		}
+
+		&.quit
+		{
+			border-color: $hot;
+			color: $hot;
+
+			&:hover
+			{
+				background-color: $hot;
+				color: $warm;
+			}
+		}
+	}
+
+	.credits-backdrop
+	{
+		position: absolute;
+		top: 0px;
+		left: 0px;
+		right: 0px;
+		bottom: 0px;
+		background-color: rgba( #00166D, 0.85 );
+		backdrop-filter: blur( 6px );
+		pointer-events: all;
+		z-index: 2;
+	}
+
+	// Not position:absolute - centered by <root>'s own justify-content/align-items,
+	// same pattern as EscMenu.razor.scss's .menu (root centers the one remaining
+	// flow child once .content/.credits-backdrop are pulled out via absolute).
+	.credits-modal
+	{
+		flex-direction: column;
+		align-items: center;
+		gap: 18px;
+		min-width: 420px;
+		padding: 40px;
+		background-color: rgba( #00166D, 0.95 );
+		border: 2px solid $blue;
+		border-radius: 12px;
+		box-shadow: 0px 0px 24px rgba( $blue, 0.5 );
+		pointer-events: all;
+		z-index: 3;
+
+		.credits-title
+		{
+			font-family: $display;
+			font-size: 40px;
+			color: $warm;
+		}
+
+		.credits-body
+		{
+			font-size: 20px;
+			color: white;
+			text-align: center;
+		}
+
+		.button.close
+		{
+			width: 200px;
+			height: 56px;
+		}
+	}
+}
