@@ -119,6 +119,18 @@ Hud
 		font-size: 40px;
 		color: $hot;
 	}
+
+	.controls-hint
+	{
+		position: absolute;
+		left: 60px;
+		bottom: 60px;
+		flex-direction: column;
+		gap: 4px;
+		font-family: $body;
+		font-size: 18px;
+		color: rgba( #fff, 0.6 );
+	}
 }
 
 @keyframes hud-flash
