@@ -291,10 +291,10 @@ public sealed class DrunkCC : Component
 				_CitizenAnimationHelper.MoveStyle = CitizenAnimationHelper.MoveStyles.Run;
 				_SkinnedModelRenderer.Set( "move_style", 2 );
 				_SkinnedModelRenderer.Set( "move_x", 10000 );
-				_ccCamera.UseTriangleFade = false;
+				_ccCamera.UseAltTargets = false;
 				break;
 			case State.KnockedDown:
-				_ccCamera.UseTriangleFade = true;
+				_ccCamera.UseAltTargets = true;
 				break;
 		}
 	}
@@ -622,9 +622,6 @@ public sealed class DrunkCC : Component
 		if ( LockYaw )   localAv.z = 0f;
 		rb.AngularVelocity = rot * localAv;
 
-		// Zeroing AngularVelocity only stops *future* drift - it doesn't undo orientation that's
-		// already accumulated (e.g. a rolling sphere constantly gets fed angular velocity by ground
-		// friction before we get a chance to zero it). So also clamp the actual orientation.
 		var angles = rot.Angles();
 		if ( LockPitch ) angles.pitch = 0f;
 		if ( LockYaw )   angles.yaw   = 0f;

@@ -33,6 +33,10 @@ namespace Sandbox;
 /// </summary>
 public sealed class CCCamera : Component
 {
+	
+	[Property] public bool UseAltTargets { get; set; }
+	[Property] public bool UseAltFollowSpeed { get; set; }
+	[Property] public bool UseAltLookAtSpeed { get; set; }
 
 	/// <summary>
 	/// How fast to reach max distance.
@@ -68,18 +72,23 @@ public sealed class CCCamera : Component
 	/// </summary>
 	[Property] private GameObject _LookAtTarget { get; set; }
 	/// <summary>
-	/// Use if @_UseAltTargets is true.
+	/// Use if @UseAltTargets is true.
 	/// </summary>
 	[Property] private GameObject _AltFollowTarget { get; set; }
 	/// <summary>
 	/// Manual target override. If unset, the local (non-proxy) DrunkCC in the scene is used.
 	/// </summary>
 	[Property] private GameObject _AltLookAtTarget { get; set; }
+	[Property] private float _AltFollowSpeed { get; set; }
+	/// <summary>
+	/// Manual target override. If unset, the local (non-proxy) DrunkCC in the scene is used.
+	/// </summary>
+	[Property] private float _AltLookAtSpeed { get; set; }
 
 	private GameObject _followTargetBackup;
 	private GameObject _lookAtTargetBackup;
-	[Property] private bool _UseAltTargets { get; set; }
-	
+	private float? _followSpeedBackup = null;
+	private float? _lookAtSpeedBackup = null;
 	
 	/// <summary>
 	/// How quickly this object catches up to the target's position. Higher is snappier.
@@ -223,7 +232,7 @@ public sealed class CCCamera : Component
 		if ( (TryResolveGetTargetLookAtHelper() && TryResolveGetTargetFollowHelper() && TryResolveGetDrunkHelper()) == false)
 			return;
 
-		if ( _UseAltTargets && _followTargetBackup == null && _lookAtTargetBackup == null )
+		if ( UseAltTargets && _followTargetBackup == null && _lookAtTargetBackup == null )
 		{
 			_followTargetBackup = _FollowTarget;
 			_lookAtTargetBackup = _LookAtTarget;
@@ -232,7 +241,7 @@ public sealed class CCCamera : Component
 			_LookAtTarget = _AltLookAtTarget;
 		}
 
-		if ( _UseAltTargets && _followTargetBackup != null && _lookAtTargetBackup != null )
+		if ( UseAltTargets && _followTargetBackup != null && _lookAtTargetBackup != null )
 		{
 			_FollowTarget = _followTargetBackup;
 			_LookAtTarget = _lookAtTargetBackup;
@@ -463,12 +472,6 @@ public sealed class CCCamera : Component
 
 		state = new TriangleFadeState();
 
-		// Swap every material slot to a fade-shader copy of its EFFECTIVE material
-		// (existing override wins over the model's base material, so authored
-		// overrides like the bar prefab's glow materials keep their look). The
-		// pre-swap override per slot is saved so release can restore it verbatim.
-		// Copies are cached per source material so we don't churn procedural
-		// materials on repeated obstructions.
 		var materials = mr.Materials;
 		var swappedSlots = 0;
 		for ( var i = 0; i < materials.Count; i++ )
@@ -784,7 +787,7 @@ public sealed class CCCamera : Component
 		if ( altLocalCamTarget is null || altLocalCamTarget.Network.IsMine() == false)
 			return false;
 
-		_AltFollowTarget = localCamTarget;
+		_AltFollowTarget = altLocalCamTarget;
 		_FollowTarget = localCamTarget;
 		return _FollowTarget.IsValid() && _AltFollowTarget.IsValid();
 	}
