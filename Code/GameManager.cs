@@ -73,6 +73,7 @@ public sealed class GameManager : Component, Component.INetworkListener
 	
 	[Property] private bool _ImmediatelySpawnRunner { get; set; } = false;
 	[Property] private Clothing _HeartUnderwear { get; set; }
+	[Property] private Clothing _LongPants { get; set; }
 	[Property] private GameObject _PlayerPrefab { get; set; }
 	[Property] private GameObject _DefaultSpawnLocation { get; set; }
 	[Property] private GameObject _CCCamera { get; set; }
@@ -101,7 +102,7 @@ public sealed class GameManager : Component, Component.INetworkListener
 	private PlayerProgress _LocalPlayerProgress { get; set; }
 	private bool _SpawnPlayerHelperCalled { get; set; }
 	private Rigidbody _LocalPlayerRigidbody { get; set; }
-	private BarArrowIndicator _LocalArrowIndicator { get; set; }
+	[Property, ReadOnly] private BarArrowIndicator _LocalArrowIndicator { get; set; }
 	private LocalGameState _localGameState = LocalGameState.WaitingToStartMinigame;
 	private EndGame _endGameController;
 	/// <summary>
@@ -124,7 +125,7 @@ public sealed class GameManager : Component, Component.INetworkListener
 	/// <summary>
 	/// The bar that player will start minigame in upon collision of sphere.
 	/// </summary>
-	private int _targetBarWaiting = 1;
+	[Property, ReadOnly] private int _targetBarWaiting = 1;
 	
 	// every time a player joins, they join the latest group within 30 seconds (group has a timecreated) and if there isn't a group w 
 	// timecreated within 30 seconds, make a new one.
@@ -261,11 +262,11 @@ public sealed class GameManager : Component, Component.INetworkListener
 		if ( _targetBarWaiting < 0 || _targetBarWaiting >= _Bars.Length )
 			return;
 
-		Bar targetBar = _Bars[_targetBarWaiting];
+		var targetBar = _Bars[_targetBarWaiting];
 		if ( targetBar == null )
 			return;
 
-		_LocalArrowIndicator.PointAt( targetBar.WorldPosition );
+		_LocalArrowIndicator.PointAt( targetBar.GameObject );
 	}
 
 	private bool StartMiniGameHelper( int targetBar )
@@ -423,18 +424,8 @@ public sealed class GameManager : Component, Component.INetworkListener
 			return true;
 		}
 		
-		_LocalPlayer = _PlayerPrefab.Clone();
-		_LocalPlayerRigidbody = _LocalPlayer.GetComponent<Rigidbody>();
-		_LocalDrunkCC = _LocalPlayer.GetComponent<DrunkCC>();
-		_LocalPlayerProgress = _LocalPlayer.GetComponent<PlayerProgress>();
-		if(_LocalPlayerRigidbody == null) {
-			Log.Error( "LocalPlayer Rigidbody is null, despite successful spawn!" );
-		}
-		if ( _LocalPlayerProgress == null )
-		{
-			Log.Error( "LocalPlayer PlayerProgress is null, despite successful spawn!" );
-		}
-		ResetPlayerHelper();
+		var newPlayer = _PlayerPrefab.Clone();
+		ResolveLocalPlayerHelper(newPlayer);
 		return _LocalPlayer != null;
 	}
 
@@ -449,31 +440,33 @@ public sealed class GameManager : Component, Component.INetworkListener
 	/// once a valid owned ref is cached; only rescans while the cache is null/stale. Read-only
 	/// use: never mutates PlayerProgress (owner-authoritative).
 	/// </summary>
-	private void ResolveLocalPlayerHelper()
+	private void ResolveLocalPlayerHelper(GameObject localPlayer = null)
 	{
 		// Already holding the player we own - nothing to do.
-		if ( _LocalPlayerProgress.IsValid() && _LocalPlayerProgress.GameObject.Network.IsMine()
-			&& _LocalDrunkCC.IsValid() && _LocalDrunkCC.GameObject.Network.IsMine() )
+		if ( _LocalPlayer.IsValid() && _LocalPlayer.Network.IsMine())
 			return;
 
-		var progress = Scene.GetAllComponents<PlayerProgress>().FirstOrDefault( p => p.GameObject.Network.IsMine() );
-		if ( progress is null )
+		localPlayer ??= Scene.FindAllWithTag("player").FirstOrDefault(p => p.Network.IsMine());
+		
+		if ( localPlayer is null )
+		{
+			Log.Error("Couldn't find local player.");
 			return;
+		}
 
-		_LocalPlayerProgress = progress;
-		_LocalPlayer = progress.GameObject;
-		_LocalDrunkCC = progress.GetComponent<DrunkCC>();
-		_LocalPlayerRigidbody = progress.GetComponent<Rigidbody>();
+		_LocalPlayer = localPlayer;
+		_LocalPlayerProgress = localPlayer.GetComponent<PlayerProgress>( true );
+		_LocalDrunkCC = localPlayer.GetComponent<DrunkCC>(true);
+		_LocalPlayerRigidbody = localPlayer.GetComponent<Rigidbody>(true);
+		_LocalArrowIndicator = _LocalDrunkCC.BarArrow.GetComponent<BarArrowIndicator>( true );
 
-		// The arrow is the event-arrow node built into the player prefab, wired to
-		// DrunkCC.BarArrow. Re-resolve whenever the owned player changed out from under us
-		// (host re-resolving after a new client's SpawnPlayerHelper call clobbered the
-		// cache, or a non-host client resolving for the first time) so the cached
-		// indicator never points at a stale/wrong player's arrow.
-		_LocalArrowIndicator = _LocalDrunkCC?.BarArrow?.GetComponent<BarArrowIndicator>();
 		if ( _LocalArrowIndicator == null )
 		{
-			Log.Error( "Player prefab's DrunkCC.BarArrow node is unset or has no BarArrowIndicator component; bar-direction arrow disabled." );
+			Log.Error( "~~Player prefab's DrunkCC.BarArrow node is unset or has no BarArrowIndicator component; bar-direction arrow disabled." );
+		}
+		else
+		{
+			Log.Info( "~~Player prefab's DrunkCC.BarArrow node has BarArrowIndicator component; bar-direction arrow enabled." );
 		}
 	}
 
