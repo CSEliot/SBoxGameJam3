@@ -270,10 +270,17 @@ public sealed class DrunkCC : Component
 	/// </summary>
 	[Property] private ShrimpleRagdoll _Ragdoll { get; set; }
 	
+	private CCCamera _ccCamera;
+ 	
 	protected override void OnStart()
 	{
 		WallHitColliderReporter.OnTriggerEnterCallback += OnWallHitColliderEnter;
 		WallHitColliderReporter.OnTriggerExitCallback += OnWallHitColliderExit;
+		_ccCamera = Scene.FindAllWithTag( "cccamera" ).FirstOrDefault()?.GetComponent<CCCamera>(); //SceneNetworkSystem Get<CCCamera>();
+		if(_ccCamera == null)
+		{
+			Log.Warning( "DrunkCC: CCCamera not found!" );
+		}
 	}
 	
 	protected override void OnUpdate()
@@ -284,9 +291,10 @@ public sealed class DrunkCC : Component
 				_CitizenAnimationHelper.MoveStyle = CitizenAnimationHelper.MoveStyles.Run;
 				_SkinnedModelRenderer.Set( "move_style", 2 );
 				_SkinnedModelRenderer.Set( "move_x", 10000 );
+				_ccCamera.UseTriangleFade = false;
 				break;
 			case State.KnockedDown:
-				// nothing
+				_ccCamera.UseTriangleFade = true;
 				break;
 		}
 	}
