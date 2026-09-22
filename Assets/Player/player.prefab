@@ -7,7 +7,7 @@
     "Position": "0,0,0",
     "Rotation": "0,0,0,1",
     "Scale": "1,1,1",
-    "Tags": "cc_body",
+    "Tags": "cc_body,player",
     "Enabled": true,
     "NetworkMode": 1,
     "NetworkFlags": 0,
@@ -73,7 +73,10 @@
         "Radius": 8.329996,
         "RollingResistance": null,
         "Static": false,
-        "Surface": "player/player.surface",
+        "Surface": {
+          "Id": "d5c31c04-b476-48b2-9577-7e80de2c4f3e",
+          "Path": "player/player.surface"
+        },
         "SurfaceVelocity": "0,0,0"
       },
       {
@@ -271,7 +274,10 @@
             "MaterialGroup": null,
             "MaterialOverride": null,
             "Materials": null,
-            "Model": "player/cyllinder.vmdl",
+            "Model": {
+              "Id": "34dee497-e9aa-41e8-899d-80456ce5170b",
+              "Path": "player/cyllinder.vmdl"
+            },
             "OnComponentDestroy": null,
             "OnComponentDisabled": null,
             "OnComponentEnabled": null,
@@ -2080,7 +2086,7 @@
         "Position": "0,0,0",
         "Rotation": "0,0,0,1",
         "Scale": "1,1,1",
-        "Tags": "alt-target",
+        "Tags": "",
         "Enabled": true,
         "NetworkMode": 2,
         "NetworkFlags": 0,
@@ -2102,7 +2108,10 @@
             "MaterialGroup": "default",
             "MaterialOverride": null,
             "Materials": null,
-            "Model": "models/citizen/citizen.vmdl",
+            "Model": {
+              "Id": "2b1d7f12-4b7c-415a-81c0-1b3097571fdf",
+              "Path": "models/citizen/citizen.vmdl"
+            },
             "Morphs": {},
             "OnComponentDestroy": null,
             "OnComponentDisabled": null,
@@ -3098,7 +3107,10 @@
               "Yaw": false,
               "Roll": false
             },
-            "Model": "models/citizen/citizen.vmdl",
+            "Model": {
+              "Id": "2b1d7f12-4b7c-415a-81c0-1b3097571fdf",
+              "Path": "models/citizen/citizen.vmdl"
+            },
             "MotionEnabled": true,
             "OnComponentDestroy": null,
             "OnComponentDisabled": null,
@@ -3130,20 +3142,32 @@
             },
             "Clothing": [
               {
-                "Clothing": "models/citizen_clothes/hat/bucket_hat/bucket_hat_black.clothing",
+                "Clothing": {
+                  "Id": "e6ae00e0-17e3-4718-b5d5-f06eee5418ee",
+                  "Path": "models/citizen_clothes/hat/bucket_hat/bucket_hat_black.clothing"
+                },
                 "Tint": 0.3468691
               },
               {
-                "Clothing": "models/citizen_clothes/shoes/flatshoes/textures/flat_shoes.clothing",
+                "Clothing": {
+                  "Id": "25d301c2-a682-4e6b-adc8-9b7ad632062e",
+                  "Path": "models/citizen_clothes/shoes/flatshoes/textures/flat_shoes.clothing"
+                },
                 "Tint": 0.33627003
               },
               {
-                "Clothing": "models/citizen_clothes/seasonal/2025/wizard_outfit/wizard_gown/wizard_gown.clothing",
+                "Clothing": {
+                  "Id": "b2f1d2c0-52ca-4f62-b61b-054c5e46bd4a",
+                  "Path": "models/citizen_clothes/seasonal/2025/wizard_outfit/wizard_gown/wizard_gown.clothing"
+                },
                 "item": 349443,
                 "Tint": 0.72620565
               },
               {
-                "Clothing": "models/citizen_clothes/trousers/trackiebottoms/trackie_bottoms_black.clothing"
+                "Clothing": {
+                  "Id": "d9661e3e-58fb-48a6-9511-dceb60f9808a",
+                  "Path": "models/citizen_clothes/trousers/trackiebottoms/trackie_bottoms_black.clothing"
+                }
               }
             ],
             "ManualAge": 0.3053956,
@@ -3169,7 +3193,7 @@
             "Position": "1.18110001,6.95599374E-06,30.7479706",
             "Rotation": "-0.46887967,-0.529264748,-0.529323399,0.468878657",
             "Scale": "1,1,1",
-            "Tags": "",
+            "Tags": "alt-target",
             "Enabled": true,
             "NetworkMode": 2,
             "NetworkFlags": 0,
@@ -3236,7 +3260,10 @@
                 "RollingResistance": null,
                 "Start": "0.590557098,-1.90734863E-06,-1.96850586",
                 "Static": false,
-                "Surface": "surfaces/flesh.surface",
+                "Surface": {
+                  "Id": "dbcdc0fa-a511-4438-8ac3-747b32f905a1",
+                  "Path": "surfaces/flesh.surface"
+                },
                 "SurfaceVelocity": "0,0,0"
               },
               {
@@ -3448,7 +3475,10 @@
                     "RollingResistance": null,
                     "Start": "1.96850204,0,-0.787414551",
                     "Static": false,
-                    "Surface": "surfaces/flesh.surface",
+                    "Surface": {
+                      "Id": "dbcdc0fa-a511-4438-8ac3-747b32f905a1",
+                      "Path": "surfaces/flesh.surface"
+                    },
                     "SurfaceVelocity": "0,0,0"
                   },
                   {
@@ -3519,8 +3549,8 @@
                         "__version": 2,
                         "Flags": 12288,
                         "Name": "spine_2",
-                        "Position": "-33.558815,2.82556486,0.0161952972",
-                        "Rotation": "0.00325194001,9.36388969E-05,-0.16883716,0.985638916",
+                        "Position": "-50.385498,2.8991375,0.0229454041",
+                        "Rotation": "0.00442633033,0.000292420387,-0.169647127,0.985495508",
                         "Scale": "1,1,1",
                         "Tags": "",
                         "Enabled": true,
@@ -3626,7 +3656,10 @@
                             "RollingResistance": null,
                             "Slices": 16,
                             "Static": false,
-                            "Surface": "surfaces/flesh.surface",
+                            "Surface": {
+                              "Id": "dbcdc0fa-a511-4438-8ac3-747b32f905a1",
+                              "Path": "surfaces/flesh.surface"
+                            },
                             "SurfaceVelocity": "0,0,0",
                             "Type": "Points"
                           },
@@ -3786,8 +3819,8 @@
                                 "__version": 2,
                                 "Flags": 12288,
                                 "Name": "head",
-                                "Position": "-35.401413,-3.2855196,-0.0371026993",
-                                "Rotation": "-0.00052267313,0.00185531378,-0.081849277,-0.99664259",
+                                "Position": "-52.1736298,-8.59906864,-0.101490974",
+                                "Rotation": "-0.00081628561,0.00259140134,-0.14129445,-0.989963293",
                                 "Scale": "1,1,1",
                                 "Tags": "",
                                 "Enabled": true,
@@ -3856,7 +3889,10 @@
                                     "RollingResistance": null,
                                     "Start": "1.18112946,0.787399292,-3.05175781E-05",
                                     "Static": false,
-                                    "Surface": "surfaces/flesh.surface",
+                                    "Surface": {
+                                      "Id": "dbcdc0fa-a511-4438-8ac3-747b32f905a1",
+                                      "Path": "surfaces/flesh.surface"
+                                    },
                                     "SurfaceVelocity": "0,0,0"
                                   }
                                 ],
@@ -4031,8 +4067,8 @@
                                 "__version": 2,
                                 "Flags": 12288,
                                 "Name": "arm_upper_L",
-                                "Position": "6.36271381,-0.459719002,3.91306996",
-                                "Rotation": "0.0759050176,-0.759790778,-0.0213672742,0.645367205",
+                                "Position": "-0.37561354,-1.48129058,7.15730381",
+                                "Rotation": "-0.0510037728,0.98417908,0.0859241113,0.146305919",
                                 "Scale": "1,1,1",
                                 "Tags": "",
                                 "Enabled": true,
@@ -4101,7 +4137,10 @@
                                     "RollingResistance": null,
                                     "Start": "1.96848106,3.81469727E-06,-5.34057617E-05",
                                     "Static": false,
-                                    "Surface": "surfaces/flesh.surface",
+                                    "Surface": {
+                                      "Id": "dbcdc0fa-a511-4438-8ac3-747b32f905a1",
+                                      "Path": "surfaces/flesh.surface"
+                                    },
                                     "SurfaceVelocity": "0,0,0"
                                   },
                                   {
@@ -4172,8 +4211,8 @@
                                     "__version": 2,
                                     "Flags": 12288,
                                     "Name": "arm_lower_L",
-                                    "Position": "10.0451546,-1.16825104E-05,-1.00135803E-05",
-                                    "Rotation": "-4.91738319E-07,2.98023224E-08,0.148394868,0.988928199",
+                                    "Position": "10.0451565,-1.23977661E-05,-8.55326653E-06",
+                                    "Rotation": "-4.47034836E-07,4.84287739E-08,0.148394883,0.988928318",
                                     "Scale": "1,1,1",
                                     "Tags": "",
                                     "Enabled": true,
@@ -4242,7 +4281,10 @@
                                         "RollingResistance": null,
                                         "Start": "0,0,0",
                                         "Static": false,
-                                        "Surface": "surfaces/flesh.surface",
+                                        "Surface": {
+                                          "Id": "dbcdc0fa-a511-4438-8ac3-747b32f905a1",
+                                          "Path": "surfaces/flesh.surface"
+                                        },
                                         "SurfaceVelocity": "0,0,0"
                                       },
                                       {
@@ -4314,8 +4356,8 @@
                                         "__version": 2,
                                         "Flags": 12288,
                                         "Name": "hand_L",
-                                        "Position": "7.70664072,-1.43051147E-06,-1.07288361E-05",
-                                        "Rotation": "-0.0267178044,0.0490766615,-0.0417814702,0.997562945",
+                                        "Position": "7.70664263,-2.38418579E-06,-1.06692314E-05",
+                                        "Rotation": "-0.0267177895,0.0490766801,-0.0417815447,0.997563004",
                                         "Scale": "1,1,1",
                                         "Tags": "",
                                         "Enabled": true,
@@ -4384,7 +4426,10 @@
                                             "RollingResistance": null,
                                             "Start": "0.787385941,-1.52587891E-05,0.157390594",
                                             "Static": false,
-                                            "Surface": "surfaces/flesh.surface",
+                                            "Surface": {
+                                              "Id": "dbcdc0fa-a511-4438-8ac3-747b32f905a1",
+                                              "Path": "surfaces/flesh.surface"
+                                            },
                                             "SurfaceVelocity": "0,0,0"
                                           }
                                         ],
@@ -4790,8 +4835,8 @@
                                 "__version": 2,
                                 "Flags": 12288,
                                 "Name": "arm_upper_R",
-                                "Position": "6.37012196,-0.452605486,-3.87261915",
-                                "Rotation": "-0.0759451836,0.757177353,-0.0209468603,0.648439646",
+                                "Position": "-0.325030297,-1.47711825,-7.17798901",
+                                "Rotation": "0.0513881147,-0.984983504,0.0857052505,0.140780121",
                                 "Scale": "1,1,1",
                                 "Tags": "",
                                 "Enabled": true,
@@ -4860,7 +4905,10 @@
                                     "RollingResistance": null,
                                     "Start": "1.96848679,5.24520874E-06,-3.81469727E-06",
                                     "Static": false,
-                                    "Surface": "surfaces/flesh.surface",
+                                    "Surface": {
+                                      "Id": "dbcdc0fa-a511-4438-8ac3-747b32f905a1",
+                                      "Path": "surfaces/flesh.surface"
+                                    },
                                     "SurfaceVelocity": "0,0,0"
                                   },
                                   {
@@ -4913,8 +4961,8 @@
                                     "__version": 2,
                                     "Flags": 12288,
                                     "Name": "arm_lower_R",
-                                    "Position": "10.0451956,1.28746033E-05,-2.86102295E-05",
-                                    "Rotation": "3.7252903E-07,-2.98023224E-08,-0.148394942,-0.988928139",
+                                    "Position": "10.0451937,1.40964985E-05,-2.82526016E-05",
+                                    "Rotation": "3.94880772E-07,-1.49011612E-08,-0.148394853,-0.988928199",
                                     "Scale": "1,1,1",
                                     "Tags": "",
                                     "Enabled": true,
@@ -4983,7 +5031,10 @@
                                         "RollingResistance": null,
                                         "Start": "0,0,0",
                                         "Static": false,
-                                        "Surface": "surfaces/flesh.surface",
+                                        "Surface": {
+                                          "Id": "dbcdc0fa-a511-4438-8ac3-747b32f905a1",
+                                          "Path": "surfaces/flesh.surface"
+                                        },
                                         "SurfaceVelocity": "0,0,0"
                                       },
                                       {
@@ -5074,8 +5125,8 @@
                                         "__version": 2,
                                         "Flags": 12288,
                                         "Name": "hand_R",
-                                        "Position": "7.70665073,8.46385956E-06,-8.46385956E-06",
-                                        "Rotation": "0.0267171562,-0.0490766168,-0.0417816192,0.997562766",
+                                        "Position": "7.70664978,8.00192356E-06,-8.58306885E-06",
+                                        "Rotation": "0.0267171562,-0.049076654,-0.04178169,0.997562766",
                                         "Scale": "1,1,1",
                                         "Tags": "",
                                         "Enabled": true,
@@ -5144,7 +5195,10 @@
                                             "RollingResistance": null,
                                             "Start": "0.787392616,2.0980835E-05,-0.157478333",
                                             "Static": false,
-                                            "Surface": "surfaces/flesh.surface",
+                                            "Surface": {
+                                              "Id": "dbcdc0fa-a511-4438-8ac3-747b32f905a1",
+                                              "Path": "surfaces/flesh.surface"
+                                            },
                                             "SurfaceVelocity": "0,0,0"
                                           }
                                         ],
@@ -5558,7 +5612,7 @@
                 "Flags": 12288,
                 "Name": "leg_upper_R",
                 "Position": "-0.288142443,-0.426453769,-4.42739773",
-                "Rotation": "0.0104504675,0.998440325,-0.0543878973,0.00707295537",
+                "Rotation": "0.0104504675,0.998440385,-0.0543877482,0.00707298517",
                 "Scale": "1,1,1",
                 "Tags": "",
                 "Enabled": true,
@@ -5627,7 +5681,10 @@
                     "RollingResistance": null,
                     "Start": "1.57479477,0,-7.62939453E-06",
                     "Static": false,
-                    "Surface": "surfaces/flesh.surface",
+                    "Surface": {
+                      "Id": "dbcdc0fa-a511-4438-8ac3-747b32f905a1",
+                      "Path": "surfaces/flesh.surface"
+                    },
                     "SurfaceVelocity": "0,0,0"
                   },
                   {
@@ -5680,8 +5737,8 @@
                     "__version": 2,
                     "Flags": 12288,
                     "Name": "leg_lower_R",
-                    "Position": "14.4703827,-1.66893005E-05,9.53674316E-06",
-                    "Rotation": "-4.47034836E-07,-1.34110451E-07,0.167839646,-0.985814214",
+                    "Position": "14.4703779,-1.95503235E-05,1.04904175E-05",
+                    "Rotation": "-4.47034836E-07,1.49011612E-08,0.167839572,-0.985814333",
                     "Scale": "1,1,1",
                     "Tags": "",
                     "Enabled": true,
@@ -5750,7 +5807,10 @@
                         "RollingResistance": null,
                         "Start": "1.18109131,1.66893005E-06,-4.76837158E-06",
                         "Static": false,
-                        "Surface": "surfaces/flesh.surface",
+                        "Surface": {
+                          "Id": "dbcdc0fa-a511-4438-8ac3-747b32f905a1",
+                          "Path": "surfaces/flesh.surface"
+                        },
                         "SurfaceVelocity": "0,0,0"
                       },
                       {
@@ -5804,8 +5864,8 @@
                         "__version": 2,
                         "Flags": 12288,
                         "Name": "ankle_R",
-                        "Position": "12.5155468,-4.76837158E-07,9.05990601E-06",
-                        "Rotation": "-0.0310843661,0.00879925489,-0.463223666,-0.885652423",
+                        "Position": "12.5155487,2.38418579E-07,8.34465027E-06",
+                        "Rotation": "-0.0310843885,0.00879919529,-0.463223815,-0.885652542",
                         "Scale": "1,1,1",
                         "Tags": "",
                         "Enabled": true,
@@ -5874,7 +5934,10 @@
                             "RollingResistance": null,
                             "Start": "1.37794852,-1.37794685,0",
                             "Static": false,
-                            "Surface": "surfaces/flesh.surface",
+                            "Surface": {
+                              "Id": "dbcdc0fa-a511-4438-8ac3-747b32f905a1",
+                              "Path": "surfaces/flesh.surface"
+                            },
                             "SurfaceVelocity": "0,0,0"
                           }
                         ],
@@ -6086,7 +6149,10 @@
                     "RollingResistance": null,
                     "Start": "1.57479668,0,-7.62939453E-06",
                     "Static": false,
-                    "Surface": "surfaces/flesh.surface",
+                    "Surface": {
+                      "Id": "dbcdc0fa-a511-4438-8ac3-747b32f905a1",
+                      "Path": "surfaces/flesh.surface"
+                    },
                     "SurfaceVelocity": "0,0,0"
                   },
                   {
@@ -6140,7 +6206,7 @@
                     "Flags": 12288,
                     "Name": "leg_lower_L",
                     "Position": "14.4703369,-4.33921814E-05,-5.34057617E-05",
-                    "Rotation": "7.74860382E-07,1.63912773E-07,-0.167347059,0.985898256",
+                    "Rotation": "7.59959221E-07,1.04308128E-07,-0.167346969,0.985898376",
                     "Scale": "1,1,1",
                     "Tags": "",
                     "Enabled": true,
@@ -6209,7 +6275,10 @@
                         "RollingResistance": null,
                         "Start": "1.18109035,0,-1.04904175E-05",
                         "Static": false,
-                        "Surface": "surfaces/flesh.surface",
+                        "Surface": {
+                          "Id": "dbcdc0fa-a511-4438-8ac3-747b32f905a1",
+                          "Path": "surfaces/flesh.surface"
+                        },
                         "SurfaceVelocity": "0,0,0"
                       },
                       {
@@ -6263,8 +6332,8 @@
                         "__version": 2,
                         "Flags": 12288,
                         "Name": "ankle_L",
-                        "Position": "12.5155115,1.45435333E-05,-1.28746033E-05",
-                        "Rotation": "-0.0313162357,0.0088224113,0.462776273,0.885877609",
+                        "Position": "12.5155115,1.59740448E-05,-1.43051147E-05",
+                        "Rotation": "-0.0313162208,0.0088224709,0.462776363,0.885877669",
                         "Scale": "1,1,1",
                         "Tags": "",
                         "Enabled": true,
@@ -6333,7 +6402,10 @@
                             "RollingResistance": null,
                             "Start": "1.37794828,-1.37795019,-4.76837158E-06",
                             "Static": false,
-                            "Surface": "surfaces/flesh.surface",
+                            "Surface": {
+                              "Id": "dbcdc0fa-a511-4438-8ac3-747b32f905a1",
+                              "Path": "surfaces/flesh.surface"
+                            },
                             "SurfaceVelocity": "0,0,0"
                           }
                         ],
@@ -6619,7 +6691,7 @@
             ]
           },
           {
-            "__guid": "1e4dfa94-7910-489b-a71b-35a88b39802e",
+            "__guid": "8c65010f-bf6e-4f99-8b01-39188faaa96d",
             "__version": 2,
             "Flags": 0,
             "Name": "Clothing - bucket_hat_black",
@@ -6636,7 +6708,7 @@
             "Components": [
               {
                 "__type": "Sandbox.SkinnedModelRenderer",
-                "__guid": "dc521699-dea0-4eb5-baeb-fc498a124d77",
+                "__guid": "4fd0cfe1-1676-436c-b993-25d3e09d5bf5",
                 "__enabled": true,
                 "Flags": 0,
                 "AnimationGraph": null,
@@ -6653,7 +6725,10 @@
                 "MaterialGroup": null,
                 "MaterialOverride": null,
                 "Materials": null,
-                "Model": "models/citizen_clothes/hat/bucket_hat/models/bucket_hat_black.vmdl",
+                "Model": {
+                  "Id": "4a6074a9-9847-4d0f-911b-07fd18f9d8b2",
+                  "Path": "models/citizen_clothes/hat/bucket_hat/models/bucket_hat_black.vmdl"
+                },
                 "Morphs": {},
                 "OnComponentDestroy": null,
                 "OnComponentDisabled": null,
@@ -6688,7 +6763,7 @@
             "Children": []
           },
           {
-            "__guid": "c14d51b9-659c-4e0d-85aa-6f7e0d6f5d33",
+            "__guid": "b8d9c932-68f3-4ea3-a16e-2e4c827d3bb7",
             "__version": 2,
             "Flags": 0,
             "Name": "Clothing - flat_shoes",
@@ -6705,7 +6780,7 @@
             "Components": [
               {
                 "__type": "Sandbox.SkinnedModelRenderer",
-                "__guid": "cea2313c-c654-4495-adb9-49db6a70f332",
+                "__guid": "360f3c95-41af-4a62-8006-20566f58e342",
                 "__enabled": true,
                 "Flags": 0,
                 "AnimationGraph": null,
@@ -6722,7 +6797,10 @@
                 "MaterialGroup": null,
                 "MaterialOverride": null,
                 "Materials": null,
-                "Model": "models/citizen_clothes/shoes/flatshoes/models/flat_shoes.vmdl",
+                "Model": {
+                  "Id": "6d607328-0c27-4b64-ba26-98f2349e7326",
+                  "Path": "models/citizen_clothes/shoes/flatshoes/models/flat_shoes.vmdl"
+                },
                 "Morphs": {},
                 "OnComponentDestroy": null,
                 "OnComponentDisabled": null,
@@ -6757,7 +6835,7 @@
             "Children": []
           },
           {
-            "__guid": "3f748f83-992e-4a59-a809-be6f97ff55fe",
+            "__guid": "0ba6f934-e883-4667-9321-1cf512bed048",
             "__version": 2,
             "Flags": 0,
             "Name": "Clothing - wizard_gown",
@@ -6774,7 +6852,7 @@
             "Components": [
               {
                 "__type": "Sandbox.SkinnedModelRenderer",
-                "__guid": "4bf48a67-a5cc-4fc8-8231-fb452eb3ee5b",
+                "__guid": "8a2438e1-55d9-4ff3-9f5b-d93d4e1e9a27",
                 "__enabled": true,
                 "Flags": 0,
                 "AnimationGraph": null,
@@ -6791,7 +6869,10 @@
                 "MaterialGroup": null,
                 "MaterialOverride": null,
                 "Materials": null,
-                "Model": "models/citizen_clothes/seasonal/2025/wizard_outfit/wizard_gown/models/wizard_gown.vmdl",
+                "Model": {
+                  "Id": "69a64815-5b74-4f20-8741-5604319e831a",
+                  "Path": "models/citizen_clothes/seasonal/2025/wizard_outfit/wizard_gown/models/wizard_gown.vmdl"
+                },
                 "Morphs": {},
                 "OnComponentDestroy": null,
                 "OnComponentDisabled": null,
@@ -6826,7 +6907,7 @@
             "Children": []
           },
           {
-            "__guid": "c5349597-c337-41f7-9dae-17775b1b5448",
+            "__guid": "50b80aa5-ace7-4325-892c-b4466fc4d6a5",
             "__version": 2,
             "Flags": 0,
             "Name": "Clothing - trackie_bottoms_black",
@@ -6843,7 +6924,7 @@
             "Components": [
               {
                 "__type": "Sandbox.SkinnedModelRenderer",
-                "__guid": "a6c0bfdd-9094-4361-a307-5ca7304851d3",
+                "__guid": "1c634226-0a2b-41b9-99cd-62f8edcbd7c2",
                 "__enabled": true,
                 "Flags": 0,
                 "AnimationGraph": null,
@@ -6860,7 +6941,10 @@
                 "MaterialGroup": null,
                 "MaterialOverride": null,
                 "Materials": null,
-                "Model": "models/citizen_clothes/trousers/trackiebottoms/models/trackie_bottoms_black.vmdl",
+                "Model": {
+                  "Id": "403e9817-790c-4799-a25a-25f5e1f2a096",
+                  "Path": "models/citizen_clothes/trousers/trackiebottoms/models/trackie_bottoms_black.vmdl"
+                },
                 "Morphs": {},
                 "OnComponentDestroy": null,
                 "OnComponentDisabled": null,
@@ -7025,7 +7109,7 @@
         "__version": 2,
         "Flags": 0,
         "Name": "event-arrow",
-        "Position": "21.0282745,0,69.7401199",
+        "Position": "0,0,69.7401199",
         "Rotation": "0,0,0,1",
         "Scale": "1,1,1",
         "Tags": "",
@@ -7037,97 +7121,11 @@
         "OwnerTransfer": 1,
         "Components": [
           {
-            "__type": "Sandbox.ModelRenderer",
-            "__guid": "f0adfaf6-2c7a-425c-bc26-c38601a04fa5",
-            "__enabled": false,
-            "Flags": 0,
-            "BodyGroups": 18446744073709551615,
-            "CreateAttachments": false,
-            "LodOverride": null,
-            "MaterialGroup": null,
-            "MaterialOverride": null,
-            "Materials": null,
-            "Model": "itch/board-game-pieces/models/event-arrow.vmdl",
-            "OnComponentDestroy": null,
-            "OnComponentDisabled": null,
-            "OnComponentEnabled": null,
-            "OnComponentFixedUpdate": null,
-            "OnComponentStart": null,
-            "OnComponentUpdate": null,
-            "RenderOptions": {
-              "GameLayer": true,
-              "OverlayLayer": true,
-              "BloomLayer": true,
-              "AfterUILayer": true
-            },
-            "RenderType": "Off",
-            "Tint": "1,0,0,1"
-          },
-          {
-            "__type": "Sandbox.ModelCollider",
-            "__guid": "8d883f59-75d6-4d98-9666-5e726e6798c0",
-            "__enabled": false,
-            "Flags": 0,
-            "ColliderFlags": 0,
-            "Elasticity": null,
-            "Friction": null,
-            "IsTrigger": false,
-            "Model": "itch/board-game-pieces/models/event-arrow.vmdl",
-            "OnComponentDestroy": null,
-            "OnComponentDisabled": null,
-            "OnComponentEnabled": null,
-            "OnComponentFixedUpdate": null,
-            "OnComponentStart": null,
-            "OnComponentUpdate": null,
-            "OnObjectTriggerEnter": null,
-            "OnObjectTriggerExit": null,
-            "OnTriggerEnter": null,
-            "OnTriggerExit": null,
-            "RollingResistance": null,
-            "Static": false,
-            "Surface": null,
-            "SurfaceVelocity": "0,0,0"
-          },
-          {
-            "__type": "Sandbox.Rigidbody",
-            "__guid": "ca9e063b-4f15-477e-852f-1d5278acd45c",
-            "__enabled": false,
-            "Flags": 0,
-            "AngularDamping": 0,
-            "EnableImpactDamage": true,
-            "EnhancedCcd": false,
-            "Gravity": true,
-            "GravityScale": 1,
-            "ImpactDamage": 0,
-            "LinearDamping": 0,
-            "Locking": {
-              "X": false,
-              "Y": false,
-              "Z": false,
-              "Pitch": false,
-              "Yaw": false,
-              "Roll": false
-            },
-            "MassCenterOverride": "0,0,0",
-            "MassOverride": 0,
-            "MinImpactDamageSpeed": 500,
-            "MotionEnabled": true,
-            "OnComponentDestroy": null,
-            "OnComponentDisabled": null,
-            "OnComponentEnabled": null,
-            "OnComponentFixedUpdate": null,
-            "OnComponentStart": null,
-            "OnComponentUpdate": null,
-            "OverrideMassCenter": false,
-            "RigidbodyFlags": 0,
-            "SleepThreshold": 2,
-            "StartAsleep": false
-          },
-          {
             "__type": "Sandbox.BarArrowIndicator",
             "__guid": "f5096d91-f6fc-4593-b96d-c70d7a2d3809",
             "__enabled": true,
             "Flags": 0,
+            "_TargetWorldPosition": null,
             "OnComponentDestroy": null,
             "OnComponentDisabled": null,
             "OnComponentEnabled": null,
@@ -7138,11 +7136,11 @@
         ],
         "Children": [
           {
-            "__guid": "6d213e20-f37a-4d14-9e59-8a06afa0064b",
+            "__guid": "6820eeeb-8d5f-4d48-ac1d-46620983defd",
             "__version": 2,
             "Flags": 0,
-            "Name": "Object",
-            "Position": "0,0,0",
+            "Name": "arrow-holder",
+            "Position": "21.6799946,0,0",
             "Rotation": "0,-0.707106769,0,0.707106769",
             "Scale": "1,1,1",
             "Tags": "",
@@ -7158,7 +7156,7 @@
                 "__guid": "85ece831-52fd-45a3-b10e-a907498191e2",
                 "__version": 2,
                 "Flags": 0,
-                "Name": "model",
+                "Name": "arrow",
                 "Position": "0,0,0",
                 "Rotation": "0,0,0,1",
                 "Scale": "1,1,1",
@@ -7181,7 +7179,10 @@
                     "MaterialGroup": null,
                     "MaterialOverride": null,
                     "Materials": null,
-                    "Model": "itch/board-game-pieces/models/event-arrow.vmdl",
+                    "Model": {
+                      "Id": "c304b670-0cb0-45bf-89c8-abf73caa295f",
+                      "Path": "itch/board-game-pieces/models/event-arrow.vmdl"
+                    },
                     "OnComponentDestroy": null,
                     "OnComponentDisabled": null,
                     "OnComponentEnabled": null,
@@ -7190,12 +7191,12 @@
                     "OnComponentUpdate": null,
                     "RenderOptions": {
                       "GameLayer": true,
-                      "OverlayLayer": true,
+                      "OverlayLayer": false,
                       "BloomLayer": true,
-                      "AfterUILayer": true
+                      "AfterUILayer": false
                     },
                     "RenderType": "Off",
-                    "Tint": "1,0,0,1"
+                    "Tint": "1,0,0.9,1"
                   },
                   {
                     "__type": "Sandbox.ModelCollider",
@@ -7206,7 +7207,10 @@
                     "Elasticity": null,
                     "Friction": null,
                     "IsTrigger": false,
-                    "Model": "itch/board-game-pieces/models/event-arrow.vmdl",
+                    "Model": {
+                      "Id": "c304b670-0cb0-45bf-89c8-abf73caa295f",
+                      "Path": "itch/board-game-pieces/models/event-arrow.vmdl"
+                    },
                     "OnComponentDestroy": null,
                     "OnComponentDisabled": null,
                     "OnComponentEnabled": null,
@@ -7262,7 +7266,7 @@
                     "__guid": "3b332f51-4d19-47ea-97cb-9822f830d15c",
                     "__enabled": true,
                     "Flags": 0,
-                    "_SpinValues": "0,0,6",
+                    "_SpinValues": "0,0,2",
                     "OnComponentDestroy": null,
                     "OnComponentDisabled": null,
                     "OnComponentEnabled": null,
