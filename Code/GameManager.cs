@@ -215,7 +215,7 @@ public sealed class GameManager : Component, Component.INetworkListener
 				// EndMiniGameHelper has moved _targetBarWaiting to NextBar, so the
 				// finished bar's trigger no longer matches and won't re-loop; the
 				// player must travel to the next bar to start again.
-				ResetPlayerHelper(_Bars[finishedBar].PlayerSpawnLocation);
+				ResetPlayerHelper(_Bars[finishedBar].ActiveBarModule.SpawnPoint, true);
 			}
 			else
 			{
@@ -293,7 +293,7 @@ public sealed class GameManager : Component, Component.INetworkListener
 		_Bars[targetBar].SitUpPlayer( Connection.Local);
 		_LocalDrunkCC.BeerLevel += _minigameController.Beers;
 		_CCCamera.Enabled = true;
-		_CCCamera.WorldPosition = _Bars[targetBar].PlayerSpawnLocation.WorldPosition;
+		_CCCamera.WorldPosition = _Bars[targetBar].ActiveBarModule.SpawnPoint.WorldPosition;
 
 		// Score & Timer Architecture - v0 plan, section 3: AddTime must run BEFORE the
 		// state flips back to PubCrawling/ResumeTimer, or the first tick of the resumed
@@ -386,19 +386,23 @@ public sealed class GameManager : Component, Component.INetworkListener
 	/// <summary>
 	/// Resets all physics incoming and outgoing relative to Player and also 
 	/// </summary>
-	private void ResetPlayerHelper(GameObject spawnLocation = null)
+	private void ResetPlayerHelper(GameObject spawnLocation = null, bool isBarExit = false)
 	{
 		spawnLocation ??= _DefaultSpawnLocation;
+		var spawnRotation = spawnLocation.Parent.LocalRotation;
+		if(isBarExit)
+			spawnRotation = spawnLocation.WorldRotation;
 		
 		if ( _LocalPlayerRigidbody == null )
 		{
 			Log.Error( "LocalPlayer Rigidbody is null in ResetPlayerHelper(), called too early or ref lost!" );
 			return;
 		}
+		
 		_LocalPlayer.WorldPosition = spawnLocation.WorldPosition;
-		_LocalPlayer.WorldRotation = spawnLocation.Parent.LocalRotation; //todo: ASAP is this fix?!
+		_LocalPlayer.WorldRotation = spawnRotation; //todo: ASAP is this fix?!
 		_CCCamera.WorldPosition = spawnLocation.WorldPosition;
-		_CCCamera.WorldRotation = spawnLocation.Parent.LocalRotation;
+		_CCCamera.WorldRotation = spawnRotation;
 		_LocalPlayerRigidbody.Velocity = Vector3.Zero;
 		_LocalPlayerRigidbody.AngularVelocity = Vector3.Zero;
 		_LocalPlayerRigidbody.Sleeping = true;

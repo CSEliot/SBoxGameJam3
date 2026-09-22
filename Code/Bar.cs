@@ -33,21 +33,20 @@ public sealed class Bar : Component, Component.ITriggerListener
 	public Bar NextBar;
 	public Action<Guid, Bar> NotifyGameManagerOfPlayerTriggerEnter;
 	public Action<Guid> NotifyGameManagerOfPlayerTriggerExit;
+	public BarModule ActiveBarModule;
 
-	/// <summary>
-	/// Players currently playing the minigame at this bar, by their client id (or whatever sandbox offers).
-	/// </summary>
-	private List<int> CurrentPlayers = [];
+	// /// <summary>
+	// /// Players currently playing the minigame at this bar, by their client id (or whatever sandbox offers).
+	// /// </summary>
+	// private List<int> CurrentPlayers = [];
 
 	/// <summary>
 	/// Unique ID for this bar instance.
 	/// </summary>
 	// [Property, ReadOnly] private int? _ID { get; set; } //todo: BARS NO LONGER TRACK THEIR IDs??? -ecs
-	[Property, ReadOnly] private string _activeModule { get; set; } = "";
+	[Property, ReadOnly] private string _activeModuleName { get; set; } = "";
 	[Property] private GameObject[] _Drinkers { get; set; }
-	[Property] public GameObject PlayerSpawnLocation { get; private set; }
 	private GameManager _gameManager = null;
-	private readonly List<BarModule> _barModules = [];
 	private Dictionary<Guid, int> _connectionToPatronIndex =  new();
 	
 	protected override void OnStart()
@@ -58,12 +57,12 @@ public sealed class Bar : Component, Component.ITriggerListener
 	
 		foreach ( var child in GetComponentsInChildren<BarModule>( true ) )
 		{
-			_barModules.Add( child );
 			if ( child.Active )
 			{
-				if ( _activeModule != "" )
+				if ( _activeModuleName != "" )
 					Log.Error( "Bar has multiple active modules!" );
-				_activeModule = child.Name;
+				ActiveBarModule = child;
+				_activeModuleName = child.Name;
 			}
 		}
 	}

@@ -27,5 +27,6 @@ namespace Sandbox.UI;
 public sealed class BarModule : Component
 {
 	[Property] public string Name { get; private set; }
+	[Property] public GameObject SpawnPoint { get; private set; }
 }
 
