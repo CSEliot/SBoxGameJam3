@@ -1,5 +1,4 @@
-5. Minigame.SpawnABeerHelper (Minigame.Logic.cs:119) — unbounded object leak, wrong position remotely.
-Broadcast on every spacebar press, clones _Mug locally on every client, nothing ever destroys them. At ~10 presses/s × players × rounds that's thousands of GameObjects per session. And it clones at the receiver's BeerSpawnLocation, which (given bug 1) is set only on the host and reflects whoever sat down last — so remote beers appear at the wrong seat. Pass the position as an RPC argument and give the mug a lifetime.
+
 
 6. Traffic you're paying for and not using (your stated "only game-necessary" bar):
 - GameManager._SecondsUptime is [Sync], rewritten every frame on the host, and read only by the host. Drop [Sync].
@@ -49,3 +48,7 @@ Related: CurrentState isn't [Sync], so a knockdown never replicates — remote p
 
 7. Drinker assignment can desync across clients.
    SitDownPlayer picks "first _Drinkers[i].Enabled == false". Two clients sitting at the same bar in the same window produce two broadcasts whose relative arrival order isn't guaranteed to match on every receiver, so client A can hold seat 0 on the host and seat 1 on client C — and _connectionToPatronIndex disagrees. Host-assigning the seat index and passing it in the RPC removes this; it's the one place where host authority is genuinely cheaper than fixing it client-side.
+
+   
+   5. Minigame.SpawnABeerHelper (Minigame.Logic.cs:119) — unbounded object leak, wrong position remotely.
+Broadcast on every spacebar press, clones _Mug locally on every client, nothing ever destroys them. At ~10 presses/s × players × rounds that's thousands of GameObjects per session. And it clones at the receiver's BeerSpawnLocation, which (given bug 1) is set only on the host and reflects whoever sat down last — so remote beers appear at the wrong seat. Pass the position as an RPC argument and give the mug a lifetime.
