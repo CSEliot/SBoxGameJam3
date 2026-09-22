@@ -2,7 +2,7 @@
 // File:    BarArrowIndicator.cs
 // Author:  cseliot
 // Created: 2026.09.19.00.50.48
-// Edited: 2026.09.19.00.50.48
+// Edited:  2026.09.22.06.25.00
 // 
 // Copyright (c) 2026 KiteLion Games, LLC. All rights reserved.
 // 
@@ -11,8 +11,8 @@
 // permission from KiteLion Games, LLC.
 // 
 // Description:
-// Procedural 3D arrow mesh, spawned above the player's head by GameManager, that points
-// toward whichever bar _targetBarWaiting currently targets.
+// Aims the player prefab's event-arrow model (the DrunkCC.BarArrow node) toward whichever
+// bar GameManager._targetBarWaiting currently targets.
 // 
 // License:
 // This code is provided "as is," without warranty of any kind, express or
@@ -23,70 +23,29 @@
 // arising from, out of, or in connection with the software or the use or
 // other dealings in the software.
 
-using System;
-
 namespace Sandbox;
 
 /// <summary>
-/// Owns a small extruded arrow model built at runtime with ModelBuilder/Mesh (no .vmdl asset).
-/// GameManager creates one of these as a child of the local player (see
-/// GameManager.SpawnArrowIndicatorHelper) and calls PointAt every frame with the world position
-/// of the bar at _targetBarWaiting. The arrow only yaws (stays level) so it's always readable,
-/// matching Design.md's "Arrow indicator stays crisp, gameplay critical" rule.
+/// Sits on the player prefab's event-arrow node (wired into DrunkCC.BarArrow). GameManager
+/// resolves it off the local player's DrunkCC and calls PointAt every frame with the world
+/// position of the bar at _targetBarWaiting; this component owns the node's WORLD rotation,
+/// yawing it level at the target so it's always readable, matching Design.md's "Arrow
+/// indicator stays crisp, gameplay critical" rule. The model child keeps its own SpinMe
+/// propeller spin in local space, which doesn't fight the root's world-space aim.
+/// The arrow is local-only (nobody feeds PointAt for remote players), so on proxies the
+/// node is disabled in OnStart - same visibility the old runtime-spawned indicator had.
 /// </summary>
 public sealed class BarArrowIndicator : Component
 {
-	/// <summary>
-	/// Local height above the parent (the player root) the arrow floats at.
-	/// </summary>
-	[Property] private float _HeightAboveHead { get; set; } = 80f;
-
-	/// <summary>
-	/// Tip-to-tail length of the arrow mesh, in units.
-	/// </summary>
-	[Property] private float _ArrowLength { get; set; } = 16f;
-
-	/// <summary>
-	/// Width of the arrowhead at its widest point, in units.
-	/// </summary>
-	[Property] private float _ArrowWidth { get; set; } = 8f;
-
-	/// <summary>
-	/// Extrusion depth of the arrow mesh, in units.
-	/// </summary>
-	[Property] private float _ArrowThickness { get; set; } = 2f;
-
-	/// <summary>
-	/// Overall size multiplier for the arrow mesh, set by GameManager (from its editor-exposed
-	/// slider) right after AddComponent, before this component's OnStart runs. Scales
-	/// _ArrowLength/_ArrowWidth/_ArrowThickness uniformly so the arrow stays proportional.
-	/// </summary>
-	public float SizeMultiplier { get; set; } = 1f;
-
-	/// <summary>
-	/// Baked-in vertex color, set by GameManager (from its editor-exposed color property) right
-	/// after AddComponent, before this component's OnStart runs. Defaults to Design.md's primary
-	/// glow (#4C74E5) for the rare case this component is added without GameManager setting it.
-	/// </summary>
-	public Color ArrowColor { get; set; } = new Color( 0.298f, 0.455f, 0.898f );
-
-	private ModelRenderer _modelRenderer;
 	private Vector3? _targetWorldPosition;
 
 	protected override void OnStart()
 	{
-		LocalPosition = Vector3.Up * _HeightAboveHead;
-		LocalRotation = Rotation.Identity;
-
-		// [Range] on GameManager's slider doesn't self-enforce (Clamped defaults false), so a
-		// manually-typed value could go negative/zero and produce a degenerate/inverted mesh.
-		float safeMultiplier = Math.Clamp( SizeMultiplier, 0.1f, 5f );
-		_ArrowLength *= safeMultiplier;
-		_ArrowWidth *= safeMultiplier;
-		_ArrowThickness *= safeMultiplier;
-
-		_modelRenderer = Components.GetOrCreate<ModelRenderer>();
-		_modelRenderer.Model = BuildArrowModelHelper();
+		// Remote players' copies would sit frozen pointing forward (PointAt only runs on
+		// the owning client's GameManager), so hide them - matches the old local-only
+		// runtime-spawned indicator's behavior.
+		if ( GameObject.Network.IsProxy )
+			GameObject.Enabled = false;
 	}
 
 	protected override void OnUpdate()
@@ -96,6 +55,7 @@ public sealed class BarArrowIndicator : Component
 
 		// Flatten to the horizontal plane so the arrow only yaws - it should never pitch up
 		// or down toward a bar that's higher/lower than the player, just point the way to walk.
+		// World-space aim also keeps the arrow level while the player's body rolls/leans.
 		Vector3 toTarget = (_targetWorldPosition.Value - WorldPosition).WithZ( 0f );
 		if ( toTarget.IsNearlyZero() )
 			return;
@@ -109,114 +69,5 @@ public sealed class BarArrowIndicator : Component
 	public void PointAt( Vector3 worldPosition )
 	{
 		_targetWorldPosition = worldPosition;
-	}
-
-	/// <summary>
-	/// Builds a small extruded arrow model at runtime via ModelBuilder/Mesh - see engine
-	/// PreviewPhysics.cs (AddPart) for the same VertexBuffer -> Mesh.CreateBuffers -> ModelBuilder
-	/// pattern this follows. No collision shapes are added; this is render-only.
-	/// </summary>
-	private Model BuildArrowModelHelper()
-	{
-		Vector3[] outline = ArrowOutlineHelper();
-		int[] topTriangles = Mesh.TriangulatePolygon( outline ).ToArray();
-		float halfThickness = _ArrowThickness * 0.5f;
-
-		var vb = new VertexBuffer();
-		vb.Init( true );
-
-		AddFlatFaceHelper( vb, outline, topTriangles, halfThickness, Vector3.Up );
-		AddFlatFaceHelper( vb, outline, topTriangles, -halfThickness, Vector3.Down );
-		AddSideWallsHelper( vb, outline, halfThickness );
-
-		var mesh = new Mesh( "bar_arrow", ArrowMaterialHelper(), MeshPrimitiveType.Triangles );
-		mesh.CreateBuffers( vb );
-
-		return Model.Builder
-			.WithName( "bar_arrow_indicator" )
-			.AddMesh( mesh )
-			.Create();
-	}
-
-	/// <summary>
-	/// Flat arrow silhouette in local space (forward = +X, matching Vector3.Forward), tip
-	/// pointing toward +Forward - the direction OnUpdate rotates the whole GameObject to face.
-	/// Seven points forming a simple (non-self-intersecting) polygon so Mesh.TriangulatePolygon
-	/// can fan/ear-clip it directly.
-	/// </summary>
-	private Vector3[] ArrowOutlineHelper()
-	{
-		float halfShaft = _ArrowWidth * 0.25f;
-		float halfHead = _ArrowWidth * 0.5f;
-		float shaftLength = _ArrowLength * 0.55f;
-
-		return new[]
-		{
-			new Vector3( 0f, halfShaft, 0f ),
-			new Vector3( shaftLength, halfShaft, 0f ),
-			new Vector3( shaftLength, halfHead, 0f ),
-			new Vector3( _ArrowLength, 0f, 0f ),
-			new Vector3( shaftLength, -halfHead, 0f ),
-			new Vector3( shaftLength, -halfShaft, 0f ),
-			new Vector3( 0f, -halfShaft, 0f ),
-		};
-	}
-
-	/// <summary>
-	/// Adds the top or bottom cap of the extrusion. Each triangle is added in both windings so
-	/// the face renders regardless of the material's front-face culling convention - this is a
-	/// tiny HUD compass mesh, the doubled triangle count is negligible.
-	/// </summary>
-	private void AddFlatFaceHelper( VertexBuffer vb, Vector3[] outline, int[] triangleIndices, float z, Vector3 normal )
-	{
-		for ( int i = 0; i < triangleIndices.Length; i += 3 )
-		{
-			var a = MakeVertexHelper( outline[triangleIndices[i]].WithZ( z ), normal );
-			var b = MakeVertexHelper( outline[triangleIndices[i + 1]].WithZ( z ), normal );
-			var c = MakeVertexHelper( outline[triangleIndices[i + 2]].WithZ( z ), normal );
-
-			vb.AddTriangle( a, b, c );
-			vb.AddTriangle( c, b, a );
-		}
-	}
-
-	/// <summary>
-	/// Adds one quad per outline edge connecting the top and bottom caps, giving the arrow real
-	/// thickness instead of a flat cutout. Both windings added, same reasoning as AddFlatFaceHelper.
-	/// </summary>
-	private void AddSideWallsHelper( VertexBuffer vb, Vector3[] outline, float halfThickness )
-	{
-		for ( int i = 0; i < outline.Length; i++ )
-		{
-			Vector3 a = outline[i];
-			Vector3 b = outline[(i + 1) % outline.Length];
-
-			Vector3 topA = a.WithZ( halfThickness );
-			Vector3 topB = b.WithZ( halfThickness );
-			Vector3 bottomA = a.WithZ( -halfThickness );
-			Vector3 bottomB = b.WithZ( -halfThickness );
-
-			Vector3 normal = Vector3.Cross( topB - topA, bottomA - topA ).Normal;
-
-			var vTopA = MakeVertexHelper( topA, normal );
-			var vTopB = MakeVertexHelper( topB, normal );
-			var vBottomA = MakeVertexHelper( bottomA, normal );
-			var vBottomB = MakeVertexHelper( bottomB, normal );
-
-			vb.AddQuad( vTopA, vTopB, vBottomB, vBottomA );
-			vb.AddQuad( vBottomA, vBottomB, vTopB, vTopA );
-		}
-	}
-
-	private Vertex MakeVertexHelper( Vector3 position, Vector3 normal )
-	{
-		var vertex = new Vertex( position, normal, Vector3.Left, Vector4.Zero );
-		vertex.Color = ArrowColor;
-		return vertex;
-	}
-
-	private Material ArrowMaterialHelper()
-	{
-		return Material.Load( "materials/default/vertex_color.vmat" );
 	}
 }

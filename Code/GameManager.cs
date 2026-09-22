@@ -88,20 +88,6 @@ public sealed class GameManager : Component, Component.INetworkListener
 	/// _endGameController in OnStart.
 	/// </summary>
 	[Property] private GameObject _EndGamePanel { get; set; }
-	/// <summary>
-	/// Overall size multiplier for the local player's bar-direction arrow indicator. Changing
-	/// this at runtime destroys and respawns the arrow with the new size baked into its mesh -
-	/// see CheckArrowSizeChangedHelper (arrow geometry is built once in BarArrowIndicator.OnStart,
-	/// so a live value change can't resize it in place).
-	/// </summary>
-	[Property, Range( 0.1f, 5f )] private float _ArrowSizeMultiplier { get; set; } = 1f;
-	/// <summary>
-	/// Color baked into the local player's bar-direction arrow indicator. Changing this at
-	/// runtime respawns the arrow just like _ArrowSizeMultiplier - see
-	/// CheckArrowSizeChangedHelper/CheckArrowColorChangedHelper (color is baked per-vertex at
-	/// mesh-build time, so a live value change can't recolor it in place).
-	/// </summary>
-	[Property] private Color _ArrowColor { get; set; } = new Color( 0.298f, 0.455f, 0.898f );
 	[Sync, Property, ReadOnly] private long _SecondsUptime { get; set; }
 
 	/// <summary>
@@ -116,17 +102,6 @@ public sealed class GameManager : Component, Component.INetworkListener
 	private bool _SpawnPlayerHelperCalled { get; set; }
 	private Rigidbody _LocalPlayerRigidbody { get; set; }
 	private BarArrowIndicator _LocalArrowIndicator { get; set; }
-	/// <summary>
-	/// Value of _ArrowSizeMultiplier last baked into the live arrow's mesh. Starts at a value
-	/// no slider can produce so the very first spawn always applies whatever's configured.
-	/// </summary>
-	private float _appliedArrowSizeMultiplier = -1f;
-	/// <summary>
-	/// Value of _ArrowColor last baked into the live arrow's mesh. Starts transparent black so
-	/// no real editor color can match it, guaranteeing the very first spawn applies whatever's
-	/// configured.
-	/// </summary>
-	private Color _appliedArrowColor = Color.Transparent;
 	private LocalGameState _localGameState = LocalGameState.WaitingToStartMinigame;
 	private EndGame _endGameController;
 	/// <summary>
@@ -268,32 +243,15 @@ public sealed class GameManager : Component, Component.INetworkListener
 				_canUpdateBars = true;
 		}
 
-		CheckArrowSizeChangedHelper();
 		UpdateArrowIndicatorHelper();
 	}
 
 	/// <summary>
-	/// Destroys and respawns the local arrow indicator when _ArrowSizeMultiplier or _ArrowColor
-	/// has changed since it was last baked into the live arrow's mesh. Necessary because
-	/// BarArrowIndicator builds its mesh once in OnStart - there's no in-place resize/recolor.
-	/// </summary>
-	private void CheckArrowSizeChangedHelper()
-	{
-		if ( _LocalArrowIndicator == null )
-			return;
-
-		if ( _ArrowSizeMultiplier == _appliedArrowSizeMultiplier && _ArrowColor == _appliedArrowColor )
-			return;
-
-		_LocalArrowIndicator.GameObject.Destroy();
-		_LocalArrowIndicator = null;
-		SpawnArrowIndicatorHelper();
-	}
-
-	/// <summary>
 	/// Keeps the local player's floating arrow pointed at whichever bar _targetBarWaiting
-	/// currently names. Guarded against every "not ready yet" case (arrow not spawned, sparse
-	/// _Bars not populated/replicated, target index out of range) since this runs every frame.
+	/// currently names. The arrow is the event-arrow node on the player prefab (resolved off
+	/// DrunkCC.BarArrow in ResolveLocalPlayerHelper). Guarded against every "not ready yet"
+	/// case (arrow not resolved, sparse _Bars not populated/replicated, target index out of
+	/// range) since this runs every frame.
 	/// </summary>
 	private void UpdateArrowIndicatorHelper()
 	{
@@ -472,7 +430,6 @@ public sealed class GameManager : Component, Component.INetworkListener
 		{
 			Log.Error( "LocalPlayer PlayerProgress is null, despite successful spawn!" );
 		}
-		SpawnArrowIndicatorHelper();
 		ResetPlayerHelper();
 		return _LocalPlayer != null;
 	}
@@ -504,41 +461,16 @@ public sealed class GameManager : Component, Component.INetworkListener
 		_LocalDrunkCC = progress.GetComponent<DrunkCC>();
 		_LocalPlayerRigidbody = progress.GetComponent<Rigidbody>();
 
-		// The arrow indicator is a child GameObject of whichever player owned it when it was
-		// built - if the owned player changed out from under us (host re-resolving after a new
-		// client's SpawnPlayerHelper call clobbered the cache, or a non-host client resolving
-		// for the first time), the cached indicator is either missing or still hanging off the
-		// wrong/stale player. Drop it and let SpawnArrowIndicatorHelper rebuild against the
-		// player we now actually own.
-		if ( _LocalArrowIndicator == null || _LocalArrowIndicator.GameObject.Parent != _LocalPlayer )
+		// The arrow is the event-arrow node built into the player prefab, wired to
+		// DrunkCC.BarArrow. Re-resolve whenever the owned player changed out from under us
+		// (host re-resolving after a new client's SpawnPlayerHelper call clobbered the
+		// cache, or a non-host client resolving for the first time) so the cached
+		// indicator never points at a stale/wrong player's arrow.
+		_LocalArrowIndicator = _LocalDrunkCC?.BarArrow?.GetComponent<BarArrowIndicator>();
+		if ( _LocalArrowIndicator == null )
 		{
-			_LocalArrowIndicator = null;
-			SpawnArrowIndicatorHelper();
+			Log.Error( "Player prefab's DrunkCC.BarArrow node is unset or has no BarArrowIndicator component; bar-direction arrow disabled." );
 		}
-	}
-
-	/// <summary>
-	/// Creates the floating 3D arrow above the local player's head that points at the bar
-	/// _targetBarWaiting. Only spawned once per SpawnPlayerHelper() call (mirrors the rest of
-	/// that method's one-shot setup); OnUpdate keeps it pointed at the live target every frame.
-	/// </summary>
-	private void SpawnArrowIndicatorHelper()
-	{
-		if ( _LocalArrowIndicator != null )
-			return;
-
-		if ( _LocalPlayer == null )
-		{
-			Log.Error( "SpawnArrowIndicatorHelper called before LocalPlayer exists!" );
-			return;
-		}
-
-		var arrowObject = new GameObject( _LocalPlayer, true, "bar_arrow_indicator" );
-		_LocalArrowIndicator = arrowObject.AddComponent<BarArrowIndicator>();
-		_LocalArrowIndicator.SizeMultiplier = _ArrowSizeMultiplier;
-		_LocalArrowIndicator.ArrowColor = _ArrowColor;
-		_appliedArrowSizeMultiplier = _ArrowSizeMultiplier;
-		_appliedArrowColor = _ArrowColor;
 	}
 
 	/// <summary>

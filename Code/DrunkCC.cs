@@ -53,6 +53,7 @@ public sealed class DrunkCC : Component
 	[Property] public bool ShowCollisionBox  { get; set; }
 
 	[Property] public CollisionReporter WallHitColliderReporter  { get; set; }
+	[Property] public GameObject BarArrow  { get; set; }
 
 	/// <summary>
 	/// Size of the collider and direction.
