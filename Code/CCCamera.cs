@@ -67,6 +67,19 @@ public sealed class CCCamera : Component
 	/// Manual target override. If unset, the local (non-proxy) DrunkCC in the scene is used.
 	/// </summary>
 	[Property] private GameObject _LookAtTarget { get; set; }
+	/// <summary>
+	/// Use if @_UseAltTargets is true.
+	/// </summary>
+	[Property] private GameObject _AltFollowTarget { get; set; }
+	/// <summary>
+	/// Manual target override. If unset, the local (non-proxy) DrunkCC in the scene is used.
+	/// </summary>
+	[Property] private GameObject _AltLookAtTarget { get; set; }
+
+	private GameObject _followTargetBackup;
+	private GameObject _lookAtTargetBackup;
+	[Property] private bool _UseAltTargets { get; set; }
+	
 	
 	/// <summary>
 	/// How quickly this object catches up to the target's position. Higher is snappier.
@@ -209,6 +222,25 @@ public sealed class CCCamera : Component
 	{
 		if ( (TryResolveGetTargetLookAtHelper() && TryResolveGetTargetFollowHelper() && TryResolveGetDrunkHelper()) == false)
 			return;
+
+		if ( _UseAltTargets && _followTargetBackup == null && _lookAtTargetBackup == null )
+		{
+			_followTargetBackup = _FollowTarget;
+			_lookAtTargetBackup = _LookAtTarget;
+			
+			_FollowTarget = _AltFollowTarget;
+			_LookAtTarget = _AltLookAtTarget;
+		}
+
+		if ( _UseAltTargets && _followTargetBackup != null && _lookAtTargetBackup != null )
+		{
+			_FollowTarget = _followTargetBackup;
+			_LookAtTarget = _lookAtTargetBackup;
+			
+			_followTargetBackup = null;
+			_lookAtTargetBackup = null;
+		}
+		
 		
 		if ( Input.Pressed( "Left" ) && Input.Pressed( "Right" ))
 		{
@@ -725,9 +757,14 @@ public sealed class CCCamera : Component
 		var localCamTarget = Scene.FindAllWithTag( "lookat-target" ).FirstOrDefault( d => !d.IsProxy );
 		if ( localCamTarget is null || localCamTarget.Network.IsMine() == false)
 			return false;
+		
+		var altLocalCamTarget = Scene.FindAllWithTag( "alt-target" ).FirstOrDefault( d => !d.IsProxy );
+		if ( altLocalCamTarget is null || altLocalCamTarget.Network.IsMine() == false)
+			return false;
 
+		_AltLookAtTarget = altLocalCamTarget;
 		_LookAtTarget = localCamTarget;
-		return _LookAtTarget.IsValid();
+		return _LookAtTarget.IsValid() && _AltLookAtTarget.IsValid();
 	}
 
 	/// <summary>
@@ -743,8 +780,13 @@ public sealed class CCCamera : Component
 		if ( localCamTarget is null || localCamTarget.Network.IsMine() == false)
 			return false;
 
+		var altLocalCamTarget = Scene.FindAllWithTag( "alt-target" ).FirstOrDefault( d => !d.IsProxy );
+		if ( altLocalCamTarget is null || altLocalCamTarget.Network.IsMine() == false)
+			return false;
+
+		_AltFollowTarget = localCamTarget;
 		_FollowTarget = localCamTarget;
-		return _FollowTarget.IsValid();
+		return _FollowTarget.IsValid() && _AltFollowTarget.IsValid();
 	}
 
 	/// <summary>
