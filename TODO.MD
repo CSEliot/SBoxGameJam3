@@ -1,5 +1,6 @@
 ## OTHER
 
+ + Re-enable dome and collision mesh upon game start.
  + RECOVERY NEEDS TO TAKE INTO ACCOUNT NEW BEER LEVELS
  + Arrow falls like physical object on knockdown.
 

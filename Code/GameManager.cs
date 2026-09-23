@@ -11,7 +11,9 @@
 // permission from KiteLion Games, LLC.
 // 
 // Description:
-// Singleton Handling Core Loop Logic
+// Singleton Handling Core Loop Logic. Boots into LocalGameState.InMainMenu (pre-gamestart
+// state: main menu over the merged minimal.scene) and stays there until the menu calls
+// StartGame(), which flips this client to WaitingToStartMinigame.
 // 
 // License:
 // This code is provided "as is," without warranty of any kind, express or
@@ -113,7 +115,7 @@ public sealed class GameManager : Component, Component.INetworkListener
 	private bool _SpawnPlayerHelperCalled { get; set; }
 	private Rigidbody _LocalPlayerRigidbody { get; set; }
 	[Property, ReadOnly] private BarArrowIndicator _LocalArrowIndicator { get; set; }
-	private LocalGameState _localGameState = LocalGameState.WaitingToStartMinigame;
+	private LocalGameState _localGameState = LocalGameState.InMainMenu;
 	private EndGame _endGameController;
 	/// <summary>
 	/// One-shot latch so the local player/camera freeze on entering PlayerProgress.RunState.
@@ -181,7 +183,7 @@ public sealed class GameManager : Component, Component.INetworkListener
 		if (ResolveLocalPlayerHelper() == false)
 			return;
 
-		if ( Input.Keyboard.Down( "R" ) )
+		if ( _localGameState != LocalGameState.InMainMenu && Input.Keyboard.Down( "R" ) )
 		{
 			 ResetPlayerHelper();
 		}
@@ -435,7 +437,11 @@ public sealed class GameManager : Component, Component.INetworkListener
 		
 		if ( localPlayer is null )
 		{
-			Log.Error("Couldn't find local player.");
+			// Silent while in the main menu: no local player existing yet is EXPECTED
+			// during menu-sit (spawn is per-session/inert by design), and pollers call
+			// this every frame - logging here floods the console for the menu's duration.
+			if ( _localGameState != LocalGameState.InMainMenu )
+				Log.Error("Couldn't find local player.");
 			return false;
 		}
 
@@ -447,25 +453,29 @@ public sealed class GameManager : Component, Component.INetworkListener
 		
 		if ( _LocalPlayerProgress == null )
 		{
-			Log.Warning("Couldn't find local player's progress component. " + localPlayer.Name);
+			if ( _localGameState != LocalGameState.InMainMenu )
+				Log.Warning("Couldn't find local player's progress component. " + localPlayer.Name);
 			return false;
 		}
 
 		if ( _LocalDrunkCC == null )
 		{
-			Log.Warning("Couldn't find local player's DrunkCC component.");
+			if ( _localGameState != LocalGameState.InMainMenu )
+				Log.Warning("Couldn't find local player's DrunkCC component.");
 			return false;
 		}
 
 		if ( _LocalPlayerRigidbody == null )
 		{
-			Log.Warning("Couldn't find local player's Rigidbody component.");
+			if ( _localGameState != LocalGameState.InMainMenu )
+				Log.Warning("Couldn't find local player's Rigidbody component.");
 			return false;
 		}
 
 		if ( _LocalArrowIndicator == null )
 		{
-			Log.Warning("Couldn't find local player's BarArrowIndicator component.");
+			if ( _localGameState != LocalGameState.InMainMenu )
+				Log.Warning("Couldn't find local player's BarArrowIndicator component.");
 			return false;
 		}
 		
@@ -509,6 +519,42 @@ public sealed class GameManager : Component, Component.INetworkListener
 		_localGameState = LocalGameState.WaitingToStartMinigame;
 		_CCCamera.Enabled = true;
 		ResetPlayerHelper();
+	}
+
+	/// <summary>
+	/// MainMenu PLAY click. Per-client only (D-B): no RPC of any kind - it just flips THIS
+	/// client from InMainMenu to WaitingToStartMinigame, and the existing OnUpdate
+	/// WaitingToStartMinigame block drives the rest of the flow unchanged.
+	/// Solo/editor fallback: when no local player can be resolved AND no network session is
+	/// active, clone the player prefab at the default spawn ourselves - deliberately WITHOUT
+	/// NetworkSpawn (it returns false in editor scenes; a non-networked clone still satisfies
+	/// Extensions.IsMine(), so ResolveLocalPlayerHelper picks it up). When Networking IS active
+	/// and no player resolves, log an error and do NOT clone: NetworkHelper owns spawning
+	/// players in sessions. Mirrors NetworkHelper.OnActive's Clone(WorldTransform) idiom.
+	/// </summary>
+	public void StartGame()
+	{
+		if ( _localGameState != LocalGameState.InMainMenu )
+			return;
+
+		if ( ResolveLocalPlayerHelper() == false )
+		{
+			if ( Networking.IsActive )
+			{
+				Log.Error( "StartGame: local player not resolved while a network session is active; NetworkHelper owns player spawning - not cloning." );
+			}
+			else if ( _PlayerPrefab.IsValid() && _DefaultSpawnLocation.IsValid() )
+			{
+				_PlayerPrefab.Clone( _DefaultSpawnLocation.WorldTransform.WithScale( 1 ) );
+				ResolveLocalPlayerHelper();
+			}
+			else
+			{
+				Log.Error( "StartGame: solo fallback spawn skipped - _PlayerPrefab or _DefaultSpawnLocation is unset." );
+			}
+		}
+
+		_localGameState = LocalGameState.WaitingToStartMinigame;
 	}
 
 	private void HandlePlayerBarTriggerEnter( Guid playerID, Bar enteredBar )

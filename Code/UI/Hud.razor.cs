@@ -99,6 +99,15 @@ public partial class Hud : PanelComponent
 		}
 	}
 
+	/// <summary>
+	/// False only while the local client sits in GameManager.LocalGameState.InMainMenu -
+	/// the pre-gamestart main menu, now merged into this scene. Null GameManager returns
+	/// true (fail-open: unwired scenes keep today's behavior). Used to keep the
+	/// pants-debug column from floating over the menu - it renders outside the
+	/// run-Visible gate and _ShowPantsDebug is true in the scene JSON.
+	/// </summary>
+	private bool NotInMainMenu => _GameManager?.GetLocalGameState() != GameManager.LocalGameState.InMainMenu;
+
 	/// <summary>Design #45: timer freezes in the bar - dim the HUD and show a paused banner.</summary>
 	private bool IsPaused => _progress?.RunState == PlayerProgress.RunStateEnum.Paused;
 
@@ -150,8 +159,9 @@ public partial class Hud : PanelComponent
 	// Rebuild every frame while visible so timer/score/drunkenness track their live values;
 	// hash to a constant while hidden so the idle panel stays put (mirrors Minigame.BuildHash).
 	// While hidden, the hash still tracks the pants-debug toggle/state so the readout keeps
-	// working pre-spawn (PreRun) instead of freezing at first paint.
+	// working pre-spawn (PreRun) instead of freezing at first paint. NotInMainMenu is in
+	// BOTH branches so the menu -> in-game state flip repaints the pants-debug gate.
 	protected override int BuildHash() => Visible
-		? HashCode.Combine( Visible, RealTime.Now )
-		: HashCode.Combine( Visible, _ShowPantsDebug, PantsDebugText );
+		? HashCode.Combine( Visible, NotInMainMenu, RealTime.Now )
+		: HashCode.Combine( Visible, NotInMainMenu, _ShowPantsDebug, PantsDebugText );
 }

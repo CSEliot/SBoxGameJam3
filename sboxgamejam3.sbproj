@@ -16,7 +16,7 @@
       "VR": false,
       "Gamepad": false
     },
-    "StartupScene": "scenes/mainmenu.scene",
+    "StartupScene": "scenes/minimal.scene",
     "LaunchMode": "Normal"
   }
 }

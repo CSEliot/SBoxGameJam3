@@ -13,6 +13,10 @@
 // Description:
 // Escape/pause menu overlay. Toggles with ESC. Return to game, leave to
 // main menu, open s&box settings.
+// Opening is suppressed while the local client is in
+// GameManager.LocalGameState.InMainMenu (the main menu, now merged into this
+// scene - both are ZIndex 100 full-screen modals and must not stack); closing
+// an already-open pause menu still works.
 *@
 
 @using System
@@ -46,6 +50,16 @@
 	/// </summary>
 	[Property] private BarMenu _BarMenu { get; set; }
 
+	/// <summary>
+	/// Optional ref to the scene's GameManager. When set, the pause menu refuses to OPEN
+	/// while the local client is in GameManager.LocalGameState.InMainMenu - the main menu
+	/// now lives in this scene and both modals share ZIndex 100 with pointer-events: all,
+	/// so stacking them would give ambiguous click routing. Closing/toggling an already
+	/// open pause menu is never blocked by this. Not required - null-safe - so existing
+	/// scenes without this wired keep working exactly as before.
+	/// </summary>
+	[Property] private GameManager _GameManager { get; set; }
+
 	protected override void OnUpdate()
 	{
 		// "Escape Menu" input action (F). ESC is unreliable in-editor: Sandbox.Tools
@@ -62,6 +76,14 @@
 
 		if ( togglePressed )
 		{
+			// Never open the pause menu on top of the merged-in main menu - both are
+			// ZIndex 100 full-screen modals. Suppression only blocks OPENING: if the
+			// pause menu is already open, this toggle still closes it. Unwired
+			// _GameManager (null) keeps the old behavior - fail-open.
+			if ( !IsOpen && _GameManager is not null &&
+				_GameManager.GetLocalGameState() == GameManager.LocalGameState.InMainMenu )
+				return;
+
 			// Never open the pause menu on top of the "ONE MORE ROUND?" bar menu - let
 			// closing/toggling still work if the pause menu was already open first.
 			if ( IsOpen || _BarMenu is null || !_BarMenu.IsOpen )

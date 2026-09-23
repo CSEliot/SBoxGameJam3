@@ -11,13 +11,16 @@
 // permission from KiteLion Games, LLC.
 //
 // Description:
-// Title-screen main menu, shown on its own dedicated scene (scenes/mainmenu.scene)
-// independent of gameplay. PLAY loads the game scene; SETTINGS opens the engine
-// settings modal (mirrors EscMenu.OpenSettings); CREDITS opens a small inline
-// modal; QUIT closes the game (mirrors EscMenu/EndGame's Game.Close()). Also
-// shows a compact Top-N leaderboard to the left of the menu column. Self-
-// contained inline @code, no code-behind partial - mirrors EscMenu/BarMenu so
-// there's no cross-file Rider codebehind-resolution trap to worry about.
+// Title-screen main menu, now merged inside the startup scene (scenes/minimal.scene)
+// instead of living on its own dedicated scene. The panel is state-gated: it renders
+// only while GameManager.GetLocalGameState() == LocalGameState.InMainMenu (the opaque
+// backdrop sits INSIDE the gate, so it can never cover gameplay). PLAY calls
+// GameManager.StartGame(); SETTINGS opens the engine settings modal (mirrors
+// EscMenu.OpenSettings); CREDITS opens a small inline modal; QUIT closes the game
+// (mirrors EscMenu/EndGame's Game.Close()). Also shows a compact Top-N leaderboard
+// to the left of the menu column. Self-contained inline @code, no code-behind
+// partial - mirrors EscMenu/BarMenu so there's no cross-file Rider
+// codebehind-resolution trap to worry about.
 //
 // License:
 // This code is provided "as is," without warranty of any kind, express or
@@ -38,48 +41,56 @@
 @inherits PanelComponent
 
 <root>
-	<div class="backdrop"></div>
+	@if ( Visible )
+	{
+		<div class="backdrop"></div>
 
-	<div class="content">
-		<div class="leaderboard">
-			<div class="lb-title">BEST DRUNKARDS</div>
-			@foreach ( var row in TopRows )
-			{
-				<div class="lb-row rank-@( row.Rank ) @( row.IsLocal ? "local" : "" )">
-					<div class="lb-rank">@( row.Rank ).</div>
-					<div class="lb-name">@( row.Entry.DisplayName )</div>
-					<div class="lb-score">@( ( (int)row.Entry.Value ).ToString( "D4" ) )</div>
+		<div class="content">
+			<div class="leaderboard">
+				<div class="lb-title">BEST DRUNKARDS</div>
+				@foreach ( var row in TopRows )
+				{
+					<div class="lb-row rank-@( row.Rank ) @( row.IsLocal ? "local" : "" )">
+						<div class="lb-rank">@( row.Rank ).</div>
+						<div class="lb-name">@( row.Entry.DisplayName )</div>
+						<div class="lb-score">@( ( (int)row.Entry.Value ).ToString( "D4" ) )</div>
+					</div>
+				}
+			</div>
+
+			<div class="menu-column">
+				<div class="title">SBOXGAMEJAM3</div>
+
+				<div class="buttons">
+					<div class="button play" onclick=@PlayClicked>PLAY</div>
+					<div class="button settings" onclick=@SettingsClicked>SETTINGS</div>
+					<div class="button credits" onclick=@CreditsClicked>CREDITS</div>
+					<div class="button quit" onclick=@QuitClicked>QUIT</div>
 				</div>
-			}
-		</div>
-
-		<div class="menu-column">
-			<div class="title">SBOXGAMEJAM3</div>
-
-			<div class="buttons">
-				<div class="button play" onclick=@PlayClicked>PLAY</div>
-				<div class="button settings" onclick=@SettingsClicked>SETTINGS</div>
-				<div class="button credits" onclick=@CreditsClicked>CREDITS</div>
-				<div class="button quit" onclick=@QuitClicked>QUIT</div>
 			</div>
 		</div>
-	</div>
 
-	@if ( ShowCredits )
-	{
-		<div class="credits-backdrop" onclick=@CloseCredits></div>
-		<div class="credits-modal">
-			<div class="credits-title">CREDITS</div>
-			<div class="credits-body">Glasses models: CGTrader / mdaniel112</div>
-			<div class="button close" onclick=@CloseCredits>CLOSE</div>
-		</div>
+		@if ( ShowCredits )
+		{
+			<div class="credits-backdrop" onclick=@CloseCredits></div>
+			<div class="credits-modal">
+				<div class="credits-title">CREDITS</div>
+				<div class="credits-body">Glasses models: CGTrader / mdaniel112</div>
+				<div class="button close" onclick=@CloseCredits>CLOSE</div>
+			</div>
+		}
 	}
 </root>
 
 @code
 {
-	/// <summary>Scene to load when PLAY is clicked.</summary>
-	[Property] private string _GameScenePath { get; set; } = "scenes/minimal.scene";
+	/// <summary>
+	/// The scene's GameManager - source of the local game state gating this panel and
+	/// owner of StartGame(). Set this explicitly in the scene (do NOT rely on
+	/// GetComponent on this panel's own GameObject - the menu panel and GameManager
+	/// live on different objects). Unwired = menu stays hidden (fail-closed, like Hud).
+	/// </summary>
+	[Property] private GameManager _GameManager { get; set; }
 
 	/// <summary>How many leaderboard rows to show, mirrors EndGame's _DisplayTopCount but
 	/// smaller since this shares the screen with the menu column rather than owning it.</summary>
@@ -95,12 +106,20 @@
 
 	public bool ShowCredits { get; private set; }
 
+	/// <summary>The panel renders only while the local client is in the main-menu
+	/// state; a null (unwired) GameManager keeps it hidden.</summary>
+	private bool Visible => _GameManager is not null &&
+		_GameManager.GetLocalGameState() == GameManager.LocalGameState.InMainMenu;
+
 	private Sandbox.Services.Leaderboards.Board2 _leaderboard;
 	private bool _leaderboardLoaded;
 	private int _refreshKey;
 
 	protected override void OnStart()
 	{
+		if ( _GameManager is null )
+			Log.Warning( "MainMenu: _GameManager is not wired - the menu will stay hidden." );
+
 		_leaderboard = Sandbox.Services.Leaderboards.GetFromStat( "score" );
 		_leaderboard.SetSortDescending();
 		_leaderboard.MaxEntries = 100;
@@ -147,12 +166,10 @@
 
 	private void PlayClicked()
 	{
-		if ( string.IsNullOrWhiteSpace( _GameScenePath ) )
-		{
-			Log.Error( "MainMenu: _GameScenePath is unset; cannot load the game scene." );
+		if ( !Visible )
 			return;
-		}
-		Game.ActiveScene.LoadFromFile( _GameScenePath );
+
+		_GameManager.StartGame();
 	}
 
 	private void SettingsClicked()
@@ -175,5 +192,5 @@
 		Game.Close();
 	}
 
-	protected override int BuildHash() => HashCode.Combine( ShowCredits, _refreshKey );
+	protected override int BuildHash() => HashCode.Combine( Visible, ShowCredits, _refreshKey );
 }
