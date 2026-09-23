@@ -401,7 +401,16 @@ public sealed class DrunkCC : Component
 		
 		if ( IsProxy )
 			return;
-		
+
+		// Pants control (Design #13-#16): HOLD Shift to keep them up; released = down to the
+		// ankles. Polled every owner tick as a continuous hold (not an edge/press), so it tracks
+		// the key state in both Running and KnockedDown and a player who recovers while still
+		// holding Shift comes back with pants up. NOTE: the bound ACTION is "Run" (Shift is its
+		// KeyboardCode, Input.config:39-44) - Input.Down takes the action NAME, and there is no
+		// action literally called "Shift", so Input.Down("Shift") would warn and always read false.
+		// SetPantsState early-returns when unchanged, so the per-tick call costs nothing on the wire.
+		SetPantsState( Input.Down( "Run" ) ? PantsState.Up : PantsState.Down );
+
 		if ( CurrentState == State.Running)
 		{
 				OwnerHandleRunningHelper();
