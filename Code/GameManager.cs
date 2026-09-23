@@ -88,6 +88,7 @@ public sealed class GameManager : Component, Component.INetworkListener
 	[Property] private Clothing _LongPants { get; set; }
 	[Property] private GameObject _PlayerPrefab { get; set; }
 	[Property] private GameObject _DefaultSpawnLocation { get; set; }
+	[Property] private GameObject _OnEntrySpawnLocation { get; set; }
 	[Property, ReadOnly] private GameObject _CCCamera { get; set; } = null;
 	[Property] private GameObject _MiniGamePanel { get; set; }
 	/// <summary>
