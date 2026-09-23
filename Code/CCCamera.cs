@@ -34,6 +34,17 @@ namespace Sandbox;
 public sealed class CCCamera : Component
 {
 	
+	/// <summary>
+	/// Master switch for everything that keeps the camera "behind" the player: the
+	/// behind-cap cone (EnforceBehindCap) and its squeeze-back-to-center tracker
+	/// (UpdateBehindCapSqueezeHelper). When false, the camera just lerps toward
+	/// target+offset (plus jerk) with no angular constraint toward dead-center behind.
+	/// EnforceMinDistance stays active either way - it only corrects radius along the
+	/// camera's CURRENT direction from the target, so it is a "don't get swallowed by
+	/// the follow-lerp" guard, not a behind-keeping function.
+	/// </summary>
+	[Property] public bool StayBehind { get; set; } = true;
+
 	[Property] public bool UseAltTargets { get; set; }
 	[Property] public bool UseAltFollowSpeed { get; set; }
 	[Property] public bool UseAltLookAtSpeed { get; set; }
@@ -232,24 +243,7 @@ public sealed class CCCamera : Component
 		if ( (TryResolveGetTargetLookAtHelper() && TryResolveGetTargetFollowHelper() && TryResolveGetDrunkHelper()) == false)
 			return;
 
-		if ( UseAltTargets && _followTargetBackup == null && _lookAtTargetBackup == null )
-		{
-			_followTargetBackup = _FollowTarget;
-			_lookAtTargetBackup = _LookAtTarget;
-			
-			_FollowTarget = _AltFollowTarget;
-			_LookAtTarget = _AltLookAtTarget;
-		}
-
-		if ( UseAltTargets && _followTargetBackup != null && _lookAtTargetBackup != null )
-		{
-			_FollowTarget = _followTargetBackup;
-			_LookAtTarget = _lookAtTargetBackup;
-			
-			_followTargetBackup = null;
-			_lookAtTargetBackup = null;
-		}
-		
+		HandleAlternatesHelper();
 		
 		if ( Input.Pressed( "Left" ) && Input.Pressed( "Right" ))
 		{
@@ -273,12 +267,22 @@ public sealed class CCCamera : Component
 		var targetPosition = _FollowTarget.WorldPosition + _Offset;
 		WorldPosition = Vector3.Lerp( WorldPosition, targetPosition, _FollowSpeed * Time.Delta );
 
-		if(_drunkCC.CurrentState == DrunkCC.State.Running)
+		if ( StayBehind )
 		{
-			UpdateBehindCapSqueezeHelper( _FollowTarget );
-			EnforceBehindCap( _FollowTarget );
+			if ( _drunkCC.CurrentState == DrunkCC.State.Running )
+			{
+				UpdateBehindCapSqueezeHelper( _FollowTarget );
+				EnforceBehindCap( _FollowTarget );
+			}
 		}
-		
+		else
+		{
+			// Keep the squeeze tracker fresh so re-enabling StayBehind doesn't resume
+			// from a stale shrunken cap.
+			_timeOffCenter = 0f;
+			_currentBehindCap = _MaxDefaultBehindCap;
+		}
+
 		EnforceMinDistance( _FollowTarget );
 
 		// Mode switched since last frame (inspector toggle at runtime): immediately
@@ -303,12 +307,23 @@ public sealed class CCCamera : Component
 	/// </summary>
 	private void UpdateObstructionFade( GameObject followTarget )
 	{
-		if ( _FadeDetectionDistance <= 0f || _FadeDetectionSize == Vector2.Zero ) return;
-	
+		// No usable detection volume (fade disabled, or camera sitting on top of the target):
+		// still release anything mid-fade so renderers aren't stranded at partial Tint alpha,
+		// mirroring the triangle path's FadeAllTrianglesBackIn(null, ...) calls.
+		if ( _FadeDetectionDistance <= 0f || _FadeDetectionSize == Vector2.Zero )
+		{
+			UpdateLegacyFadeBackIn( null );
+			return;
+		}
+
 		var camPos = WorldPosition;
 		var dirToTarget = (followTarget.WorldPosition - camPos);
 		var distToTarget = dirToTarget.Length;
-		if ( distToTarget < 0.001f ) return;
+		if ( distToTarget < 0.001f )
+		{
+			UpdateLegacyFadeBackIn( null );
+			return;
+		}
 	
 		var forwardDir = dirToTarget.Normal;
 		var endPos = camPos + forwardDir * _FadeDetectionDistance.Clamp( 1f, distToTarget );
@@ -352,12 +367,31 @@ public sealed class CCCamera : Component
 		}
 	
 		// Fade in any renderer that is no longer obstructed.
+		UpdateLegacyFadeBackIn( currentlyObstructed );
+	}
+
+	/// <summary>
+	/// Fades back in (and drops state for) every tracked renderer that is not in
+	/// <paramref name="stillObstructed"/>; pass null when nothing is obstructed this frame
+	/// (detection disabled, or camera coincident with the target) so a mid-fade renderer
+	/// is never stranded at partial Tint alpha by an early return above the normal
+	/// fade-in pass. Counterpart to <see cref="FadeAllTrianglesBackIn"/> on the legacy path.
+	/// </summary>
+	private void UpdateLegacyFadeBackIn( HashSet<ModelRenderer> stillObstructed )
+	{
+		if ( _rendererFadeOut.Count == 0 ) return;
+
 		var toRemove = new List<ModelRenderer>();
 		foreach ( var kvp in _rendererFadeOut )
 		{
 			var mr = kvp.Key;
-			if ( !mr.IsValid() ) continue;
-			if ( !currentlyObstructed.Contains( mr ) )
+			if ( !mr.IsValid() )
+			{
+				// Dead renderer: drop tracking (matches FadeAllTrianglesBackIn).
+				toRemove.Add( mr );
+				continue;
+			}
+			if ( stillObstructed is null || !stillObstructed.Contains( mr ) )
 			{
 				var currentVal = kvp.Value + _CameraFadeSpeed * Time.Delta;
 				mr.Tint = new Color( mr.Tint.r, mr.Tint.g, mr.Tint.b, currentVal.Clamp( 0f, 1f ) );
@@ -757,11 +791,11 @@ public sealed class CCCamera : Component
 		if ( _LookAtTarget.IsValid() )
 			return true;
 
-		var localCamTarget = Scene.FindAllWithTag( "lookat-target" ).FirstOrDefault( d => !d.IsProxy );
+		var localCamTarget = Scene.FindAllWithTagOrigin( "lookat-target" ).FirstOrDefault( d => !d.IsProxy );
 		if ( localCamTarget is null || localCamTarget.Network.IsMine() == false)
 			return false;
 		
-		var altLocalCamTarget = Scene.FindAllWithTag( "alt-target" ).FirstOrDefault( d => !d.IsProxy );
+		var altLocalCamTarget = Scene.Scene.FindAllWithTagOrigin( "alt-target" ).FirstOrDefault( d => !d.IsProxy );
 		if ( altLocalCamTarget is null || altLocalCamTarget.Network.IsMine() == false)
 			return false;
 
@@ -779,11 +813,11 @@ public sealed class CCCamera : Component
 		if ( _FollowTarget.IsValid() )
 			return true;
 
-		var localCamTarget = Scene.FindAllWithTag( "follow-target" ).FirstOrDefault( d => !d.IsProxy );
+		var localCamTarget = Scene.Scene.FindAllWithTagOrigin( "follow-target" ).FirstOrDefault( d => !d.IsProxy );
 		if ( localCamTarget is null || localCamTarget.Network.IsMine() == false)
 			return false;
 
-		var altLocalCamTarget = Scene.FindAllWithTag( "alt-target" ).FirstOrDefault( d => !d.IsProxy );
+		var altLocalCamTarget = Scene.Scene.FindAllWithTagOrigin( "alt-target" ).FirstOrDefault( d => !d.IsProxy );
 		if ( altLocalCamTarget is null || altLocalCamTarget.Network.IsMine() == false)
 			return false;
 
@@ -807,5 +841,48 @@ public sealed class CCCamera : Component
 		
 		_drunkCC = drunkCC;
 		return _LookAtTarget.IsValid() && _FollowTarget.IsValid();
+	}
+	
+	private void HandleAlternatesHelper()
+	{
+		if ( UseAltTargets && _followTargetBackup == null && _lookAtTargetBackup == null )
+		{
+			_followTargetBackup = _FollowTarget;
+			_lookAtTargetBackup = _LookAtTarget;
+			
+			_FollowTarget = _AltFollowTarget;
+			_LookAtTarget = _AltLookAtTarget;
+		}
+
+		if ( UseAltTargets == false && _followTargetBackup != null && _lookAtTargetBackup != null )
+		{
+			_FollowTarget = _followTargetBackup;
+			_LookAtTarget = _lookAtTargetBackup;
+			
+			_followTargetBackup = null;
+			_lookAtTargetBackup = null;
+		}
+		
+		if ( UseAltFollowSpeed && _followSpeedBackup == null )
+		{
+			_followSpeedBackup = _FollowSpeed;
+			_FollowSpeed = _AltFollowSpeed;
+		}
+		if ( UseAltLookAtSpeed && _lookAtSpeedBackup == null )
+		{
+			_lookAtSpeedBackup = _LookAtSpeed;
+			_LookAtSpeed = _AltLookAtSpeed;
+		}
+		
+		if ( UseAltFollowSpeed == false && _followSpeedBackup != null )
+		{
+			_FollowSpeed = _followSpeedBackup.Value;
+			_followSpeedBackup = null;
+		}
+		if ( UseAltLookAtSpeed == false && _lookAtSpeedBackup != null )
+		{
+			_LookAtSpeed = _lookAtSpeedBackup.Value;
+			_lookAtSpeedBackup = null;
+		}
 	}
 }
