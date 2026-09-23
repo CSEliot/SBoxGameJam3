@@ -51,6 +51,13 @@ public partial class Hud : PanelComponent
 	/// <summary>Below this many seconds the timer text flashes (Design Screen 1).</summary>
 	[Property] private float _TimerCriticalSeconds { get; set; } = 10f;
 
+	/// <summary>
+	/// DEBUG: show the local DrunkCC's CurrentPantsState (Up/Down) pinned mid-right edge.
+	/// Toggle at runtime with F2; this is a raw sync-state readout for pants debugging,
+	/// not the Design Screen 1 pants meter (which remains unimplemented).
+	/// </summary>
+	[Property] private bool _ShowPantsDebug { get; set; } = true;
+
 	// Cached each frame in OnUpdate so the render-tree accessors below don't each re-resolve.
 	private PlayerProgress _progress;
 	private DrunkCC _drunk;
@@ -65,6 +72,10 @@ public partial class Hud : PanelComponent
 	{
 		_progress = _GameManager?.GetLocalPlayerProgress();
 		_drunk = _GameManager?.GetLocalDrunkCC();
+
+		// DEBUG toggle for the pants readout (raw key, not an input action - nothing binds F2).
+		if ( Input.Keyboard.Pressed( "F2" ) )
+			_ShowPantsDebug = !_ShowPantsDebug;
 	}
 
 	/// <summary>
@@ -124,9 +135,20 @@ public partial class Hud : PanelComponent
 	/// <summary>Design Screen 1: one-decimal beer count, e.g. 3.5.</summary>
 	private string BeersText => ( _drunk?.BeerLevel ?? 0f ).ToString( "F2" );
 
+	/// <summary>
+	/// DEBUG: raw synced pants state of the local DrunkCC, e.g. "PANTS: UP".
+	/// Null player still reads Up (the enum's default), matching what a proxy would receive.
+	/// </summary>
+	private string PantsDebugText => _drunk?.CurrentPantsState == DrunkCC.PantsState.Down ? "PANTS: DOWN" : "PANTS: UP";
+
+	/// <summary>DEBUG: true colour so a stuck state is obvious at a glance (Up=green, Down=red).</summary>
+	private bool PantsDebugIsDown => _drunk?.CurrentPantsState == DrunkCC.PantsState.Down;
+
 	// Rebuild every frame while visible so timer/score/drunkenness track their live values;
 	// hash to a constant while hidden so the idle panel stays put (mirrors Minigame.BuildHash).
+	// The pants debug branch exists so the readout also tracks the synced state while the run
+	// HUD itself is hidden (PreRun etc.) - that's when checking the Up default matters.
 	protected override int BuildHash() => Visible
 		? HashCode.Combine( Visible, RealTime.Now )
-		: HashCode.Combine( Visible );
+		: HashCode.Combine( Visible, _ShowPantsDebug, PantsDebugIsDown );
 }

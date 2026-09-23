@@ -18,9 +18,10 @@
 // the screen) and before the player has spawned. Markup only; display formatting
 // lives in Hud.razor.cs.
 //
-// Not implemented here (no backing data yet): the Pants Level indicator
-// (Design Screen 1, bottom-left) - no pants field/state exists on DrunkCC or
-// PlayerProgress. The Arrow Indicator is a 3D world-space model (the event-arrow
+// Not implemented here: the PANTS METER (Design Screen 1, bottom-left) - a debug
+// readout of DrunkCC.CurrentPantsState (Up/Down, F2-toggleable) was added on the
+// right edge instead, see pants-debug in Hud.razor/scss. The Arrow
+// Indicator is a 3D world-space model (the event-arrow
 // node on the player prefab, aimed by BarArrowIndicator), not a razor element.
 // The Drunk Effect System (Design lines 116-123, 150, 157,
 // 164: wobble/blur/chromatic-aberration on timer/score/drunkenness at high beer
@@ -64,6 +65,14 @@
 			<div>Move side to side: <b>A</b> and <b>D</b></div>
 			<div>Getting Stuck? Press: <b>R</b></div>
 			<div>Jump: <b>Spacebar</b></div>
+		</div>
+	}
+
+	@if ( _ShowPantsDebug )
+	{
+		<div class="pants-debug-col">
+			<div class="pants-debug @( PantsDebugIsDown ? "down" : "up" )">@PantsDebugText</div>
+			<div class="pants-debug-hint">F2: toggle pants debug</div>
 		</div>
 	}
 </root>

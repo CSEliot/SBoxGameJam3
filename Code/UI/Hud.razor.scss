@@ -131,6 +131,48 @@ Hud
 		font-size: 18px;
 		color: rgba( #fff, 0.6 );
 	}
+
+	// DEBUG pants-state readout (not Design Screen 1's pants meter): pinned mid right edge,
+	// big flat block of colour so Up/Down is obvious. Toggle with F2 (see Hud.razor.cs).
+	// Full-height right-edge column, flex-centred vertically - avoids percentage `top`
+	// and transform, keeping placement on the plain flex layout path.
+	.pants-debug-col
+	{
+		position: absolute;
+		right: 40px;
+		top: 0px;
+		bottom: 0px;
+		flex-direction: column;
+		align-items: flex-end;
+		justify-content: center;
+		gap: 8px;
+
+		.pants-debug
+		{
+			font-family: $display;
+			font-size: 48px;
+			padding: 12px 24px;
+
+			&.up
+			{
+				color: #000;
+				background-color: #35d435;
+			}
+
+			&.down
+			{
+				color: #fff;
+				background-color: #d42020;
+			}
+		}
+
+		.pants-debug-hint
+		{
+			font-family: $body;
+			font-size: 16px;
+			color: rgba( #fff, 0.5 );
+		}
+	}
 }
 
 @keyframes hud-flash
