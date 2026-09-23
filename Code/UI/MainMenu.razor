@@ -16,8 +16,9 @@
 // only while GameManager.GetLocalGameState() == LocalGameState.InMainMenu (the opaque
 // backdrop sits INSIDE the gate, so it can never cover gameplay). PLAY calls
 // GameManager.StartGame(); SETTINGS opens the engine settings modal (mirrors
-// EscMenu.OpenSettings); CREDITS opens a small inline modal; QUIT closes the game
-// (mirrors EscMenu/EndGame's Game.Close()). Also shows a compact Top-N leaderboard
+// EscMenu.OpenSettings); HOW TO PLAY opens the rules/controls modal; CREDITS opens a
+// small inline modal; QUIT closes the game (mirrors EscMenu/EndGame's Game.Close()).
+// Also shows a compact Top-N leaderboard
 // to the left of the menu column. Self-contained inline @code, no code-behind
 // partial - mirrors EscMenu/BarMenu so there's no cross-file Rider
 // codebehind-resolution trap to worry about.
@@ -64,11 +65,59 @@
 				<div class="buttons">
 					<div class="button play" onclick=@PlayClicked>PLAY</div>
 					<div class="button settings" onclick=@SettingsClicked>SETTINGS</div>
+					<div class="button howtoplay" onclick=@HowToPlayClicked>HOW TO PLAY</div>
 					<div class="button credits" onclick=@CreditsClicked>CREDITS</div>
 					<div class="button quit" onclick=@QuitClicked>QUIT</div>
 				</div>
 			</div>
 		</div>
+
+		@if ( ShowHowToPlay )
+		{
+			<div class="howtoplay-backdrop" onclick=@CloseHowToPlay></div>
+			<div class="howtoplay-modal">
+				<div class="htp-title">HOW TO PLAY</div>
+
+				@if ( CurrentPage == 0 )
+				{
+					<div class="htp-page">
+						<div class="htp-heading">How to Win:</div>
+						<div class="htp-line">Run to the next pub as indicated by the arrow above your head, and chug Chug CHUG!!</div>
+						<div class="htp-line">Every second, you gain points based on how drunk you are.</div>
+						<div class="htp-line">The more you drink, the harder the game. You move faster and it's easier to fall over.</div>
+						<div class="htp-line">Don't worry! The more you drink, the more time gets added for you to make it to the next bar!</div>
+					</div>
+				}
+				else if ( CurrentPage == 1 )
+				{
+					<div class="htp-page">
+						<div class="htp-heading">Controls:</div>
+						<div class="htp-line">Hold Shift: Keep your pants up! (still working on the graphics for this, please rely on the pants graphic to the right.)</div>
+						<div class="htp-line">A / D: Tilt left and right.</div>
+						<div class="htp-line">Forward: This is automatic, you're always going forward.</div>
+						<div class="htp-line">Backwards: You can't! But let go of shift to drop your pants and lower your speed!</div>
+						<div class="htp-line">Spacebar: Jump!</div>
+						<div class="htp-line">Escape: Opening the Escape Menu.</div>
+					</div>
+				}
+				else
+				{
+					<div class="htp-page">
+						<div class="htp-heading">How to Lose:</div>
+						<div class="htp-line">If your timer runs out (top left) you lose ALL YOUR POINTS. So every pub you hit, decide: Cash in or risk it all for ...</div>
+						<div class="htp-line htp-shout">ANOTHER ROUND!!</div>
+					</div>
+				}
+
+				<div class="htp-nav">
+					<div class="htp-arrow" onclick=@PrevPage>&lt;</div>
+					<div class="htp-counter">@( CurrentPage + 1 ) / @PageCount</div>
+					<div class="htp-arrow" onclick=@NextPage>&gt;</div>
+				</div>
+				<div class="htp-hint">A / D or LEFT / RIGHT ARROWS to flip pages</div>
+				<div class="button close" onclick=@CloseHowToPlay>CLOSE</div>
+			</div>
+		}
 
 		@if ( ShowCredits )
 		{
@@ -105,6 +154,11 @@
 	}
 
 	public bool ShowCredits { get; private set; }
+	public bool ShowHowToPlay { get; private set; }
+
+	/// <summary>How-to-play modal pages (How to Win / Controls / How to Lose).</summary>
+	private const int PageCount = 3;
+	private int CurrentPage;
 
 	/// <summary>The panel renders only while the local client is in the main-menu
 	/// state; a null (unwired) GameManager keeps it hidden.</summary>
@@ -177,6 +231,16 @@
 		Game.Overlay.ShowSettingsModal();
 	}
 
+	private void HowToPlayClicked()
+	{
+		ShowHowToPlay = true;
+	}
+
+	private void CloseHowToPlay()
+	{
+		ShowHowToPlay = false;
+	}
+
 	private void CreditsClicked()
 	{
 		ShowCredits = true;
@@ -192,5 +256,5 @@
 		Game.Close();
 	}
 
-	protected override int BuildHash() => HashCode.Combine( Visible, ShowCredits, _refreshKey );
+	protected override int BuildHash() => HashCode.Combine( Visible, ShowCredits, ShowHowToPlay, _refreshKey );
 }

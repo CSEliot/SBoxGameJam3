@@ -197,6 +197,95 @@ MainMenu
 		z-index: 2;
 	}
 
+	// How-to-play modal: same card+backdrop pattern as the credits popup, but wide
+	// (long control lines) and its body scrolls so the text can never overflow the
+	// screen at small window heights.
+	.howtoplay-backdrop
+	{
+		position: absolute;
+		top: 0px;
+		left: 0px;
+		right: 0px;
+		bottom: 0px;
+		background-color: rgba( #00166D, 0.85 );
+		backdrop-filter: blur( 6px );
+		pointer-events: all;
+		z-index: 2;
+	}
+
+	// Not position:absolute - centered by <root>'s own justify-content/align-items,
+	// same pattern as .credits-modal.
+	.howtoplay-modal
+	{
+		flex-direction: column;
+		align-items: center;
+		gap: 18px;
+		width: 900px;
+		max-height: 940px;
+		padding: 40px;
+		background-color: rgba( #00166D, 0.95 );
+		border: 2px solid $blue;
+		border-radius: 12px;
+		box-shadow: 0px 0px 24px rgba( $blue, 0.5 );
+		pointer-events: all;
+		z-index: 3;
+
+		.htp-title
+		{
+			font-family: $display;
+			font-size: 40px;
+			color: $warm;
+		}
+
+		.htp-scroll
+		{
+			flex-direction: column;
+			align-items: stretch;
+			gap: 20px;
+			width: 100%;
+			max-height: 780px;
+			overflow-y: scroll;
+			scrollbar-width: thin;
+			scrollbar-color: $blue rgba( #00166D, 0.5 );
+
+			.htp-section
+			{
+				flex-direction: column;
+				align-items: stretch;
+				gap: 6px;
+			}
+
+			.htp-heading
+			{
+				font-family: $display;
+				font-size: 26px;
+				color: $blue;
+				margin-bottom: 4px;
+			}
+
+			.htp-line
+			{
+				font-size: 20px;
+				color: white;
+
+				&.htp-shout
+				{
+					font-family: $display;
+					font-size: 28px;
+					color: $wild;
+					text-align: center;
+					margin-top: 6px;
+				}
+			}
+		}
+
+		.button.close
+		{
+			width: 200px;
+			height: 56px;
+		}
+	}
+
 	// Not position:absolute - centered by <root>'s own justify-content/align-items,
 	// same pattern as EscMenu.razor.scss's .menu (root centers the one remaining
 	// flow child once .content/.credits-backdrop are pulled out via absolute).
