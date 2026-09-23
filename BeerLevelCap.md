@@ -28,14 +28,18 @@ Grep basis: every read of `BeerLevel` under `Code/`.
 
 ### A. Difficulty effects - CAPPED by this feature
 (line numbers below are post-implementation positions, 2026-09-23 02:20; they shifted once
-already due to a parallel rename pass in DrunkCC.cs)
+already due to a parallel rename pass in DrunkCC.cs. #3-#4 were re-verified at their
+2026-09-24 recovery-queue-rework positions: recovery no longer reads
+`DifficultyBeerHelper()`/`BeerDifficultyCap` at all - `DrunkCC.MaxBeerLevel` (default 10,
+mirroring this cap's default) is the recovery system's own saturation, applied to the raw
+`BeerLevel` for recovery-queue index selection.)
 
 | # | Site | What it does | Why it's difficulty |
 |---|------|--------------|---------------------|
 | 1 | `DrunkCC.cs:383` (`HandleRunningHelper`) | Forward drive force multiplier `( _BeerToSpeedMultiplier + 1 ) * ( DifficultyBeerHelper() + 1 )` | Higher drunkenness = faster speed (Design.md core rule) = harder to steer/avoid |
 | 2 | `DrunkCC.cs:403` (`HandleRunningHelper`) | Lean tap impulse `_LeanImpulse * ( 1 + DifficultyBeerHelper() * _DrunkLeanScale )` | Each Left/Right tap rolls you harder = harder control, more knockdowns (Design "dangerously strong" at 10+) |
-| 3 | `DrunkCC.cs:458` (`EnterKnockedDownHelper`) | Knockdown recovery rewind `rewindSeconds = DifficultyBeerHelper() * _SecondsPerBeer` | Drunk = thrown further back along your trail after a ragdoll = bigger setback |
-| 4 | `DrunkCC.cs:659` (`RecordRunningHistoryHelper`) | History buffer window `DifficultyBeerHelper() * _SecondsPerBeer + _RecoveryHistoryHeadroom` | Bookkeeping for #3; capped in lockstep so the trail is never shorter than the capped rewind nor uselessly longer |
+| 3 | `DrunkCC.cs:643` (`OwnerEnterKnockedDownHelper`, via `RecoveryQueueIndexHelper`) | Knockdown recovery depth: queue index `Clamp( Floor( BeerLevel / MaxBeerLevel * MaxQueuePositions ), 0, MaxQueuePositions - 1 )` | Drunk = thrown further back along the recorded trail after a ragdoll = bigger setback. The old `DifficultyBeerHelper() * _SecondsPerBeer` rewind is GONE: this saturates at `DrunkCC.MaxBeerLevel` (default 10, mirroring `BeerDifficultyCap`'s default) applied to the RAW `BeerLevel` - `BeerDifficultyCap` is no longer read here |
+| 4 | `DrunkCC.cs:847` (`RecordRunningHistoryHelper`) | Trail window: fixed bounds `MaxQueuePositions` (10) / `MinDistancePerPosition` (100) / `MinTimePerPosition` (2) | Bookkeeping for #3; no longer scales with beer at all (the old `DifficultyBeerHelper() * _SecondsPerBeer + _RecoveryHistoryHeadroom` window is gone), so there is nothing left here to cap |
 
 ### B. Camera jerk - flagged, NOT wired to BeerLevel today
 

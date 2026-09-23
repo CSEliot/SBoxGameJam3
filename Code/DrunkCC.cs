@@ -126,8 +126,10 @@ public sealed class DrunkCC : Component
 	}
 
 	/// <summary>
-	/// Rolling trail of recent running positions/headings, oldest first. Only recorded while
-	/// Running; recovery after a knockdown rewinds into this by beer level.
+	/// Position queue of the running player: index 0 = oldest/bottom, last index =
+	/// newest/top. Only recorded while Running (grounded). Recovery after a knockdown
+	/// picks an entry by beer ratio: beer 0 takes the newest (top), beer at/above
+	/// MaxBeerLevel the oldest (bottom), the raw level interpolating between them.
 	/// </summary>
 	private readonly List<HistorySample> _history = new();
 
@@ -141,26 +143,35 @@ public sealed class DrunkCC : Component
 	private float _rollDeg;
 
 	/// <summary>
-	/// Seconds of rewind per capped beer (see DifficultyBeerHelper()). rewindSeconds =
-	/// cappedBeer * this. Default 1 -> 1 beer rewinds ~1s.
+	/// Recovery queue capacity. When full, the oldest entry (bottom) is dropped, so the
+	/// deepest rewind available is bounded by how many positions this holds.
 	/// </summary>
-	[Property] private float _SecondsPerBeer { get; set; } = 1f;
+	[Property] public int MaxQueuePositions { get; set; } = 10;
 
 	/// <summary>
-	/// Extra seconds of history kept beyond the current beer's rewind, so higher beer levels
-	/// already have trail to rewind into. Buffer length = _BeerLevel * _SecondsPerBeer + this.
+	/// Minimum units travelled from the newest recorded position before another position is
+	/// queued. Keeps the queue spread over space instead of piling up under the body.
 	/// </summary>
-	[Property] private float _RecoveryHistoryHeadroom { get; set; } = 3f;
+	[Property] public float MinDistancePerPosition { get; set; } = 100f;
+
+	/// <summary>
+	/// Minimum seconds between recorded positions. Even at a standstill the queue grows at
+	/// most one entry per this interval; the distance gate adds the spatial spacing on top.
+	/// </summary>
+	[Property] public float MinTimePerPosition { get; set; } = 2f;
+
+	/// <summary>
+	/// Beer level that maps to the oldest queue entry (deepest rewind); higher levels saturate
+	/// there. Defaults to GameManager.BeerDifficultyCap's default. This system's own
+	/// saturation — RecoveryQueueIndexHelper() reads the RAW BeerLevel against this, so
+	/// DifficultyBeerHelper() is deliberately not involved.
+	/// </summary>
+	[Property] public float MaxBeerLevel { get; set; } = 10f;
 
 	// /// <summary>
 	// /// Rec Distance No Matter Beer Level
 	// /// </summary>
 	// [Property] private float _RecoveryMinTracking { get; set; } = 2f;
-
-	/// <summary>
-	/// Seconds between recorded HistorySamples. Smaller = finer rewind, more memory.
-	/// </summary>
-	[Property] private float _RecoverySampleInterval { get; set; } = 0.1f;
 
 	/// <summary>
 	/// Search radius (units) when snapping the recovery point onto the navmesh.
@@ -324,7 +335,7 @@ public sealed class DrunkCC : Component
 	/// <summary>
 	/// The BeerLevel value difficulty effects should read: the raw level saturated at
 	/// GameManager.BeerDifficultyCap (cap &lt;= 0 or no GameManager in scene = no cap).
-	/// Difficulty sites (speed, lean impulse, knockdown rewind, history window) use THIS;
+	/// Difficulty sites (speed, lean impulse) use THIS;
 	/// score/HUD readouts keep using the raw BeerLevel. Resolves _gameManager lazily so the
 	/// cap works even before OnSpawnHelper's RPC has landed.
 	/// </summary>
@@ -334,6 +345,20 @@ public sealed class DrunkCC : Component
 		if ( _gameManager is null ) return BeerLevel;
 		float cap = _gameManager.BeerDifficultyCap;
 		return cap > 0f ? MathF.Min( BeerLevel, cap ) : BeerLevel;
+	}
+
+	/// <summary>
+	/// True while the LOCAL client sits in the main menu (GameManager boots into
+	/// InMainMenu — spawn-inert architecture). Resolves _gameManager lazily like
+	/// DifficultyBeerHelper(). Fail-open: no GameManager in the scene means NOT in the
+	/// menu (InMainMenu is only meaningful when a GameManager exists), so the body
+	/// behaves exactly as before the migration when the gate source is missing.
+	/// </summary>
+	private bool InMainMenuHelper()
+	{
+		_gameManager ??= Scene.GetAllComponents<GameManager>().FirstOrDefault();
+		if ( _gameManager is null ) return false;
+		return _gameManager.GetLocalGameState() == GameManager.LocalGameState.InMainMenu;
 	}
 
 	/// <summary>
@@ -385,7 +410,10 @@ public sealed class DrunkCC : Component
 		// player's knockdown flips the LOCAL camera (and multiple remote knockdowns fight,
 		// last-writer-wins). Only this client's own player should steer its camera. Null-guard
 		// too: OnStart only warns if the cccamera tag is missing, so an ungated deref NREs.
-		bool driveCamera = !IsProxy && _ccCamera != null;
+		// While the local client is in the main menu the owned body is inert (spawn-inert), so
+		// its camera-mode writes (UseAltTargets/StayBehind) are suppressed too — the menu owns
+		// the screen until PLAY. Animgraph writes stay unconditional: proxies need them.
+		bool driveCamera = !IsProxy && _ccCamera != null && !InMainMenuHelper();
 		switch ( CurrentState )
 		{
 			case State.Running:
@@ -395,6 +423,9 @@ public sealed class DrunkCC : Component
 				if ( driveCamera )
 				{
 					_ccCamera.UseAltTargets = false;
+					_ccCamera.UseAltFollowSpeed = false;
+					_ccCamera.UseAltLookAtSpeed = false;
+					_ccCamera.UseAltTargets = false;
 					_ccCamera.StayBehind = true;
 				}
 				break;
@@ -402,6 +433,8 @@ public sealed class DrunkCC : Component
 				if ( driveCamera )
 				{
 					_ccCamera.UseAltTargets = true;
+					_ccCamera.UseAltFollowSpeed = true;
+					_ccCamera.UseAltLookAtSpeed = true;
 					_ccCamera.StayBehind = false;
 				}
 				break;
@@ -421,6 +454,15 @@ public sealed class DrunkCC : Component
 
 		
 		if ( IsProxy )
+			return;
+
+		// Spawn-inert body: while the local client sits in the main menu, this owned body runs
+		// no owner physics — lean/jump input and the pants poll below never fire, and the
+		// shared CCCamera is not driven (see the driveCamera gate in OnUpdate). The body just
+		// rests at SPAWNLOCATION behind the menu backdrop until PLAY flips GameManager out of
+		// InMainMenu. Deliberately placed AFTER the IsProxy early-out: the grounded/animgraph
+		// lines above run for proxies too — they must keep blending remote bodies.
+		if ( InMainMenuHelper() )
 			return;
 
 		// Pants control (Design #13-#16): HOLD Shift to keep them up; released = down to the
@@ -595,11 +637,10 @@ public sealed class DrunkCC : Component
 			
 		RagdollifyHelper();
 		
-		// Recovery rewinds further back the drunker you are (saturated at BeerDifficultyCap).
-		// Pull the sample from rewindSeconds ago; if history is shorter than that (early game,
-		// or beer just spiked), fall back to the oldest sample we have.
-		float rewindSeconds = DifficultyBeerHelper() * _SecondsPerBeer;
-		var restore = GetRewoundSampleHelper( rewindSeconds );
+		// Recovery picks its queue entry by beer ratio: the drunker you are, the further back
+		// down the queue (toward the oldest position) you get thrown. Short queues clamp to
+		// the oldest available; an empty queue stands you up where you fell.
+		var restore = GetRecoverySampleHelper( RecoveryQueueIndexHelper() );
 
 		_knockdownRestorePosition = restore.Position;
 		_knockdownHeading = restore.Heading;
@@ -622,10 +663,24 @@ public sealed class DrunkCC : Component
 	}
 
 	/// <summary>
-	/// Returns the sample from approximately secondsAgo in the past, clamped to the oldest sample
-	/// when history doesn't reach that far back. Falls back to the live transform if empty.
+	/// Target recovery index counted back from the newest queue entry (top): beer 0 = newest,
+	/// beer at/above MaxBeerLevel = oldest. ratio = BeerLevel / MaxBeerLevel;
+	/// index = Clamp(Floor(ratio * MaxQueuePositions), 0, MaxQueuePositions - 1).
+	/// Uses the RAW BeerLevel (the spec's 'current beer level'); MaxBeerLevel is this system's
+	/// own saturation, so DifficultyBeerHelper() is deliberately NOT used here.
 	/// </summary>
-	private HistorySample GetRewoundSampleHelper( float secondsAgo )
+	private int RecoveryQueueIndexHelper()
+	{
+		int max = Math.Max( 1, MaxQueuePositions );
+		float ratio = MaxBeerLevel > 0f ? BeerLevel / MaxBeerLevel : 1f;
+		return (int)Math.Clamp( MathF.Floor( ratio * max ), 0, max - 1 );
+	}
+
+	/// <summary>
+	/// The sample indexFromNewest back from the top of the queue. Short queue clamps to the
+	/// oldest available; empty queue falls back to the live transform (stand up where you fell).
+	/// </summary>
+	private HistorySample GetRecoverySampleHelper( int indexFromNewest )
 	{
 		if ( _history.Count == 0 )
 		{
@@ -633,16 +688,9 @@ public sealed class DrunkCC : Component
 			return new HistorySample { Time = Time.Now, Position = _Rigidbody.WorldPosition, Heading = heading };
 		}
 
-		float target = Time.Now - secondsAgo;
-		// History is oldest-first; walk newest->oldest and take the first sample at or before target.
-		for ( int i = _history.Count - 1; i >= 0; i-- )
-		{
-			if ( _history[i].Time <= target )
-				return _history[i];
-		}
-
-		// Requested further back than we have -> oldest available.
-		return _history[0];
+		int idx = _history.Count - 1 - indexFromNewest;
+		if ( idx < 0 ) idx = 0;
+		return _history[idx];
 	}
 
 	/// <summary>
@@ -732,8 +780,12 @@ public sealed class DrunkCC : Component
 		_isJumping = false;
 		_hasLeftGround = false;
 
-		// The rewound trail is spent; don't let stale pre-knockdown samples seed the next rewind.
+		// The rewound trail is spent; don't let stale pre-knockdown samples seed the next
+		// rewind. Also restart the sample timer so the fresh trail's first point lands a full
+		// MinTimePerPosition into the new run - never at the recovery position itself
+		// (that seed made back-to-back knockdowns recover to the same spot).
 		_history.Clear();
+		_sinceLastSample = 0f;
 	}
 
 	/// <summary>
@@ -788,13 +840,27 @@ public sealed class DrunkCC : Component
 	}
 
 	/// <summary>
-	/// Records a position/heading sample at _RecoverySampleInterval and trims the trail to the
-	/// window we need: current beer's rewind plus headroom, so higher future beer levels already
-	/// have trail to rewind into. Called only while Running.
+	/// Appends a position/heading sample to the recovery queue, gated by MinTimePerPosition
+	/// and MinDistancePerPosition, and drops the oldest entries when MaxQueuePositions is
+	/// exceeded. Called only while Running (grounded).
 	/// </summary>
 	private void RecordRunningHistoryHelper()
 	{
-		if ( _sinceLastSample < _RecoverySampleInterval && _history.Count > 0 )
+		// No empty-history bypass: recording the instant the queue empties used to seed a
+		// sample AT the recovery position right after ResetFromKnockdownHelper cleared it,
+		// so a second knockdown before the next gate recovered to that same spot. The queue
+		// now starts a full MinTimePerPosition after recovery (timer reset there); while
+		// it's empty, GetRecoverySampleHelper falls back to the live transform, i.e.
+		// stand up where you fell.
+		if ( _sinceLastSample < MinTimePerPosition )
+			return;
+
+		// Distance gate: the queue must also spread out in space. Deferred until the time
+		// gate passes so it never re-arms the timer — on a spacing miss _sinceLastSample
+		// keeps counting, and the sample lands the instant spacing is reached. An empty
+		// queue has nothing to measure against, so it records on the time gate alone.
+		if ( _history.Count > 0 &&
+			_Rigidbody.WorldPosition.Distance( _history[^1].Position ) < MinDistancePerPosition )
 			return;
 
 		_sinceLastSample = 0f;
@@ -809,16 +875,10 @@ public sealed class DrunkCC : Component
 			Heading = heading,
 		} );
 
-		// Keep buffer sized to the deepest rewind we might need plus headroom. Uses the same
-		// capped reading as OwnerEnterKnockedDownHelper so the trail is never shorter than the
-		// rewind it must serve nor kept uselessly longer.
-		float window = DifficultyBeerHelper() * _SecondsPerBeer + _RecoveryHistoryHeadroom;
-		float cutoff = Time.Now - window;
-		int keepFrom = 0;
-		while ( keepFrom < _history.Count - 1 && _history[keepFrom].Time < cutoff )
-			keepFrom++;
-		if ( keepFrom > 0 )
-			_history.RemoveRange( 0, keepFrom );
+		// Overflow drops the oldest/bottom entry. Max(1,...) so a 0/negative inspector
+		// value can't empty the queue every tick and leave recovery with nothing to pick.
+		while ( _history.Count > Math.Max( 1, MaxQueuePositions ) )
+			_history.RemoveAt( 0 );
 	}
 	
 	/// <summary>
@@ -837,7 +897,7 @@ public sealed class DrunkCC : Component
 		if ( IsProxy )
 			return;
 
-		DressPlayerHelper(GameObject, connection);
+		// DressPlayerHelper(GameObject, connection);
 
 		_gameManager = Scene.Scene.FindAllWithTagOrigin( "gamemanager" ).FirstOrDefault()?.GetComponent<GameManager>();
 		if ( _gameManager != null )
@@ -869,6 +929,10 @@ public sealed class DrunkCC : Component
 		}
 
 		var clothing = ClothingContainer.CreateFromConnection( playerConnection );
+		foreach ( var item in clothing.Clothing )
+		{
+			// if ( item.Clothing.SlotsOver.
+		}
 		await dresser.ApplyClothingOnlyAsync( clothing );
 	}
 }

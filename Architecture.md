@@ -224,9 +224,10 @@ of pants state), TODO.MD "Implement Tripping / Ragdoll Logic".
   roll against `_MaxHitRoll` (0 disables) every `OnFixedUpdate` tick and calls
   `EnterKnockedDown()` when exceeded.
 - `EnterKnockedDown()` / `HandleKnockedDown()` / `ResetFromKnockdown()` are already
-  trigger-agnostic: they enable `ShrimpleRagdoll`, rewind position/heading from the
-  `_history` trail by `BeerLevel * _SecondsPerBeer`, wait `_KnockdownRecoveryTime`,
-  then stand back up. A new knockdown trigger only needs to call the existing
+  trigger-agnostic: they enable `ShrimpleRagdoll`, wait `_KnockdownRecoveryTime`,
+  then stand back up at a position/heading pulled from the recovery history queue
+  (see "Recovery History" below - this replaces the v0 `BeerLevel * _SecondsPerBeer`
+  seconds-rewind plan). A new knockdown trigger only needs to call the existing
   `EnterKnockedDown()` - none of the recovery plumbing changes.
 - Three `DrunkCC` properties already exist for this exact mechanic but are DEAD
   CODE - declared, never read anywhere in `OnFixedUpdate`:
@@ -289,8 +290,53 @@ existing Rule 5 roll check - first trigger to fire wins, both call the same
   already does) is required.
 - The trace must ignore the player's own hierarchy (sphere collider + ragdoll bones)
   the same way `IsGrounded()` does, or the player will "hit" themselves every tick.
-- History recording (`RecordHistory()`) happens before this check in
-  `HandleRunning()`; a wall-triggered knockdown rewinds through the same
-  beer-scaled history trail as a roll-triggered one - no separate recovery logic
-  needed.
+- History recording (`RecordRunningHistoryHelper()`) happens before this check in
+  `HandleRunning()`; a wall-triggered knockdown recovers through the same
+  Recovery History queue (below) as a roll-triggered one - no separate recovery
+  logic needed.
+
+## 5. Recovery History
+
+Recovery History (replaces the v0 seconds-rewind plan; implemented in `DrunkCC.cs`):
+
+Objects:
+- `HistorySample`: (`Vector3 Position`, `float Time` - Time is when the sample was
+  entered) - plus a `Heading` vector kept from the v0 implementation because recovery
+  restores body rotation.
+- The queue: a `List<HistorySample>` used as a queue. Bottom (index 0) = oldest
+  record, top (last index) = newest.
+
+Exposed `[Properties]`:
+- `MaxQueuePositions`: 10 (default). Queue capacity; oldest drops when full.
+- `MinDistancePerPosition`: 100 (default, units). Minimum distance travelled from
+  the newest recorded position before another is recorded.
+- `MinTimePerPosition`: 2 (default, seconds). Minimum time between recorded positions.
+- `MaxBeerLevel`: 10 (default, mirroring `GameManager.BeerDifficultyCap`'s default), beer
+  level that maps to the BOTTOM of the queue (oldest). Beer
+  level 0 maps to the TOP (most recent). Math: (current beer level) / (max beer
+  level) = (queue percentage), and (target queue index) / (max queue size) = (queue
+  percentage), therefore target index from newest =
+  `Clamp(RoundDown((current beer level) / (max beer level) * (max queue size)), 0, (max queue size) - 1)`.
+
+Behavior notes:
+- The history is a tail wherein the more a player drinks, the further back they
+  recover when entering the knockdown state, both as a punishment and as protection
+  for the higher run speed that comes with drunkenness.
+- Recording happens only while Running and grounded (airborne/off-map positions
+  must never become a stand-up target). A sample is recorded only when BOTH
+  minimums pass (time since last record >= `MinTimePerPosition` AND distance from
+  newest sample >= `MinDistancePerPosition`); the time gate stays armed while the
+  distance gate blocks, so the sample lands the instant spacing is reached.
+- On recovery the queue is cleared and the sample timer restarts, so the recovery
+  position itself is never seeded into the fresh queue (a knocked-down-again-
+  immediately player stands up where they fell instead of snapping back to the
+  same spot twice).
+- Empty queue at knockdown: fallback to the live transform (stand up where you
+  fell). Queue shorter than the target index: clamp to the oldest available.
+- The recovery point is still snapped onto the navmesh
+  (`SnapRecoveryToNavMeshHelper`, `_RecoveryNavSearchRadius`) as in v0.
+- Removed by this rework: `_SecondsPerBeer`, `_RecoveryHistoryHeadroom`,
+  `_RecoverySampleInterval` and the time-window trim. The rewind no longer uses
+  `DifficultyBeerHelper()`/`BeerDifficultyCap`; `MaxBeerLevel` is the recovery
+  system's own saturation and the raw `BeerLevel` feeds the ratio.
 
