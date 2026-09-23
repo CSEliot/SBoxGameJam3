@@ -36,6 +36,26 @@ discriminates by SHAPE:
                                  H1(push) + H4(bodygroup)
 SHIPPING line + smoothstep are commented in place for restore.
 
+HOW TO RUN (adversarial-review findings folded in):
+1. RESTART the editor before the playtest (do not just enter play). Two
+   reasons: PantsDropController's static negative-caches (_dropShaderLoadFailed,
+   _overrideFailed, static ShaderCopies) latch for the whole session, and a
+   restart is the only sure way the cached material copy picks up the freshly
+   compiled probe shader instead of a hot-reloaded-in-place one.
+2. Watch the console for the controller's three one-shot warnings ("no DrunkCC"
+   :110, "no material slot could be swapped" :227, "could not load" :244).
+   Their ABSENCE + no motion is the only honest H1 signal; any of them firing
+   means the C# side failed first and the shader result is void.
+3. Reading the deformation: EVERY branch buries the lower legs (min 10 units
+   = 25.4cm > the 11.4cm cuff height) - read the WAISTBAND/TOP silhouette, not
+   the hem. Watch standing, front-on, close, static camera (knockdown hides the
+   pants renderer entirely). If the pants POP OUT of existence at some angles
+   that is skinned-bounds culling of the displaced verts - it counts as ALIVE
+   (displacement is happening), not as "nothing moved".
+4. Axis note: the probe rides g_vPantsDropAxis (pelvis-up push; Default3(0,0,1)
+   = world up in s&box's Z-up space, Vector3.cs:130). Pushed or default, the
+   displacement is down - a dead push cannot flip the direction.
+
 ## PLAYTEST 2026-09-23 (first in-engine shader + PantsDropController test) - SYMPTOM + DIAGNOSIS
 
 OBSERVED (ecs, in-engine, via the pants controller on the player):
