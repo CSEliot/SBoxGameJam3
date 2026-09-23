@@ -11,7 +11,7 @@
     "Enabled": true,
     "NetworkMode": 1,
     "NetworkFlags": 0,
-    "NetworkOrphaned": 0,
+    "NetworkOrphaned": 1,
     "NetworkTransmit": true,
     "OwnerTransfer": 1,
     "Components": [
@@ -116,8 +116,9 @@
           "component_type": "Rigidbody"
         },
         "_RollResponseFloor": 0,
-        "_RollTurnRate": 2,
-        "_RunningForce": 50,
+        "_RollTurnRate": 4,
+        "_RotationPantsDownIncreaser": 1,
+        "_RunningForce": 100,
         "_SecondsPerBeer": 0.5,
         "_SkinnedModelRenderer": {
           "_type": "component",
@@ -125,6 +126,7 @@
           "go": "1bf8ec84-d543-8336-a244-e5c5e743ff85",
           "component_type": "SkinnedModelRenderer"
         },
+        "_SpeedPantsDownDisabler": 0,
         "_VelocityCeiling": 500,
         "_YawGain": 10,
         "BarArrow": {
@@ -3157,22 +3159,20 @@
               },
               {
                 "Clothing": {
-                  "Id": "b2f1d2c0-52ca-4f62-b61b-054c5e46bd4a",
-                  "Path": "models/citizen_clothes/seasonal/2025/wizard_outfit/wizard_gown/wizard_gown.clothing"
-                },
-                "item": 349443,
-                "Tint": 0.72620565
-              },
-              {
-                "Clothing": {
                   "Id": "d9661e3e-58fb-48a6-9511-dceb60f9808a",
                   "Path": "models/citizen_clothes/trousers/trackiebottoms/trackie_bottoms_black.clothing"
                 }
+              },
+              {
+                "Clothing": {
+                  "Id": "67b7e638-61d3-46c4-93e2-22eb089281f8",
+                  "Path": "models/citizen_clothes/shirt/tshirt/tshirt.clothing"
+                }
               }
             ],
-            "ManualAge": 0.3053956,
+            "ManualAge": 0,
             "ManualHeight": 0,
-            "ManualTint": 0.18032038,
+            "ManualTint": 0.22507122,
             "OnComponentDestroy": null,
             "OnComponentDisabled": null,
             "OnComponentEnabled": null,
@@ -3549,8 +3549,8 @@
                         "__version": 2,
                         "Flags": 12288,
                         "Name": "spine_2",
-                        "Position": "-50.385498,2.8991375,0.0229454041",
-                        "Rotation": "0.00442633033,0.000292420387,-0.169647127,0.985495508",
+                        "Position": "-47.9429207,8.01952648,-0.940066338",
+                        "Rotation": "-0.00697681308,0.00970757008,0.221588194,-0.975067377",
                         "Scale": "1,1,1",
                         "Tags": "",
                         "Enabled": true,
@@ -3819,8 +3819,8 @@
                                 "__version": 2,
                                 "Flags": 12288,
                                 "Name": "head",
-                                "Position": "-52.1736298,-8.59906864,-0.101490974",
-                                "Rotation": "-0.00081628561,0.00259140134,-0.14129445,-0.989963293",
+                                "Position": "-50.256424,-6.83350658,-0.0943670273",
+                                "Rotation": "0.00073286891,-0.0025626719,0.12471652,0.992188096",
                                 "Scale": "1,1,1",
                                 "Tags": "",
                                 "Enabled": true,
@@ -4067,8 +4067,8 @@
                                 "__version": 2,
                                 "Flags": 12288,
                                 "Name": "arm_upper_L",
-                                "Position": "-0.37561354,-1.48129058,7.15730381",
-                                "Rotation": "-0.0510037728,0.98417908,0.0859241113,0.146305919",
+                                "Position": "-0.552043319,-1.4591186,5.73352861",
+                                "Rotation": "0.0520314015,-0.980731666,-0.084637478,-0.168206096",
                                 "Scale": "1,1,1",
                                 "Tags": "",
                                 "Enabled": true,
@@ -4835,8 +4835,8 @@
                                 "__version": 2,
                                 "Flags": 12288,
                                 "Name": "arm_upper_R",
-                                "Position": "-0.325030297,-1.47711825,-7.17798901",
-                                "Rotation": "0.0513881147,-0.984983504,0.0857052505,0.140780121",
+                                "Position": "-0.506108999,-1.45592237,-5.75606918",
+                                "Rotation": "-0.0523812175,0.981657982,-0.0844165534,-0.162713468",
                                 "Scale": "1,1,1",
                                 "Tags": "",
                                 "Enabled": true,
@@ -6691,7 +6691,7 @@
             ]
           },
           {
-            "__guid": "8c65010f-bf6e-4f99-8b01-39188faaa96d",
+            "__guid": "e510a448-ce41-46aa-bdaa-c4ce960bf8f3",
             "__version": 2,
             "Flags": 0,
             "Name": "Clothing - bucket_hat_black",
@@ -6708,7 +6708,7 @@
             "Components": [
               {
                 "__type": "Sandbox.SkinnedModelRenderer",
-                "__guid": "4fd0cfe1-1676-436c-b993-25d3e09d5bf5",
+                "__guid": "1038a90a-3b96-4b35-b951-7d8e03bd7670",
                 "__enabled": true,
                 "Flags": 0,
                 "AnimationGraph": null,
@@ -6763,7 +6763,7 @@
             "Children": []
           },
           {
-            "__guid": "b8d9c932-68f3-4ea3-a16e-2e4c827d3bb7",
+            "__guid": "68270126-0561-4965-a978-a2d6c953a21b",
             "__version": 2,
             "Flags": 0,
             "Name": "Clothing - flat_shoes",
@@ -6780,7 +6780,7 @@
             "Components": [
               {
                 "__type": "Sandbox.SkinnedModelRenderer",
-                "__guid": "360f3c95-41af-4a62-8006-20566f58e342",
+                "__guid": "3f947817-137a-4a27-90c1-53157a743022",
                 "__enabled": true,
                 "Flags": 0,
                 "AnimationGraph": null,
@@ -6835,10 +6835,10 @@
             "Children": []
           },
           {
-            "__guid": "0ba6f934-e883-4667-9321-1cf512bed048",
+            "__guid": "3dd3edd0-2092-46ce-af6f-2c3ff377e0a8",
             "__version": 2,
             "Flags": 0,
-            "Name": "Clothing - wizard_gown",
+            "Name": "Clothing - trackie_bottoms_black",
             "Position": "0,0,0",
             "Rotation": "0,0,0,1",
             "Scale": "1,1,1",
@@ -6852,7 +6852,7 @@
             "Components": [
               {
                 "__type": "Sandbox.SkinnedModelRenderer",
-                "__guid": "8a2438e1-55d9-4ff3-9f5b-d93d4e1e9a27",
+                "__guid": "033f7922-faee-4548-b416-b881439bb31a",
                 "__enabled": true,
                 "Flags": 0,
                 "AnimationGraph": null,
@@ -6870,8 +6870,8 @@
                 "MaterialOverride": null,
                 "Materials": null,
                 "Model": {
-                  "Id": "69a64815-5b74-4f20-8741-5604319e831a",
-                  "Path": "models/citizen_clothes/seasonal/2025/wizard_outfit/wizard_gown/models/wizard_gown.vmdl"
+                  "Id": "403e9817-790c-4799-a25a-25f5e1f2a096",
+                  "Path": "models/citizen_clothes/trousers/trackiebottoms/models/trackie_bottoms_black.vmdl"
                 },
                 "Morphs": {},
                 "OnComponentDestroy": null,
@@ -6907,10 +6907,10 @@
             "Children": []
           },
           {
-            "__guid": "50b80aa5-ace7-4325-892c-b4466fc4d6a5",
+            "__guid": "09ff7bc1-1819-45ea-82e2-1027505c7967",
             "__version": 2,
             "Flags": 0,
-            "Name": "Clothing - trackie_bottoms_black",
+            "Name": "Clothing - tshirt",
             "Position": "0,0,0",
             "Rotation": "0,0,0,1",
             "Scale": "1,1,1",
@@ -6924,7 +6924,7 @@
             "Components": [
               {
                 "__type": "Sandbox.SkinnedModelRenderer",
-                "__guid": "1c634226-0a2b-41b9-99cd-62f8edcbd7c2",
+                "__guid": "596e32c5-0a08-49f8-ba3c-7830290f1c8f",
                 "__enabled": true,
                 "Flags": 0,
                 "AnimationGraph": null,
@@ -6942,8 +6942,8 @@
                 "MaterialOverride": null,
                 "Materials": null,
                 "Model": {
-                  "Id": "403e9817-790c-4799-a25a-25f5e1f2a096",
-                  "Path": "models/citizen_clothes/trousers/trackiebottoms/models/trackie_bottoms_black.vmdl"
+                  "Id": "85658b15-92ba-46ce-bc7d-ac889406fadb",
+                  "Path": "models/citizen_clothes/shirt/tshirt/models/tshirt.vmdl"
                 },
                 "Morphs": {},
                 "OnComponentDestroy": null,
