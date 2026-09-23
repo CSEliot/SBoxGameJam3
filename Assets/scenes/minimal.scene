@@ -161,7 +161,7 @@
       "Enabled": true,
       "NetworkMode": 1,
       "NetworkFlags": 0,
-      "NetworkOrphaned": 2,
+      "NetworkOrphaned": 1,
       "NetworkTransmit": true,
       "OwnerTransfer": 1,
       "Components": [
@@ -217,7 +217,6 @@
             "Id": "74a01f0d-daef-41fa-a821-41cc71188d81",
             "Path": "clothing/heart_pattern_boxers.clothing"
           },
-          "_ImmediatelySpawnRunner": false,
           "_LocalArrowIndicator": null,
           "_LongPants": {
             "Id": "d9661e3e-58fb-48a6-9511-dceb60f9808a",
@@ -368,6 +367,14 @@
             },
             "Property": "_AltLookAtSpeed",
             "Value": 10
+          },
+          {
+            "Target": {
+              "Type": "Component",
+              "IdValue": "0a13b132-3430-410b-bfca-82535a6f4e6f"
+            },
+            "Property": "StayBehind",
+            "Value": true
           }
         ],
         "MovedObjects": []
@@ -422,7 +429,7 @@
           "__enabled": true,
           "Flags": 0,
           "_DecayPerSecond": 0.1,
-          "_Duration": 10,
+          "_Duration": 100,
           "_FillPerPress": 0.11,
           "_GameManager": {
             "_type": "component",
