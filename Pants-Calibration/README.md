@@ -1,6 +1,90 @@
 # Pants Drop - canonical design + bind-pose calibration document
 
-Status: DESIGN + CALIBRATION MEASURED (2026-09-23). This document merges and
+## PLAYTEST 2026-09-23 (first in-engine shader + PantsDropController test) - SYMPTOM + DIAGNOSIS
+
+OBSERVED (ecs, in-engine, via the pants controller on the player):
+- The pants only slightly collapse inward, and ONLY in the groin area.
+- They never fall toward the ankles.
+- Below the knees the silhouette is unchanged, regardless of state.
+- Changing the controller's drop distance does NOT change the visual at all.
+
+VERIFIED FACTS from this session (disk/log evidence, not inference):
+- The state machine is alive: `logs/sbox-dev.log` 22:51-23:09 shows repeated
+  `DrunkCC: pants state -> Down/Up` during the playtest - Shift hold/release works,
+  `CurrentPantsState` flips, the controller tween should be running.
+- BUT `sbox-dev.log:123` (22:51:06): `PantsDropController: no DrunkCC on this
+  GameObject, pants visual disabled` - at least one controller instance SELF-DISABLED
+  at startup. The only PantsDropController in project sources is on the player.prefab
+  ROOT, which has DrunkCC in the same component list, so that instance should resolve
+  it. Identify WHICH GameObject logged this (editor scene copy? stale `player.prefab_c`?
+  a controller added to the `testing.scene` pants rig?) - if the controller driving the
+  pants you are looking at is the dead one, the visual is off BY DESIGN and the
+  symptom is purely H4 below.
+- Shader plumbing is sound: `pants_drop.shader_c` (rebuilt 22:33, after the 19:55
+  source) contains the compiled MainVs with `PantsDrop`/`PantsDropDistance`/
+  `PantsDropAxis` attribute bindings + the gradient math (strings-verified). The
+  depth-mode/HP-offset/clip-reproject tail matches the working fur.shader:58-62
+  precedent and `VS_CommonProcessing_Post` (vr_common_vs_code.fxc:180-185, subtracts
+  g_vHighPrecisionLightingOffsetWs only). Not the bug.
+- No import-override drift: the citizen addon's `trackie_bottoms.fbx.meta` carries
+  only a guid (no axis/scale overrides), so the measured feet-origin Z-up 4.50..37.71
+  calibration is the expected compiled object space.
+
+RANKED HYPOTHESES (none verified in-engine yet; distance-independence is the key clue -
+it says the DISPLACEMENT is a no-op and something else produces the groin collapse):
+
+H1 - Attribute push not reaching the draw (PantsDrop reads Default 0.0): a zero
+  displacement is exactly "nothing falls, regardless of _DropDistance". Mechanisms:
+  `TweenAndPushHelper` early-returns SILENTLY when `_pantsRenderer.SceneObject` is
+  null (async bone-merge), or the pushed value never lands on the drawn instance.
+  The same attrs.Set mechanism is proven working by obstruction_fade in this project,
+  so this is possible-but-not-likely-first.
+
+H2 - `i.vPositionOs` is DEAD on the compute-skin path (this is Open Item 6, and it
+  bites the design at its root): `skinning_cs.shader` + the `D_CS_VERTEX_ANIMATION`
+  branch (vr_common_vs_code.fxc:88-104) copy the posed position straight from the
+  cache and NEVER read the VS POSITION stream - the engine's own VS code ignores it,
+  so the input layout may bind a zeroed stream for this path. `vPositionOs.z ~= 0`
+  everywhere => `t = saturate((0 - 4.50)/33.21) = 0` => zero displacement everywhere,
+  distance-independent. Matches the symptom exactly. If confirmed, the bind-pose
+  gradient cannot ride on vPositionOs for THIS mesh (multi-bone skinned + bone-merged)
+  and the fallback is a gradient the CS path preserves (morph target, or bake into a
+  stream the merged draw carries) - a design change, not a constant tweak.
+
+H3 - Gradient live but vPositionOs carries RAW CM (95.78 waist / 11.42 ankle) with
+  the inch-space constants: `t` saturates to 1 from ~41.7cm up, i.e. everything above
+  the knee moves rigidly, below the ankle never does - eerily close to "only groin/
+  above-knee changes". But this predicts _DropDistance sensitivity, which was NOT
+  observed; keep it alive only if H2's probe shows a gradient with no distance response
+  (tweens saturating can mask scale).
+
+H4 - What the groin collapse ACTUALLY IS if the shader is a no-op: the controller's
+  one VISIBLE working effect when the state flips Down is
+  `SyncLegsBodyGroupHelper` -> `SetBodyGroup("Legs", 0)` revealing the citizen LEG
+  meshes that the pants overlay at the inner thighs/groin. Legs appearing through the
+  crotch gap reads as "pants slightly collapse inward, ONLY in the groin; knees down
+  unchanged; independent of drop distance" - the entire observed symptom set. This is
+  consistent with H1/H2 (displacement dead, bodygroup flip alive) and is NOT a bug in
+  itself (it is the designed behavior mid-drop).
+
+PROBE PLAN (one recompile, no C# changes needed):
+1. In `pants_drop.shader`, set `g_flPantsDrop` Default to 1.0 and temporarily replace
+   the displacement with `o.vPositionWs.xyz -= float3(0,0,10);` (constant, no
+   gradient). If the pants visibly shift in-engine: attribute/VS tail is alive and the
+   constant displacement DOES render -> vPositionOs is the dead input (H2).
+2. Restore the gradient but bake `t = 1.0` (remove vPositionOs entirely). If the whole
+   garment now slides down, H2 is CONFIRMED; if it still does nothing, H1 (attributes
+   not reaching) is the target - log `_dropAmount`, SceneObject validity, and
+   attrs.Set results per second from TweenAndPushHelper.
+3. Separately: hunt the `no DrunkCC` self-disabled instance (log line 123) - confirm
+   which GameObject it is and that the pants you are watching are driven by a live
+   controller (add the GO name to the error text when touching the code anyway).
+4. If H2 confirmed: do NOT "fix" by multiplying constants - the zero-vs-cm question is
+   moot when the stream reads 0; move the gradient off vPositionOs (morph or UV-based
+   mask) and re-file this section's conclusion.
+
+Status: DESIGN + CALIBRATION MEASURED (2026-09-23); first playtest DIAGNOSED (this
+section), root-cause probe pending. This document merges and
 SUPERSEDES `../Pants-Drop.md` (shader-based design notes); the old file is left
 on disk unmodified as a git-history pointer only - do not update it. The
 superseded doc's status line said "DESIGN, nothing implemented yet"; that was
@@ -329,7 +413,11 @@ Implementation notes for the hide:
 6. Verify the compute-skin inference (RenderDoc capture or in-editor probe) -
    TBD. Low risk: the design works under either skin path. Same probe settles
    which space `i.vPositionOs` carries for the compiled pants (cm vs engine
-   inches - see Shader constants above).
+   inches - see Shader constants above). UPDATE 2026-09-23 playtest: this item
+   is now load-bearing, not low-risk - the distance-independent groin-only
+   symptom points at H2 (vPositionOs reading 0 on the compute-skin path kills
+   the gradient entirely). Run the PROBE PLAN in the PLAYTEST section at the top
+   before tuning any constants.
 7. v1 polish (out of v0): fold/bunch profile instead of linear slide, jiggle
    on stop, wider "pooled" silhouette at ankles. Only matters again if a
    second pants model is introduced.
