@@ -74,7 +74,9 @@ public sealed class PantsDropController : Component
 	/// Shader and its material copies are shared by every player instance -
 	/// all wear the same one forced garment, so one copy per source material
 	/// serves the whole scene. Static so N controllers don't each rebuild it.
-	/// A failed load is negative-cached for the session (hotload resets us).
+	/// A failed load is negative-cached for the whole session: these statics
+	/// survive a component hotload (only a full domain reload clears them),
+	/// same shape as CCCamera's fade-copy cache.
 	/// </summary>
 	private static Shader _dropShader;
 	private static bool _dropShaderLoadFailed;
@@ -150,9 +152,12 @@ public sealed class PantsDropController : Component
 
 		// Previous pants renderer died (re-dress) - drop our slot state so the
 		// new one gets swapped from scratch; there is nothing to restore on a
-		// destroyed renderer.
+		// destroyed renderer. ClothingContainer.Reset also rewrote every
+		// bodygroup back to the clothing-derived defaults, so the Legs cache is
+		// stale too and must be re-asserted from scratch next frame.
 		ReleaseOverrideStateHelper( restore: false );
 		_overrideFailed = false;
+		_legsChoice = -1;
 		_pantsRenderer = FindPantsRendererHelper();
 	}
 
@@ -361,6 +366,8 @@ public sealed class PantsDropController : Component
 		var showLegs = knockedDown || _drunkCC.CurrentPantsState == DrunkCC.PantsState.Down || _dropAmount > 0.001f;
 
 		var target = showLegs ? 0 : HiddenLegsChoiceHelper();
+		if ( target < 0 ) target = 0; // no empty choice exists to hide into - legs stay visible
+
 		if ( target == _legsChoice )
 			return;
 
@@ -370,14 +377,17 @@ public sealed class PantsDropController : Component
 
 	/// <summary>
 	/// The empty-mesh choice index for Legs - last choice, computed like
-	/// ClothingContainer.HiddenChoice (ClothingContainer.cs:223) rather than
-	/// hardcoded; falls back to 1 (verified for the citizen bodygroup list).
+	/// ClothingContainer.HiddenChoice (ClothingContainer.cs:223). Returns -1
+	/// (write skipped) when the model has no Legs part with a real empty
+	/// choice: choice 0 is always the visible meshes, so a single-choice part
+	/// has nothing to hide and an out-of-range index would feed
+	/// GetBodyPartMeshMask garbage (ModelRenderer.cs:174-186).
 	/// </summary>
 	private int HiddenLegsChoiceHelper()
 	{
 		var part = _bodyRenderer.Model?.Parts.Get( "Legs" );
 		var count = part?.Choices?.Count ?? 0;
-		return count > 1 ? count - 1 : 1;
+		return count > 1 ? count - 1 : -1;
 	}
 
 	protected override void OnEnabled()

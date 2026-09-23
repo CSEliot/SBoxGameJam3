@@ -173,13 +173,16 @@ PS
 	PS_OUTPUT MainPs( PS_INPUT i )
 	{
 		// Depth prepass / shadow maps only need the (displaced) geometry from
-		// MainVs - skip all lighting, terrain.shader's S_MODE_DEPTH bail
-		// precedent (vr legacy family: PS_OUTPUT is a single vColor target,
-		// vr_common_ps_code.fxc:243-246, and depth output writes ignore it).
+		// MainVs - skip all lighting, matching the engine's S_MODE_DEPTH bail
+		// (terrain.shader:174-177/205-207, glass, sprite - and note those all
+		// return 1, NOT 0: the depth-normal prepass G-buffer consumes the color
+		// target (GBuffer.hlsl packs normal/roughness from SV_Target0), so a
+		// black bail encodes a garbage normal while 1 stays what the engine's
+		// own bails write).
 		#if S_MODE_DEPTH
 		{
 			PS_OUTPUT depth_output;
-			depth_output.vColor = 0;
+			depth_output.vColor = 1;
 			return depth_output;
 		}
 		#endif
