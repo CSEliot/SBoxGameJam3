@@ -531,6 +531,9 @@ public sealed class GameManager : Component, Component.INetworkListener
 	/// Extensions.IsMine(), so ResolveLocalPlayerHelper picks it up). When Networking IS active
 	/// and no player resolves, log an error and do NOT clone: NetworkHelper owns spawning
 	/// players in sessions. Mirrors NetworkHelper.OnActive's Clone(WorldTransform) idiom.
+	/// The state flips to WaitingToStartMinigame ONLY once a local player actually resolves;
+	/// otherwise it stays InMainMenu (menu visible, pollers silent) and PLAY is retryable -
+	/// e.g. a late joiner clicking before the host's spawn has replicated just tries again.
 	/// </summary>
 	public void StartGame()
 	{
@@ -541,17 +544,24 @@ public sealed class GameManager : Component, Component.INetworkListener
 		{
 			if ( Networking.IsActive )
 			{
-				Log.Error( "StartGame: local player not resolved while a network session is active; NetworkHelper owns player spawning - not cloning." );
+				Log.Error( "StartGame: local player not resolved while a network session is active; NetworkHelper owns player spawning - not cloning. Staying in InMainMenu; retry PLAY once the player replicates." );
+				return;
 			}
-			else if ( _PlayerPrefab.IsValid() && _DefaultSpawnLocation.IsValid() )
+
+			if ( _PlayerPrefab.IsValid() && _DefaultSpawnLocation.IsValid() )
 			{
 				_PlayerPrefab.Clone( _DefaultSpawnLocation.WorldTransform.WithScale( 1 ) );
-				ResolveLocalPlayerHelper();
 			}
 			else
 			{
 				Log.Error( "StartGame: solo fallback spawn skipped - _PlayerPrefab or _DefaultSpawnLocation is unset." );
 			}
+
+			// Solo fallback either cloned or failed: only leave the menu with a real
+			// local player, otherwise stay InMainMenu so the menu stays up and PLAY
+			// can be retried (a misconfigured prefab ref must not soft-start the game).
+			if ( ResolveLocalPlayerHelper() == false )
+				return;
 		}
 
 		_localGameState = LocalGameState.WaitingToStartMinigame;

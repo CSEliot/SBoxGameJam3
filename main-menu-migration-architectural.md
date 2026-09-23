@@ -246,3 +246,40 @@ player GameObject (or gate stays closed via state), `PlayerProgress.ResetRun()`,
 must NOT tear down the session for everyone — offer "end session" (destroy lobby) as a
 separate explicit action. Player DESPAWN (GameObject destroy + network despawn) vs disable
 is the main unresolved detail; disabled-and-inert (mirror of D-A) is the cheaper default.
+
+---
+
+## 6. Implementation status & review disposition (2026-09-23 late)
+
+T1-T5 all landed; compile gate (razorgen + GameCompileCheck) passes with 0 errors (2
+pre-existing DrunkCC warnings, both from user WIP hunks). Adversarial review ran over the
+in-scope diff; disposition of its findings:
+
+- **Finding 1 (MAJOR) — EscMenu `_GameManager` ref nulled by editor resave: CONFIRMED on
+  disk, USER ACTION REQUIRED.** minimal.scene:555 reads `"_GameManager": null` for the
+  `Sandbox.UI.EscMenu` component; the file + `.scene_c` were rewritten at 23:49:36 by the
+  open editor AFTER T5's JSON edit landed. The other two scene edits survived
+  (`_StartOnPlay: false`, UI-MainMenu node with its `_GameManager` ref intact). Likely
+  cause: the editor deserialized the scene before the hotloaded assembly exposed the new
+  EscMenu property, then saved null over it. FIX IN THE EDITOR (not JSON — the editor owns
+  the file now): select UI-Esc, set the EscMenu component's GameManager property to the
+  GameManager component on the --CODE-- node, save. Until then the F-key open-suppression
+  (T4.2) is dormant (fail-open by design) and PAUSED can stack on the main menu (L9).
+- **Finding 2 (MINOR) — fail-closed menu × inert body = soft-lock if the MainMenu panel ref
+  ever unwires: ACKNOWLEDGED, NOT FIXED (latent config risk, needs a design decision).**
+  The shipping scene has the ref wired; a self-heal/auto-StartGame fallback is a behavior
+  change beyond the pinned spec. Candidate mitigations if it ever bites: MainMenu logs
+  Error instead of Warning when unwired, or GameManager auto-starts when no MainMenu panel
+  exists in the scene.
+- **Finding 3 (MINOR) — StartGame flipped state even when the session-active resolve
+  failed: ACCEPTED AND FIXED.** StartGame now returns without flipping when
+  Networking.IsActive and no local player resolves (late-joiner race window), and the solo
+  fallback re-resolves after cloning and also refuses to flip on failure. Menu stays up,
+  pollers stay silent, PLAY is retryable. Compile gate re-passed after the fix.
+- **Findings 4/5 (INFO) — engine-semantics claims verified, scene JSON otherwise clean
+  (65 guids, no duplicates, UI-MainMenu mirrors mainmenu.scene exactly, razor markup
+  balanced, BuildHash contracts met, contract grep holds): NO ACTION.**
+
+Remaining before playtest: the editor-side EscMenu wiring above, then section 4's steps
+(editor open+save to confirm the MainMenu node loads clean, solo playtest, host +
+join-via-new-instance test).
