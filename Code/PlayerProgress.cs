@@ -124,6 +124,11 @@ public sealed class PlayerProgress : Component
 		if ( !GameObject.Network.IsMine() )
 			return;
 
+		if ( Input.Keyboard.Pressed( "Q" ) )
+		{
+			Timer += 60;
+		}
+
 		if ( RunState != RunStateEnum.Running )
 			return;
 
