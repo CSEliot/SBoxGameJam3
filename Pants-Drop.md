@@ -184,29 +184,28 @@ Implementation notes for the hide:
    it doesn't slide through the hips mid-drop.
 3. Normals/shear correction - ACCEPTED as scoped: defer until seen in-engine;
    if the falloff band lights wrong, add the analytic-derivative correction.
-4. Networking / pants state machine - BUILT (2026-09-23, ecs spec): the state
-   machine lives INSIDE DrunkCC as `[Sync] PantsState CurrentPantsState`
-   (Up/Down - two states, not TODO.MD's three levels) with an owner-only
-   `SetPantsState()` writer. Only the state travels over the wire; proxies read
+4. Networking / pants state machine - DONE (2026-09-23, ecs spec). Lives
+   INSIDE DrunkCC: `[Sync] PantsState CurrentPantsState` (Up/Down), owner-only
+   `SetPantsState()` writer; only the STATE travels over the wire, proxies read
    it for visuals (drop tween, Legs bodygroup flip, knockdown hide/show,
-   flying-prefab spawn). Movement effects are owner-only in
-   HandleRunningHelper: `_SpeedPantsDownDisabler` (0-100%, cuts the velocity
-   ceiling and actively holds forward speed at the reduced cap; 100 pins
-   forward speed at zero and - by the CC's steer-while-moving-forward model -
-   turning with it, deterministically not flickering) and
-   `_RotationPantsDownIncreaser` (FRACTION, no cap, default 1.0 = doubled turn
-   rate; multiplies the target yaw rate) and `_JumpPantsDownDisabler` (0-100%,
-   jump force cut; 100 ignores the jump press entirely - no force, no anim
-   trigger, no gate latch). CONTROL: pants falling down is driven by SHIFT
-   (the "Run" input action, Input.config:39-44, unread by DrunkCC today) -
-   trigger wiring pending, see doc update in flight. SetPantsState has NO
-   CALLERS yet: wiring the shift trigger (and pull-up) is the remaining work.
-   Adjacent pre-existing bug to fix when wiring: the knockdown decision block
-   in OnFixedUpdate (_HasHitObstacle consumption -> EnterKnockedDownHelper)
-   has no ownership gate, so obstacle triggers can fire knockdown logic on
-   non-owners in multiplayer (masked solo; produces ragdoll/camera flicker on
-   remote clients). Add an IsProxy guard there or move the block into
-   HandleRunningHelper's owner-only region.
+   flying-prefab spawn). Movement effects owner-only in OwnerHandleRunningHelper:
+   `_SpeedPantsDownDisabler` (0-100%, scales the velocity ceiling AND actively
+   strips forward velocity above it - the sphere coasts frictionlessly; 100
+   pins forward speed at zero and, per the steer-while-moving-forward model,
+   turning with it - deterministically, via a `pantsSpeedScale > 0f` gate
+   instead of reading the float-noise residual), `_RotationPantsDownIncreaser`
+   (FRACTION not percent, no cap, default 1.0 = doubled turn rate; multiplies
+   the target yaw rate), `_JumpPantsDownDisabler` (0-100%, scales _JumpForce;
+   100 ignores the jump press entirely - no force, no anim trigger, no gate
+   latch). CONTROL WIRED: hold Shift = Up, released = Down (Design #13-#16) -
+   `Input.Down("Run")` polled every owner tick in OnFixedUpdate:412, below the
+   IsProxy gate, so it tracks the hold in Running AND KnockedDown. GOTCHA:
+   the action is "Run" (Shift is its KeyboardCode); `Input.Down("Shift")`
+   would warn + always read false (docs corrected). Knockdown ownership
+   gating (ecs): OnFixedUpdate IsProxy gate + Owner* methods + [Rpc.Broadcast]
+   RagdollifyHelper - VERIFIED correct by adversarial review, see items 8-9
+   for what that review found still open. All compiled via CodeTestPortable
+   gate; playtest pending (defaults need tuning: speed disabler = 0).
 5. Override collision with CCCamera obstruction fade - NOT A PRIORITY
    (parked). Revisit if in-engine testing shows the two systems fighting over
    the pants material slot.
@@ -215,6 +214,37 @@ Implementation notes for the hide:
 7. v1 polish (out of v0): fold/bunch profile instead of linear slide, jiggle
    on stop, wider "pooled" silhouette at ankles. Only matters again if a
    second pants model is introduced.
+8. FIXED (2026-09-23) - camera hijack: DrunkCC.OnUpdate was ungated, so EVERY
+   player's DrunkCC incl. remote proxies wrote `_ccCamera.UseAltTargets`/
+   `StayBehind` on the one scene-wide cccamera - any remote knockdown flipped
+   YOUR camera. Fix applied: a `bool driveCamera = !IsProxy && _ccCamera != null`
+   guard wraps the camera writes in both switch branches; the animgraph writes
+   (MoveStyle/move_style/move_x) stay ungated because proxies need them to
+   blend the remote body. Also fixes the unconditional _ccCamera deref (NRE if
+   the tag is missing). Compiles clean; needs a 2-client playtest to confirm.
+9. FIXED (2026-09-23) - host dresses remote players in the HOST's clothes:
+   OnSpawnHelper broadcast DressPlayerHelper BEFORE its IsProxy gate, so the
+   host (running OnStart for every remote prefab with Connection.Local = host)
+   dressed remote bodies in the host's account clothing, racing the owner's
+   broadcast. Fix applied at TWO layers, because a [Rpc.Broadcast] SENDS on any
+   local call before permission checks (Rpc.InstanceRpc.cs:283-286 ->
+   SendInstanceRpc:331-335): (a) the OnStart CALL SITE is now gated
+   `if (!IsProxy) OnSpawnHelper(...)` so a proxy never broadcasts its own
+   connection (without this, the owner would receive a proxy's broadcast and
+   dress itself in the PROXY's clothes - the body-gate alone does NOT stop
+   that); (b) the IsProxy gate moved to the TOP of OnSpawnHelper's body so
+   proxy-side broadcast executions don't re-dress/re-register. Verified safe:
+   OnStart is deferred to an update tick (Component.Update.cs:53/70), which
+   runs after the spawn window clears IsProxy (NetworkObject.cs:149-150), so
+   IsProxy is correct by OnStart time. Compiles clean; needs a 2-client
+   playtest to confirm outfits are per-player correct.
+   Still noted, no fix planned (nits): RagdollifyHelper's ApplyVelocity reads
+   receiver-local velocity inside the broadcast (remote ragdolls crumple
+   instead of flying with the owner's momentum - fix would pass velocity as a
+   parameter); the IsProxy check in ResetFromKnockdownHelper (:695) is dead
+   code (harmless - RagdollifyHelper(true) at :694 correctly precedes it);
+   _hasCheckedHistObstacle (:138) is assigned-never-read (the build gate's one
+   CS0414 warning).
 
 ## History
 
@@ -225,3 +255,18 @@ coupling, networking gap, calibration placeholders), then narrowed by the
 Sep 22 decisions recorded above: forced single pants asset kills
 calibration-as-a-system and shape-blindness; HideBody resolved via runtime
 bodygroup toggle instead of owning the .clothing file.
+
+Sep 23 implementation session: knockdown drop replaced by hide-worn-pants +
+flying-prefab (item 1 retired). Pants state machine BUILT inside DrunkCC per
+ecs spec (item 4): binary Up/Down, owner-authoritative [Sync] state, three
+Down-modifiers (speed / turn / jump), Shift-hold control via Input.Down("Run").
+Two adversarial subagent reviews run against engine source: the first hardened
+the modifier math (found the X=100 yaw-gate flicker - now a deterministic
+pantsSpeedScale gate); the second verified ecs's ragdoll/knockdown ownership
+gating as correct and complete, and surfaced two real multiplayer-only defects
+riding along in the same commit (items 8-9: ungated camera writes, host-dresses-
+remote-players). Both were FIXED the same session - item 9 needed a call-site
+gate, not just a body gate, because [Rpc.Broadcast] sends before any permission
+check (Rpc.InstanceRpc.cs:283-286). All work compiles clean via the
+CodeTestPortable gate; nothing playtested yet, and the Down-modifier defaults
+still need tuning.

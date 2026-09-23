@@ -365,24 +365,45 @@ public sealed class DrunkCC : Component
 		{
 			Log.Warning( "DrunkCC: CCCamera not found!" );
 		}
-		OnSpawnHelper(Connection.Local);
+		// Owner-only spawn wiring. OnStart runs on EVERY client for EVERY DrunkCC (incl. remote
+		// proxies), but OnSpawnHelper is [Rpc.Broadcast] and a broadcast SENDS on any local call
+		// before any permission check (Rpc.InstanceRpc.cs:283-286 -> SendInstanceRpc:331-335). So
+		// an ungated call here makes each proxy broadcast OnSpawnHelper(itsOwnConnection); the
+		// owner then runs the body with the proxy's connection and dresses itself in the PROXY's
+		// account clothing. Gating the call site (not just the body) is what actually stops that -
+		// only the owner initiates, and its broadcast carries the right connection to everyone.
+		if ( !IsProxy )
+			OnSpawnHelper( Connection.Local );
 		Log.Info( "~~~I AM ALIVE~~~~DrunkCC: OnStart" );
 	}
 	
 	protected override void OnUpdate()
 	{
+		// Animgraph writes run on EVERY client (proxies need them to blend the remote body's
+		// run/land poses). The camera writes are owner-only: _ccCamera is the one scene-wide
+		// camera shared by all, so letting every proxy DrunkCC drive it means any remote
+		// player's knockdown flips the LOCAL camera (and multiple remote knockdowns fight,
+		// last-writer-wins). Only this client's own player should steer its camera. Null-guard
+		// too: OnStart only warns if the cccamera tag is missing, so an ungated deref NREs.
+		bool driveCamera = !IsProxy && _ccCamera != null;
 		switch ( CurrentState )
 		{
 			case State.Running:
 				_CitizenAnimationHelper.MoveStyle = CitizenAnimationHelper.MoveStyles.Run;
 				_SkinnedModelRenderer.Set( "move_style", 2 );
 				_SkinnedModelRenderer.Set( "move_x", 10000 );
-				_ccCamera.UseAltTargets = false;
-				_ccCamera.StayBehind = true;
+				if ( driveCamera )
+				{
+					_ccCamera.UseAltTargets = false;
+					_ccCamera.StayBehind = true;
+				}
 				break;
 			case State.KnockedDown:
-				_ccCamera.UseAltTargets = true;
-				_ccCamera.StayBehind = false;
+				if ( driveCamera )
+				{
+					_ccCamera.UseAltTargets = true;
+					_ccCamera.StayBehind = false;
+				}
 				break;
 		}
 	}
@@ -801,15 +822,23 @@ public sealed class DrunkCC : Component
 	}
 	
 	/// <summary>
-	/// Proxy and Owned 
+	/// Spawn wiring, owner-initiated: the OnStart call site is gated `if (!IsProxy)`, because a
+	/// [Rpc.Broadcast] SENDS on any local call before permission checks (Rpc.InstanceRpc.cs:283-
+	/// 286) - an ungated proxy call would broadcast the proxy's own connection and the owner
+	/// would dress itself in the proxy's account clothing. The IsProxy gate in the body is the
+	/// second layer: it stops proxy-side broadcast executions (the owner's broadcast reaches
+	/// every client) from re-dressing or re-registering with GameManager. The owner's execution
+	/// broadcasts DressPlayerHelper, whose own [Rpc.Broadcast] carries the correct outfit to all
+	/// clients.
 	/// </summary>
 	[Rpc.Broadcast]
 	private void OnSpawnHelper(Connection connection)
 	{
-		DressPlayerHelper(GameObject, connection);
 		if ( IsProxy )
 			return;
-		
+
+		DressPlayerHelper(GameObject, connection);
+
 		_gameManager = Scene.Scene.FindAllWithTagOrigin( "gamemanager" ).FirstOrDefault()?.GetComponent<GameManager>();
 		if ( _gameManager != null )
 		{
