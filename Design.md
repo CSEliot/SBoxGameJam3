@@ -4,9 +4,9 @@
 2. Each player's character will start in a bar, sitting at a bar, which is the game hub / lobby.
 3. When starting the game the character will first play a drinking mini-game before burst out running from the bar, you will have 2 minute till you reach the next bar.
 4. The player's character will always be running in a city, and it can't die when colliding with obstacles.
-5. Colliding with object will drop your pants, which will slow you and make your jump pathetic.
-6. Smashing the "R" key will help pulling the pants up, which will allow the character to move faster and jump.
-7. Colliding with an obstacle while your pants at their lowest will make you trip over, when getting up you will lose all the momentum you had, so you will have to build it back up again.
+5. Hold "Shift" to keep your pants up. The moment you let go they slide all the way down: you are slower, your jump is pathetic, and your turns get tighter.
+6. Pants are a pure input trade-off and have nothing to do with obstacles or collisions.
+7. Colliding with an obstacle will make you trip over regardless of pants state; when getting up you will lose all the momentum you had, so you will have to build it back up again.
 8. An arrow indicator will point to a random bar location, the 3 nearest bars will not be included in the random selection.
 9. The arrow indicator will always check for the closest bar, so it's dynamic.
 10. The bar that gets visited will get locked.
@@ -47,10 +47,10 @@ It's pure carnage and chaos filled with liquor and non-stop running, aim to be t
 10. The city will have a "hour glass" loot object that give players more time to add to their timer (the object can be a simple beer bottle with +3 sec on it).
 11. Players can't compete for the same hour glass but only one player can take it, the server will handle hour glass generation.
 12. The character will be always running, the character can't die.
-13. When running into an obstacle the character's pants will drop one level.
-14. The pants have three levels (fully-up, to the knees, fully-down to the ankle).
-15. Pants level effect speed and jump power.
-16. If you hit an obstacle while your pants are fully down then you will be tripped over, which will make you lose your current speed and lose 1-2 seconds till you get up.
+13. Holding "Shift" keeps the character's pants up; releasing it drops them all the way down.
+14. The pants have two states: fully-up (while Shift is held) and fully-down to the ankle (otherwise).
+15. Pants down reduces top speed and jump height and makes rotation tighter (faster turn rate).
+16. If you hit an obstacle you will be tripped over regardless of pants state, which will make you lose your current speed and lose 1-2 seconds till you get up.
 17. After tripping down, the character will automatically get up, the character will have to slowly build momentum to reach the top speed.
 18. A rescue button will be added to free players if getting stuck, using the button will make you lose all your speed and will relocate you to a close location from which the direction you came from.
 19. If your timer hits zero, you will lose all the score that you have built unless you have emergency beer bottle item on you.
@@ -136,8 +136,8 @@ Timer                         Score                  Drunkenness
 Arrow Indicator (3D, floating above ground, points to target bar)
 
 [BOTTOM-LEFT]
-Pants Level
-[▮▮▮] (3 bars, filled = current level)
+Pants State
+[██] (Shift held = up, released = down)
 ```
 
 ### Elements
@@ -170,11 +170,11 @@ Pants Level
 - Behavior: Dynamically updates to point to closest valid bar, rotates smoothly
 - Drunk effect: **None** (gameplay critical, must stay readable)
 
-**Pants Level (bottom-left)**
-- Format: 3 vertical bars (like battery indicator)
-- Color: #4C74E5 (blue) when full, #FF6120 (orange) when 1 bar, flashes red when 0 bars (trip risk)
+**Pants State (bottom-left)**
+- Format: 2-state indicator (up / down), e.g. a pants icon that is filled while Shift is held and dim/broken when down
+- Color: #4C74E5 (blue) when up, #FF6120 (orange) when down
 - Size: Small (40px tall)
-- Behavior: Decreases on obstacle hit, increases when player mashes R
+- Behavior: Tracks the hold-Shift pants state (see Section 1 #13-#15); pure readout of `DrunkCC.CurrentPantsState`
 - Drunk effect: Slight wobble at high levels
 
 ---
@@ -454,7 +454,7 @@ This cc has gameplay mechanic rules to follow:
 ### Accessibility
 - Arrow indicator never gets drunk effects (gameplay critical)
 - Timer remains readable even at high drunk levels (reduce blur, keep wobble)
-- Consider colorblind mode: use shapes/symbols alongside colors for pants level
+- Consider colorblind mode: use shapes/symbols alongside colors for pants state
 
 ### s&box Specifics
 - UI likely built with s&box UI system (HTML/CSS or native panels)
@@ -478,9 +478,9 @@ This cc has gameplay mechanic rules to follow:
 - wall collision
 - the camera is fixed
 - arrow indicator that points to the closest unvisited bar
-- when hitting obstacles your pants will go down, when the pants are all the way down you will have a pathetic jump and slower speed
-- to pull your pants up you need to smash the R button, when the pants are up you can jump better and be faster when running
-- the pants are either fully up or fully down or to the knees
+- when you release Shift your pants fall all the way down; when the pants are down you have a pathetic jump, slower speed, and tighter rotation; hold Shift to keep them up
+- the pants are purely a hold-Shift trade-off - nothing obstacle/collision related; obstacles only trip you
+- the pants are either fully up (Shift held) or fully down (released)
 - fixed camera
 - buzz effect protect players from losing sober for the first 20 second after leaving a bar
 - ankle wizard bat

@@ -21,18 +21,35 @@
 - [ ] Link character top speed to drunkenness level.
 - [ ] Add character tilt, so the character doesn't move in a straight line by default, tie the tilt to the drunkenness level.
 
-### Pants State Machine
+### Pants Mechanic (hold Shift)
 
-- [ ] Create PantsLevel to manage 3 levels of pants state.
-- [ ] Apply speed and jump power modifiers based on the current PantsLevel.
-- [ ] Trigger a pants-drop event on obstacle collision.
-- [ ] Implement pulling pants up mechanic.
+Design: hold Shift to keep pants up; released = pants at ankles (slower, pathetic jump,
+tighter rotation). Obstacles do NOT drop pants - they only trip (see below).
+
+- [x] Binary `PantsState` on DrunkCC - `[Sync] CurrentPantsState` + owner-authoritative
+  `SetPantsState()`. Only the STATE replicates (for proxy visuals); tunables never sync.
+- [x] Drive it from Shift-hold: `Input.Down("Run")` -> Up, released -> Down. Polled every
+  owner tick in OnFixedUpdate (continuous hold, works in Running AND KnockedDown). The bound
+  action is "Run" (Shift is its KeyboardCode, Input.config:39-44) - there is no action named
+  "Shift", so `Input.Down("Shift")` would warn + always read false.
+- [x] Speed modifier while Down - `_SpeedPantsDownDisabler` (% off top speed; scales the
+  ceiling AND actively strips forward velocity above it, since the sphere coasts on a
+  frictionless surface). Currently defaults to 0 - needs tuning.
+- [x] Rotation modifier while Down - `_RotationPantsDownIncreaser` multiplies the target
+  yaw rate, so turning is genuinely (1+Y)x faster/tighter. Currently defaults to 1 (2x).
+- [x] Jump-height cut while Down - `_JumpPantsDownDisabler` (0-100%) scales `_JumpForce`;
+  100 ignores the jump press entirely (no force, no anim trigger, no gate latch).
 
 ### Implement Tripping / Ragdoll Logic
 
-- [ ] If obstacle hit while `PantsLevel == Ankles`, trigger a trip state.
-- [ ] Temporarily disable movement input and zero out current velocity.
-- [ ] Implement a 1-2 second lockout timer, followed by an automatic recovery/get-up state.
+- [x] Obstacle hit = trip REGARDLESS of pants state - `CollisionReporter` wall-hit
+  trigger sets `_HasHitObstacle`, consumed by the Running-state check ->
+  `OwnerEnterKnockedDownHelper()` (first hit wins vs. the lean-over trip).
+- [x] Temporarily disable movement input and zero out current velocity - no forces run
+  while KnockedDown; recovery (`ResetFromKnockdownHelper`) stands up at zero
+  velocity/angular velocity at the beer-rewound history point.
+- [x] 1-2 second lockout timer followed by automatic recovery/get-up -
+  `_KnockdownRecoveryTime` via `_knockdownEnds` (TimeUntil), then auto-reset.
 
 ### Implement Unstuck / Rescue System
 
@@ -100,24 +117,24 @@
 
 - [ ] Display current Timer, Score, and Drunkenness level.
 - [ ] Show an icon if the player is carrying an Emergency Beer.
-- [ ] Visual indicator for current Pants Level.
+- [ ] Visual indicator for pants state (Up while Shift held / Down otherwise).
 
 ## Animation & Visuals
 
 ### Configure Animator / Blend Trees
 
 - [ ] Add the "Tripping over" and "Getting up" animation sequences.
-- [ ] Create separate movement animations for different pants levels (e.g., a normal run, a waddle, a stumble).
+- [ ] Create separate movement animations for the two pants states (e.g. a normal run when Up, a waddle/stumble when Down).
 
 ### Dynamic Pants Visuals
 
-- [ ] Use Skinned Mesh bodygroups or bone-scaling to visually drop the pants to the knees and ankles.
+- [ ] Drop the worn pants to the ankles / pull them back up visually, driven by `CurrentPantsState` (see Pants-Drop.md - shader slide + bodygroup plan, knockdown flying-pants prefab).
 
 ## Networking
 
 ### Sync Player Variables
 
-- [ ] Use [Sync] properties for variables that other players need to see (e.g., PantsLevel, visual drunkenness, current speed).
+- [x] [Sync] `CurrentPantsState` (Up/Down) and `CurrentState` (Running/KnockedDown) so proxies show pants/ragdoll. Still open: `BeerLevel` and current speed are not synced, so remote drunkenness/velocity don't replicate.
 
 ### Server Authority on Progression
 

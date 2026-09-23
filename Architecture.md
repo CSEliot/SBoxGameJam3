@@ -19,6 +19,26 @@ when player plays minigame, we spawn Beer at only that BeerSpawnLocation of THAT
 
 ## Pants Down
 
+Mechanic (Design Section 1 #13-#16, current): hold Shift to keep the pants up; the
+moment Shift is released they slide all the way down to the ankles - slower top speed,
+pathetic jump, tighter rotation. Obstacles have NOTHING to do with pants: a collision
+only trips you (KnockedDown), regardless of pants state. There are exactly two states
+(Up / Down) - the old three-level (waist/knees/ankles) model is gone.
+
+Code state (DrunkCC):
+- `PantsState { Up, Down }`, `[Sync] CurrentPantsState` + owner-authoritative
+  `SetPantsState()`. Only the STATE replicates, so proxies can mimic the pants
+  visuals; the movement tunables never sync (only the owner simulates physics).
+- Down-modifiers exist and are read in `OwnerHandleRunningHelper`:
+  `_SpeedPantsDownDisabler` (% off top speed, actively strips forward velocity above
+  the scaled ceiling - the sphere coasts frictionlessly),
+  `_RotationPantsDownIncreaser` (multiplies the target yaw rate -> genuinely tighter
+  turns), and `_JumpPantsDownDisabler` (% off `_JumpForce`; 100 ignores the jump press).
+- The Shift-hold input IS wired: `OnFixedUpdate` (owner region, after the IsProxy gate)
+  polls `Input.Down("Run")` every tick -> `SetPantsState(held ? Up : Down)`, so it tracks
+  the hold in both Running and KnockedDown. The action is "Run" (Shift is its KeyboardCode,
+  Input.config:39-44); there is no action named "Shift". See TODO.MD "Pants Mechanic".
+
 The clothing system works as follows:
  - Clothes can own as many slots as the creator wants.
  - There are 2 layers (Under and over) per which are the slots relating to parts of the body.
@@ -194,8 +214,8 @@ whole; keep the entry a small struct/record and cap the list length.)
 
 Design references: Design.md line 85 ("Hit: Anything that causes player to go into
 KnockedDown state. Ex: Tilting too much left or right is a 'hit'. Colliding is a
-'hit'. Running into wall is a 'hit'."), Design #7/#16 (obstacle-hit trip-at-ankles),
-TODO.MD "Implement Tripping / Ragdoll Logic".
+'hit'. Running into wall is a 'hit'."), Design #7/#16 (obstacle hit trips regardless
+of pants state), TODO.MD "Implement Tripping / Ragdoll Logic".
 
 ## 0. What already exists (do not re-invent)
 
@@ -220,16 +240,14 @@ TODO.MD "Implement Tripping / Ragdoll Logic".
   No property currently holds the trace DISTANCE (X below) - one must be added,
   e.g. `_WallHitDistance`.
 
-## 1. Relationship to the existing pants-drop obstacle system (open question)
+## 1. Relationship to the pants system (RESOLVED 2026-09-23)
 
-Design.md treats "colliding with an obstacle" (pants drop, or trip if already at
-Ankles - Design #5/#7/#13/#16) and "running into a wall" (immediate Hit ->
-KnockedDown, line 85) as two different severities of impact. This plan only covers
-the wall/KnockedDown case. Do not fold the pants-drop obstacle-collision TODO into
-this trace - they are separate systems that may both fire independently (e.g. a
-shallow-angle graze could still drop pants via physics collision without meeting
-the angle threshold to also knock the player down). Reconcile if/when the pants
-collision system is implemented; not decided here.
+Open question - now decided: pants no longer interact with obstacles AT ALL. The
+design changed to hold-Shift-to-keep-pants-up (see "Pants Down" above; Design #5-#7,
+#13-#16 updated accordingly), so an obstacle collision NEVER drops pants - it only
+trips (KnockedDown), regardless of pants state. This plan's trace/trigger covers the
+Hit -> KnockedDown case and nothing else; there is no "pants-drop obstacle-collision
+system" left to reconcile or keep separate.
 
 ## 2. The mechanic: forward raytrace + distance + approach-angle gate
 

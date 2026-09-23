@@ -195,8 +195,12 @@ Implementation notes for the hide:
    forward speed at zero and - by the CC's steer-while-moving-forward model -
    turning with it, deterministically not flickering) and
    `_RotationPantsDownIncreaser` (FRACTION, no cap, default 1.0 = doubled turn
-   rate; multiplies the target yaw rate). SetPantsState has NO CALLERS yet:
-   wiring the obstacle-drop and pull-up triggers is the remaining work.
+   rate; multiplies the target yaw rate) and `_JumpPantsDownDisabler` (0-100%,
+   jump force cut; 100 ignores the jump press entirely - no force, no anim
+   trigger, no gate latch). CONTROL: pants falling down is driven by SHIFT
+   (the "Run" input action, Input.config:39-44, unread by DrunkCC today) -
+   trigger wiring pending, see doc update in flight. SetPantsState has NO
+   CALLERS yet: wiring the shift trigger (and pull-up) is the remaining work.
    Adjacent pre-existing bug to fix when wiring: the knockdown decision block
    in OnFixedUpdate (_HasHitObstacle consumption -> EnterKnockedDownHelper)
    has no ownership gate, so obstacle triggers can fire knockdown logic on
