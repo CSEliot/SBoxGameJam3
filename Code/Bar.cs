@@ -55,12 +55,17 @@ public sealed class Bar : Component, Component.ITriggerListener
 		if ( _gameManager is null )
 			Log.Error( "GameManager not found!" );
 	
+		int activeModulesCount = 0;
 		foreach ( var child in GetComponentsInChildren<BarModule>( true ) )
 		{
 			if ( child.Active )
 			{
-				if ( _activeModuleName != "" )
+				activeModulesCount++;
+				if ( activeModulesCount > 1 )
+				{
 					Log.Error( "Bar has multiple active modules!" );
+					break;
+				}
 				ActiveBarModule = child;
 				_activeModuleName = child.Name;
 			}
