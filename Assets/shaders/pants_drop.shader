@@ -147,10 +147,27 @@ VS
 
 		// Ease the very bottom into the cuffs so the gradient has no hard
 		// kink at the ankle ring (garment-shape-blind v0 profile).
-		t = smoothstep( 0.0, g_flPantsGradientSoftness / flSpan, t );
+		// PROBE: smoothstep DISABLED during the probe - the raw ramp makes the
+		// H3 (cm-units) knee-step shape unambiguous. RESTORE for shipping.
+		//t = smoothstep( 0.0, g_flPantsGradientSoftness / flSpan, t );
 
 		// Slide DOWN the legs = against the pushed up-axis.
-		o.vPositionWs.xyz -= g_vPantsDropAxis * (t * saturate( g_flPantsDrop ) * g_flPantsDropDistance);
+		// PROBE (replaces the shipping line below; one recompile discriminates
+		// ALL playtest hypotheses by the SHAPE of the deformation - no C#
+		// attribute push needed, g_flPantsDrop/Distance are deliberately NOT
+		// read so a dead push cannot mask the result):
+		//   nothing moves            -> override draw is dead (H1): this VS
+		//                               never runs on the drawn pants.
+		//   rigid 10-unit drop       -> H2 CONFIRMED: vPositionOs reads 0 on
+		//                               the compute-skin path (t == 0).
+		//   step at the knees        -> H3: vPositionOs carries RAW cm (t
+		//   (~14 below / ~30 above)     saturates to 1 from 37.7cm up).
+		//   smooth 10 (ankle) ->     -> shader path fully ALIVE; the playtest
+		//   30 (waist) shear            symptom was then purely the C# push
+		//                               (H1) + the Legs bodygroup flip (H4).
+		o.vPositionWs.xyz -= g_vPantsDropAxis * (10.0 + t * 20.0);
+		// SHIPPING (restore after the probe, with the smoothstep above):
+		//o.vPositionWs.xyz -= g_vPantsDropAxis * (t * saturate( g_flPantsDrop ) * g_flPantsDropDistance);
 
 		// Re-project clip space after the world-space offset - the position
 		// VS_CommonProcessing computed is now stale. (Same tail-fix the fur

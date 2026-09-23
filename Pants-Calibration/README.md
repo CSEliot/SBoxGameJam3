@@ -1,5 +1,41 @@
 # Pants Drop - canonical design + bind-pose calibration document
 
+## SESSION 2026-09-24 00:00 (Hermes) - probe set up, two new disk facts
+
+RESOLVED false flag: the `no DrunkCC on this GameObject` line (log :123) was an
+EDITOR WIRING omission, fixed by ecs before this session - NOT a second
+controller instance. The controller driving the playtest pants was live, so the
+symptom set stands as: displacement no-op + bodygroup flip alive (H4).
+
+NEW EVIDENCE for H2 (strengthens it from "possible" to "likely", still
+unverified in-engine):
+- `vr_common_vs_code.fxc:156` reads `i.vTexCoord` (TEXCOORD0/LowPrecisionUv)
+  UNCONDITIONALLY - outside the `#if D_CS_VERTEX_ANIMATION` branch - while
+  `i.vPositionOs` is read ONLY inside the `#else` (non-CS) branch (:116).
+  So on the compute-skin path the engine itself consumes TEXCOORD0 but never
+  touches POSITION; the input layout binding POSITION for that path is exactly
+  the unverified step H2 rests on. Escape hatch if H2 confirms: TEXCOORD0 is
+  PROVEN-alive on both paths.
+- UV vs height measured on LOD0 (headless Blender, script
+  ~/.hermes/profiles/hermes-sbox/cache/scratch/pants_uv_measure.py):
+  corr(height, uv.y) = 0.925 (uv.x: -0.02) - uv.y IS a height proxy, but NOT
+  monotonic: ankle decile spans v=0.013..0.758, waist decile folds to 0.65
+  (UV islands/seams). A uv.y gradient needs per-island remapping or it
+  mis-slides at cuffs/waistband. Fallback only if vPositionOs is dead AND a
+  morph/vertex-color bake is rejected (addon mesh ships compiled-only).
+
+PROBE ARMED (this session's edit to `Assets/shaders/pants_drop.shader`):
+MainVs displacement replaced with `-= g_vPantsDropAxis * (10.0 + t*20.0)`,
+reading NEITHER g_flPantsDrop NOR g_flPantsDropDistance (a dead C# push cannot
+mask the result), smoothstep disabled. One editor recompile + entering play
+discriminates by SHAPE:
+- nothing moves               -> override draw never runs (H1, renderer/slot identity)
+- rigid ~10-unit drop         -> H2 CONFIRMED (vPositionOs reads 0, t==0 everywhere)
+- step at the knees (~14/~30) -> H3 (vPositionOs carries raw cm, t saturates)
+- smooth 10(ankle)->30(waist) -> shader path ALIVE; playtest symptom was pure
+                                 H1(push) + H4(bodygroup)
+SHIPPING line + smoothstep are commented in place for restore.
+
 ## PLAYTEST 2026-09-23 (first in-engine shader + PantsDropController test) - SYMPTOM + DIAGNOSIS
 
 OBSERVED (ecs, in-engine, via the pants controller on the player):
