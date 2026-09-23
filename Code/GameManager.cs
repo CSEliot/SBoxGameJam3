@@ -33,6 +33,7 @@ public sealed class GameManager : Component, Component.INetworkListener
 {
 	public enum LocalGameState
 	{
+		InMainMenu,
 		PubCrawling,
 		/// <summary>
 		/// Player is in a bar trigger, past the starting bar, deciding via the BarMenu
