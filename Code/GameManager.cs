@@ -71,12 +71,21 @@ public sealed class GameManager : Component, Component.INetworkListener
 		return _LocalDrunkCC;
 	}
 	
-	[Property] private bool _ImmediatelySpawnRunner { get; set; } = false;
+	/// <summary>
+	/// After this many beers, the difficulty effects that scale with drunkenness (run speed,
+	/// lean tap impulse, knockdown recovery rewind) stop getting worse - they saturate at this
+	/// level. BeerLevel itself keeps growing: the score multiplier and the HUD/End-Game beer
+	/// readouts always use the raw level (see BeerLevelCap.md). 0 or below disables the cap
+	/// entirely (difficulty keeps scaling forever, the original behavior).
+	/// </summary>
+	[Property] public float BeerDifficultyCap { get; set; } = 10f;
+	[Property] private int _StartingBar { get; set; } = 0;
+	[Property] private int _StartingSeed { get; set; } = 0;
 	[Property] private Clothing _HeartUnderwear { get; set; }
 	[Property] private Clothing _LongPants { get; set; }
 	[Property] private GameObject _PlayerPrefab { get; set; }
 	[Property] private GameObject _DefaultSpawnLocation { get; set; }
-	[Property] private GameObject _CCCamera { get; set; }
+	[Property, ReadOnly] private GameObject _CCCamera { get; set; } = null;
 	[Property] private GameObject _MiniGamePanel { get; set; }
 	/// <summary>
 	/// [Property] GameObject pointing at the scene's BarMenu UI panel object, mirroring
@@ -114,7 +123,6 @@ public sealed class GameManager : Component, Component.INetworkListener
 	/// <summary>
 	/// Is also the SEED for joiners' local Random!
 	/// </summary>
-	private int _startingBar;
 	private int _totalBars;
 	private float _startTime = -1;
 	private bool _serverActive;
@@ -133,7 +141,8 @@ public sealed class GameManager : Component, Component.INetworkListener
 	
 	protected override void OnStart()
 	{
-		_targetBarWaiting = _startingBar;
+		Log.Info( "!!GameManager.OnStart() ID: " + Network.OwnerId );
+		_targetBarWaiting = _StartingBar;
 		_minigameController = _MiniGamePanel.GetComponent<Minigame>();
 		_barMenuController = _BarMenuPanel != null ? _BarMenuPanel.GetComponent<BarMenu>() : null;
 		if ( _barMenuController is null )
@@ -154,18 +163,6 @@ public sealed class GameManager : Component, Component.INetworkListener
 		{
 			_endGameController.OnTryAgain += HandleEndGameTryAgain;
 		}
-		if ( _ImmediatelySpawnRunner && SpawnPlayerHelper() )
-		{
-			if( _LocalPlayer == null )
-			{
-				Log.Error( "LocalPlayer is null, despite successful spawn!" );
-			}
-		}
-		else
-		{
-			if ( _ImmediatelySpawnRunner )
-				Log.Error( "Failed to spawn player" );
-		}
 		_startTime = Time.Now;
 		for ( int i = 0; i < _Bars.Length; i++ )
 		{
@@ -180,7 +177,8 @@ public sealed class GameManager : Component, Component.INetworkListener
 
 	protected override void OnUpdate()
 	{
-		ResolveLocalPlayerHelper();
+		if (ResolveLocalPlayerHelper() == false)
+			return;
 
 		if ( Input.Keyboard.Down( "R" ) )
 		{
@@ -239,7 +237,7 @@ public sealed class GameManager : Component, Component.INetworkListener
 			if ( _serverActive )
 				_SecondsUptime = (long)(Time.Now - _startTime);
 			if(_SecondsUptime % (long)60 == 0 && _canUpdateBars )
-				_startingBar = RandomBarIndexHelper();
+				_StartingBar = RandomBarIndexHelper();
 			if(_SecondsUptime % (long)60 != 0)
 				_canUpdateBars = true;
 		}
@@ -411,24 +409,6 @@ public sealed class GameManager : Component, Component.INetworkListener
 		_LocalPlayer.Enabled = true;
 	}
 
-	// todo: how does this work w multiplayer???
-	/// <summary>
-	/// 
-	/// </summary>
-	/// <returns>True if success</returns>
-	private bool SpawnPlayerHelper()
-	{
-		if ( _SpawnPlayerHelperCalled == true )
-		{
-			Log.Info("Spawn Player helper already called.");
-			return true;
-		}
-		
-		var newPlayer = _PlayerPrefab.Clone();
-		ResolveLocalPlayerHelper(newPlayer);
-		return _LocalPlayer != null;
-	}
-
 	/// <summary>
 	/// Ensures _LocalPlayer / _LocalDrunkCC / _LocalPlayerProgress / _LocalPlayerRigidbody /
 	/// _LocalArrowIndicator all point at the player THIS client owns, resolving by ownership
@@ -440,91 +420,66 @@ public sealed class GameManager : Component, Component.INetworkListener
 	/// once a valid owned ref is cached; only rescans while the cache is null/stale. Read-only
 	/// use: never mutates PlayerProgress (owner-authoritative).
 	/// </summary>
-	private void ResolveLocalPlayerHelper(GameObject localPlayer = null)
+	private bool ResolveLocalPlayerHelper(GameObject localPlayer = null)
 	{
-		// Already holding the player we own - nothing to do.
-		if ( _LocalPlayer.IsValid() && _LocalPlayer.Network.IsMine())
-			return;
+		
+		bool isSearchForLocalPlayer = false;
+		if ( localPlayer == null )
+			isSearchForLocalPlayer = true;
+		
+		if (isSearchForLocalPlayer == false && _LocalPlayer.IsValid() && _LocalPlayer.Network.IsMine())
+			return true;
 
-		localPlayer ??= Scene.FindAllWithTag("player").FirstOrDefault(p => p.Network.IsMine());
+		localPlayer ??= Scene.Scene.FindAllWithTagOrigin("player").FirstOrDefault(p => p.Network.IsMine());
 		
 		if ( localPlayer is null )
 		{
 			Log.Error("Couldn't find local player.");
-			return;
+			return false;
 		}
 
 		_LocalPlayer = localPlayer;
 		_LocalPlayerProgress = localPlayer.GetComponent<PlayerProgress>( true );
 		_LocalDrunkCC = localPlayer.GetComponent<DrunkCC>(true);
 		_LocalPlayerRigidbody = localPlayer.GetComponent<Rigidbody>(true);
-		_LocalArrowIndicator = _LocalDrunkCC.BarArrow.GetComponent<BarArrowIndicator>( true );
+		_LocalArrowIndicator = _LocalDrunkCC?.BarArrow?.GetComponent<BarArrowIndicator>( true );
+		
+		if ( _LocalPlayerProgress == null )
+		{
+			Log.Warning("Couldn't find local player's progress component. " + localPlayer.Name);
+			return false;
+		}
+
+		if ( _LocalDrunkCC == null )
+		{
+			Log.Warning("Couldn't find local player's DrunkCC component.");
+			return false;
+		}
+
+		if ( _LocalPlayerRigidbody == null )
+		{
+			Log.Warning("Couldn't find local player's Rigidbody component.");
+			return false;
+		}
 
 		if ( _LocalArrowIndicator == null )
 		{
-			Log.Error( "~~Player prefab's DrunkCC.BarArrow node is unset or has no BarArrowIndicator component; bar-direction arrow disabled." );
+			Log.Warning("Couldn't find local player's BarArrowIndicator component.");
+			return false;
 		}
-		else
-		{
-			Log.Info( "~~Player prefab's DrunkCC.BarArrow node has BarArrowIndicator component; bar-direction arrow enabled." );
-		}
+		
+		return true;
 	}
 
-	/// <summary>
-	/// Only host receives this, on pc connect
-	/// </summary>
-	/// <param name="connection"></param>
+	/// <inheritdoc/>
 	void INetworkListener.OnActive( Connection connection )
-	{
-		var spawned = SpawnPlayerHelper();
-		if(spawned)
-			_LocalPlayer.NetworkSpawn( connection ); //todo: ASAP - is "network spawn" not to be done w .Clone??
-		else
-		{
-			Log.Error( "Failed to spawn net player" );
-		}
-
-		_LocalPlayer.GetComponent<DrunkCC>().ConnectionID = connection.Id;
-		_LocalPlayer.Enabled = false;
-		DressPlayerHelper( _LocalPlayer, connection );
-		InitialClientSetupHelper(_startingBar, connection);
-	}
-
-	/// <summary>
-	/// Applies the owning player's account clothing (Steam avatar) to their own player body's
-	/// Dresser. [Rpc.Broadcast] so every currently-connected client sees the same outfit on that
-	/// player, mirroring the drinker-dressing pattern in Bar.cs's DressDrinkerHelper. Only the
-	/// Clothing list comes from the account - Height/Age/Tint stay whatever the player prefab's
-	/// Dresser was preset to (see Extensions.ApplyClothingOnlyAsync), so every player keeps the
-	/// same body proportions regardless of their account avatar.
-	/// </summary>
-	[Rpc.Broadcast]
-	private async void DressPlayerHelper( GameObject player, Connection playerConnection )
-	{
-		var dresser = player.GetComponentInChildren<Dresser>( true );
-		if ( dresser is null || !dresser.BodyTarget.IsValid() )
-		{
-			Log.Error( "Player has no valid Dresser/BodyTarget, cannot apply account clothing." );
-			return;
-		}
-
-		var clothing = ClothingContainer.CreateFromConnection( playerConnection );
-		await dresser.ApplyClothingOnlyAsync( clothing );
-	}
-
-	[Rpc.Broadcast]
-	private void InitialClientSetupHelper( int seed, Connection connection )
 	{
 		if ( connection == Connection.Local )
 		{
 			Log.Info("IS LOCAL CONNECTION GETTING H CLIENT SETUP HELPER"  );
 			_serverActive = true;
-			_localRandom =  new Random(seed);
-			_startingBar = seed;
-			// The seed doubles as the starting bar index. OnStart ran BEFORE this RPC
-			// landed, so it captured _targetBarWaiting = _startingBar while _startingBar
-			// was still 0. Reassign it now so the first target reflects the real seed.
-			_targetBarWaiting = _startingBar;
+			_localRandom =  new Random(_StartingSeed);
+			_targetBarWaiting = _StartingBar;
 		}
 	}
 
@@ -549,7 +504,7 @@ public sealed class GameManager : Component, Component.INetworkListener
 		_LocalPlayerProgress?.ResetRun();
 		if ( _LocalDrunkCC != null )
 			_LocalDrunkCC.BeerLevel = 0f;
-		_targetBarWaiting = _startingBar;
+		_targetBarWaiting = _StartingBar;
 		_localGameState = LocalGameState.WaitingToStartMinigame;
 		_CCCamera.Enabled = true;
 		ResetPlayerHelper();
@@ -638,5 +593,19 @@ public sealed class GameManager : Component, Component.INetworkListener
 		// 	_LocalPlayerProgress?.ResumeTimer();
 		// }
 	}
+
+	/// <summary>
+	/// This is called by the proxy and nonproxy players when they spawn in.
+	/// </summary>
+	/// <param name="connection"></param>
+	/// <param name="newPlayer"></param>
+	public void OnSpawn( Connection connection, GameObject newPlayer )
+	{
+		if ( Connection.Local.Id == connection.Id )
+		{
+			ResolveLocalPlayerHelper(newPlayer);
+		}
+	}
+	
 }
 

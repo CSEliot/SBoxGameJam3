@@ -23,6 +23,17 @@ public sealed class DrunkCC : Component
 		Running,
 		KnockedDown,
 	}
+
+	/// <summary>
+	/// Pants state. Only the STATE travels over the wire ([Sync]) so proxies can mimic the
+	/// pants visuals; the movement tunables are never synced because only the owning client
+	/// simulates physics.
+	/// </summary>
+	public enum PantsState
+	{
+		Up,
+		Down,
+	}
 	
 	/// <summary>
 	/// Todo: delete if remain unused - ecs
@@ -31,7 +42,9 @@ public sealed class DrunkCC : Component
 	public Guid ConnectionID { get; set; }
 	
 	/// <summary>
-	/// How many beers the player has in them. No maximum.
+	/// How many beers the player has in them. No maximum. Difficulty effects that scale with
+	/// this saturate at GameManager.BeerDifficultyCap (see DifficultyBeerHelper()); score, HUD
+	/// and End-Game readouts always use the raw value.
 	/// </summary>
 	[Property] public float BeerLevel { get; set; } = 1;
 
@@ -67,6 +80,14 @@ public sealed class DrunkCC : Component
 	// [Property] public float CollisionBoxRelativeStartZ  { get; set; }
 	
 	[Sync] public State CurrentState { get; set; } = State.Running;
+
+	/// <summary>
+	/// Whether this player's pants are Up or Down. Only this STATE travels over the wire, so
+	/// proxies can mimic the pants visuals; the movement tunables never sync — the owning
+	/// client is authoritative and the only one simulating physics. Written through
+	/// SetPantsState; gameplay triggers (obstacle drop, pull-up) call that, effects read this.
+	/// </summary>
+	[Sync] public PantsState CurrentPantsState { get; set; } = PantsState.Up;
 
 	/// <summary>
 	/// True from the moment a jump launches until we detect a fresh landing. Gates re-jumping.
@@ -120,7 +141,8 @@ public sealed class DrunkCC : Component
 	private float _rollDeg;
 
 	/// <summary>
-	/// Seconds of rewind per beer. rewindSeconds = _BeerLevel * this. Default 1 -> 1 beer rewinds ~1s.
+	/// Seconds of rewind per capped beer (see DifficultyBeerHelper()). rewindSeconds =
+	/// cappedBeer * this. Default 1 -> 1 beer rewinds ~1s.
 	/// </summary>
 	[Property] private float _SecondsPerBeer { get; set; } = 1f;
 
@@ -167,8 +189,9 @@ public sealed class DrunkCC : Component
 	[Property] private float _LeanImpulse { get; set; } = 1;
 
 	/// <summary>
-	/// Tap impulse multiplier per beer: impulse = _LeanImpulse * (1 + _BeerLevel * this).
-	/// At 10 beers with 0.5 here a tap hits 6x. Tune so 10+ is "dangerously strong".
+	/// Tap impulse multiplier per capped beer (see DifficultyBeerHelper()): impulse =
+	/// _LeanImpulse * (1 + cappedBeer * this). At a 10-beer cap with 0.5 here a tap hits
+	/// 6x. Tune so the cap is where "dangerously strong" maxes out.
 	/// </summary>
 	[Property] private float _DrunkLeanScale { get; set; } = 0.5f;
 
@@ -181,6 +204,30 @@ public sealed class DrunkCC : Component
 	/// Yaw torque per deg/s of error between target and actual yaw rate. Higher = crisper heading.
 	/// </summary>
 	[Property] private float _YawGain { get; set; } = 1f;
+
+	/// <summary>
+	/// While pants are Down, top forward speed is cut by this percentage (0-100). Scales the
+	/// velocity ceiling and actively holds forward speed at the reduced cap (the movement sphere
+	/// is frictionless, so cutting thrust alone would never slow a coasting body); 100 pins
+	/// forward speed at zero. Note this makes turning moot at 100 — the CC only steers while
+	/// moving forward. Only the owning client simulates this.
+	/// </summary>
+	[Property, Range( 0f, 100f, clamped: true )] private float _SpeedPantsDownDisabler { get; set; } = 0f;
+
+	/// <summary>
+	/// While pants are Down, turn rate is multiplied by (1 + this FRACTION), no cap. This is NOT
+	/// a 0-100 percentage like the speed knob above: 1.0 = +100% = doubled turn rate. Multiplies
+	/// the target yaw rate, so it genuinely turns faster rather than just snapping to the same
+	/// rate sooner. Only the owning client simulates this.
+	/// </summary>
+	[Property] private float _RotationPantsDownIncreaser { get; set; } = 1f;
+
+	/// <summary>
+	/// While pants are Down, jump force is cut by this percentage (0-100). 100 removes the jump
+	/// entirely (the press is ignored — no animation trigger, no jump-gate latch). Only the
+	/// owning client simulates this.
+	/// </summary>
+	[Property, Range( 0f, 100f, clamped: true )] private float _JumpPantsDownDisabler { get; set; } = 0f;
 
 	/// <summary>
 	/// How fast a character goes per beers gained.
@@ -210,7 +257,7 @@ public sealed class DrunkCC : Component
 
 	/// <summary>
 	/// Distance (units) below the sphere's bottom to probe for ground. The landing check and the
-	/// can-jump check both use this downward trace. Small values are stricter about "grounded".
+	/// can-jump check both use this downward trace. Small values are stricter about "_isGrounded".
 	/// </summary>
 	[Property] private float _GroundCheckDistance { get; set; } = 4f;
 	
@@ -271,16 +318,55 @@ public sealed class DrunkCC : Component
 	[Property] private ShrimpleRagdoll _Ragdoll { get; set; }
 	
 	private CCCamera _ccCamera;
- 	
+	private GameManager _gameManager;
+	private bool _isGrounded;
+
+	/// <summary>
+	/// The BeerLevel value difficulty effects should read: the raw level saturated at
+	/// GameManager.BeerDifficultyCap (cap &lt;= 0 or no GameManager in scene = no cap).
+	/// Difficulty sites (speed, lean impulse, knockdown rewind, history window) use THIS;
+	/// score/HUD readouts keep using the raw BeerLevel. Resolves _gameManager lazily so the
+	/// cap works even before OnSpawnHelper's RPC has landed.
+	/// </summary>
+	private float DifficultyBeerHelper()
+	{
+		_gameManager ??= Scene.GetAllComponents<GameManager>().FirstOrDefault();
+		if ( _gameManager is null ) return BeerLevel;
+		float cap = _gameManager.BeerDifficultyCap;
+		return cap > 0f ? MathF.Min( BeerLevel, cap ) : BeerLevel;
+	}
+
+	/// <summary>
+	/// Sets the pants state. Owner-authoritative: only the owning client may write it (mirrors the
+	/// IsProxy gates on the physics code); [Sync] on CurrentPantsState replicates the STATE alone
+	/// to proxies so they can mimic the pants visuals. The movement tunables
+	/// (_SpeedPantsDownDisabler / _RotationPantsDownIncreaser) never travel — proxies never
+	/// simulate this body's physics. Gameplay triggers (obstacle drop, pull-up mash) call this;
+	/// the pants visual system reads CurrentPantsState.
+	/// </summary>
+	public void SetPantsState( PantsState state )
+	{
+		if ( IsProxy )
+			return;
+
+		if ( CurrentPantsState == state )
+			return;
+
+		CurrentPantsState = state;
+		Log.Info( $"DrunkCC: pants state -> {state}" );
+	}
+
 	protected override void OnStart()
 	{
-		WallHitColliderReporter.OnTriggerEnterCallback += OnWallHitColliderEnter;
-		WallHitColliderReporter.OnTriggerExitCallback += OnWallHitColliderExit;
-		_ccCamera = Scene.FindAllWithTag( "cccamera" ).FirstOrDefault()?.GetComponent<CCCamera>(); //SceneNetworkSystem Get<CCCamera>();
+		WallHitColliderReporter.OnTriggerEnterCallback += OnWallHitColliderEnterHelper;
+		WallHitColliderReporter.OnTriggerExitCallback += OnWallHitColliderExitHelper;
+		_ccCamera = Scene.Scene.FindAllWithTagOrigin( "cccamera" ).FirstOrDefault()?.GetComponent<CCCamera>(); //SceneNetworkSystem Get<CCCamera>();
 		if(_ccCamera == null)
 		{
 			Log.Warning( "DrunkCC: CCCamera not found!" );
 		}
+		OnSpawnHelper(Connection.Local);
+		Log.Info( "~~~I AM ALIVE~~~~DrunkCC: OnStart" );
 	}
 	
 	protected override void OnUpdate()
@@ -292,54 +378,62 @@ public sealed class DrunkCC : Component
 				_SkinnedModelRenderer.Set( "move_style", 2 );
 				_SkinnedModelRenderer.Set( "move_x", 10000 );
 				_ccCamera.UseAltTargets = false;
+				_ccCamera.StayBehind = true;
 				break;
 			case State.KnockedDown:
 				_ccCamera.UseAltTargets = true;
+				_ccCamera.StayBehind = false;
 				break;
 		}
 	}
 
 	protected override void OnFixedUpdate()
 	{
-		if ( _Rigidbody == null ) return;
+		if ( _Rigidbody == null ) 
+			return;
 
+		// Landing detection: once a jump has carried the body clear of the ground, the first time
+		// we touch down again clears the jump gate so the next Jump press is allowed. Feeding
+		// IsGroundedHelper here also lets the animgraph blend out of the jump/fall pose on landing.
+		_isGrounded = IsGroundedHelper();
+		_CitizenAnimationHelper.IsGrounded = _isGrounded;
+
+		
+		if ( IsProxy )
+			return;
+		
 		if ( CurrentState == State.Running)
 		{
-				HandleRunning();
+				OwnerHandleRunningHelper();
 				// Rule 5: leaned too far -> knocked down.
 				if ( _MaxHitRoll > 0f && MathF.Abs( _rollDeg ) > _MaxHitRoll )
 				{
-					EnterKnockedDown();
+					OwnerEnterKnockedDownHelper();
 				}
 				else if ( _HasHitObstacle )
 				{
 					_HasHitObstacle = false;
-					EnterKnockedDown();
+					OwnerEnterKnockedDownHelper();
 				}
 		}
 		if(CurrentState == State.KnockedDown)
-			HandleKnockedDown();
+			HandleKnockedDownHelper();
 	}
 
-	private void HandleRunning()
+	private void OwnerHandleRunningHelper()
 	{
-		// Landing detection: once a jump has carried the body clear of the ground, the first time
-		// we touch down again clears the jump gate so the next Jump press is allowed. Feeding
-		// IsGrounded here also lets the animgraph blend out of the jump/fall pose on landing.
-		bool grounded = IsGrounded();
-		_CitizenAnimationHelper.IsGrounded = grounded;
 		
 		if(IsProxy)
-			return;
+			Log.Error("OwnerHandleRunningHelper should only be called by owner!");
 
-		// Only record recovery history while grounded. Airborne/off-map positions must never
+		// Only record recovery history while _isGrounded. Airborne/off-map positions must never
 		// become a stand-up target: falling off the map would otherwise poison the trail and
 		// recovery would teleport the player to a point they were never validly standing on.
-		if ( grounded )
+		if ( _isGrounded )
 			RecordRunningHistoryHelper();
 		if ( _isJumping )
 		{
-			if ( !grounded )
+			if ( !_isGrounded )
 				_hasLeftGround = true;
 			else if ( _hasLeftGround )
 				_isJumping = false;
@@ -359,11 +453,36 @@ public sealed class DrunkCC : Component
 		float rollRateDeg = localAv.x.RadianToDegree();
 		float yawRateDeg  = localAv.z.RadianToDegree();
 
-		// Rule 1 / 7: always running, always gaining speed up to the ceiling.
-		if ( _Rigidbody.Velocity.Length < _VelocityCeiling )
+		// Pants-down modifiers. Only the owner reaches here (IsProxy early-out above); proxies
+		// just receive CurrentPantsState over [Sync] for visuals, never simulate it.
+		float pantsSpeedScale = 1f;
+		float pantsTurnScale = 1f;
+		float pantsJumpScale = 1f;
+		if ( CurrentPantsState == PantsState.Down )
 		{
-			float beerSpeedMultiplier = (_BeerToSpeedMultiplier + 1) * (BeerLevel + 1); // todo: consider better handle to edge case than " add 1" -ecs
+			pantsSpeedScale = 1f - ( _SpeedPantsDownDisabler / 100f ).Clamp( 0f, 1f );
+			pantsTurnScale = 1f + MathF.Max( 0f, _RotationPantsDownIncreaser );
+			pantsJumpScale = 1f - ( _JumpPantsDownDisabler / 100f ).Clamp( 0f, 1f );
+		}
+
+		// Rule 1 / 7: always running, always gaining speed up to the ceiling (reduced while pants are down).
+		float speedCeiling = _VelocityCeiling * pantsSpeedScale;
+		if ( _Rigidbody.Velocity.Length < speedCeiling )
+		{
+			float beerSpeedMultiplier = (_BeerToSpeedMultiplier + 1) * (DifficultyBeerHelper() + 1); // todo: consider better handle to edge case than " add 1" -ecs
 			_Rigidbody.ApplyForce( _Rigidbody.WorldRotation.Forward * _RunningForce * beerSpeedMultiplier );
+		}
+
+		// Enforce the reduced forward cap while pants are down: strip forward velocity above it,
+		// so X% means X% off top speed even when coasting (the movement sphere is frictionless, so
+		// cutting thrust alone would never slow an already-moving body), and 100% means the
+		// forward speed is actively held at zero.
+		if ( pantsSpeedScale < 1f )
+		{
+			var fwd = _Rigidbody.WorldRotation.Forward;
+			float fwdSpeed = Vector3.Dot( _Rigidbody.Velocity, fwd );
+			if ( fwdSpeed > speedCeiling )
+				_Rigidbody.Velocity -= fwd * ( fwdSpeed - speedCeiling );
 		}
 
 		// Lateral grip: oppose sideways velocity so the heading change from yaw actually turns
@@ -375,14 +494,14 @@ public sealed class DrunkCC : Component
 		}
 
 		// Lean input: taps only, each tap is an angular impulse about the forward axis.
-		// Rule 2 / 4: drunkenness multiplies the impulse with no cap.
+		// Rule 2 / 4: drunkenness multiplies the impulse, saturating at BeerDifficultyCap.
 		// Sign mapping (Right -> -fwd) was verified in-editor with the previous torque version.
 		float leanDir = 0f;
 		if ( Input.Down( "Left" ) ) leanDir -= 1f;
 		if ( Input.Down( "Right" ) )  leanDir += 1f;
 		if ( leanDir != 0f )
 		{
-			float impulse = _LeanImpulse * ( 1f + BeerLevel * _DrunkLeanScale );
+			float impulse = _LeanImpulse * ( 1f + DifficultyBeerHelper() * _DrunkLeanScale );
 			_Rigidbody.PhysicsBody?.ApplyTorque( _Rigidbody.WorldRotation.Forward * leanDir * impulse );
 		}
 
@@ -396,94 +515,87 @@ public sealed class DrunkCC : Component
 			float error = _rollDeg - MathF.Sign( _rollDeg ) * _RollResponseFloor;
 			spring = error * _CorrectionStrength;
 		}
-		float damping = _CorrectionDamping > 0f ? _CorrectionDamping : CriticalRollDamping( _Rigidbody );
+		float damping = _CorrectionDamping > 0f ? _CorrectionDamping : CriticalRollDampingHelper( _Rigidbody );
 		_Rigidbody.ApplyTorque( _Rigidbody.WorldRotation.Forward * ( spring - rollRateDeg * damping ) );
 
 		// Rule 3: yaw follows roll, linearly, while moving forward. Done as a rate-tracking torque
 		// about the body's up axis rather than setting angular velocity. Standing still or moving
-		// backward the target is zero, which also damps out residual yaw.
+		// backward the target is zero, which also damps out residual yaw. Pants-down scales the
+		// target rate, so the steady-state turn rate really is (1 + Y) times faster.
 		float forwardSpeed = Vector3.Dot( _Rigidbody.Velocity, _Rigidbody.WorldRotation.Forward );
-		float targetYawRateDeg = forwardSpeed > 0f ? _rollDeg * _RollTurnRate : 0f;
+		// At a full stop (_SpeedPantsDownDisabler = 100 -> pantsSpeedScale exactly 0) the stripped
+		// forward residual is float noise around zero whose sign flips per substep, which would make
+		// the gate below flicker the yaw torque on/off nondeterministically. This CC's steering
+		// model needs forward motion to turn at all, so a full stop deterministically means "not
+		// moving forward" instead of reading the noisy dot.
+		bool movingForward = pantsSpeedScale > 0f && forwardSpeed > 0f;
+		float targetYawRateDeg = movingForward ? _rollDeg * _RollTurnRate * pantsTurnScale : 0f;
 		_Rigidbody.ApplyTorque( _Rigidbody.WorldRotation.Up * ( targetYawRateDeg - yawRateDeg ) * _YawGain );
 
-		ApplyDebugLocks( _Rigidbody );
+		ApplyDebugLocksHelper( _Rigidbody );
 
-		if ( Input.Pressed( "Jump" ) && !_isJumping && grounded )
+		// Pants-down can weaken or fully remove the jump (_JumpPantsDownDisabler = 100 -> scale 0
+		// -> press ignored entirely: no force, no animation trigger, no jump-gate latch).
+		if ( Input.Pressed( "Jump" ) && !_isJumping && _isGrounded && pantsJumpScale > 0f )
 		{
-			_Rigidbody.ApplyForce( _Rigidbody.WorldRotation.Up * _JumpForce );
+			_Rigidbody.ApplyForce( _Rigidbody.WorldRotation.Up * _JumpForce * pantsJumpScale );
 			_CitizenAnimationHelper.TriggerJump();
 			_isJumping = true;
 			_hasLeftGround = false;
 		}
 	}
 
-	private void HandleKnockedDown()
+	private void HandleKnockedDownHelper()
 	{
 		// Rule 6: ragdoll. No forces, no locks, physics owns the body until the timer runs out.
 		if ( _knockdownEnds )
 		{
-			ResetFromKnockdown();
+			ResetFromKnockdownHelper();
 		}
 	}
 	
 	
-	private void EnterKnockedDown()
+	private void OwnerEnterKnockedDownHelper()
 	{
+		if(IsProxy)
+			Log.Error("OwnerEnterKnockedDownHelper CALLED BY PROXY! THIS IS WRONG!");
+
 		CurrentState = State.KnockedDown;
 		_knockdownEnds = _KnockdownRecoveryTime;
-		_Ragdoll.Mode = RagdollMode.Enabled;
-		_Ragdoll.ApplyVelocity( _Rigidbody.Velocity );
-
-		// Recovery rewinds further back the drunker you are. Pull the sample from
-		// rewindSeconds ago; if history is shorter than that (early game, or beer just spiked),
-		// fall back to the oldest sample we have.
-		float rewindSeconds = BeerLevel * _SecondsPerBeer;
-		var restore = GetRewoundSample( rewindSeconds );
+			
+		RagdollifyHelper();
+		
+		// Recovery rewinds further back the drunker you are (saturated at BeerDifficultyCap).
+		// Pull the sample from rewindSeconds ago; if history is shorter than that (early game,
+		// or beer just spiked), fall back to the oldest sample we have.
+		float rewindSeconds = DifficultyBeerHelper() * _SecondsPerBeer;
+		var restore = GetRewoundSampleHelper( rewindSeconds );
 
 		_knockdownRestorePosition = restore.Position;
 		_knockdownHeading = restore.Heading;
 		if ( _knockdownHeading.IsNearlyZero() ) _knockdownHeading = Vector3.Forward;
-		
-		Log.Info("Entering Knockdown.");
 	}
 
-	/// <summary>
-	/// Records a position/heading sample at _RecoverySampleInterval and trims the trail to the
-	/// window we need: current beer's rewind plus headroom, so higher future beer levels already
-	/// have trail to rewind into. Called only while Running.
-	/// </summary>
-	private void RecordRunningHistoryHelper()
+	[Rpc.Broadcast]
+	private void RagdollifyHelper(bool undoRagdoll = false)
 	{
-		if ( _sinceLastSample < _RecoverySampleInterval && _history.Count > 0 )
-			return;
-
-		_sinceLastSample = 0f;
-
-		var heading = _Rigidbody.WorldRotation.Forward.WithZ( 0f );
-		if ( heading.IsNearlyZero() ) heading = _Rigidbody.WorldRotation.Up.WithZ( 0f );
-
-		_history.Add( new HistorySample
+		if ( undoRagdoll == false)
 		{
-			Time = Time.Now,
-			Position = _Rigidbody.WorldPosition,
-			Heading = heading,
-		} );
+			_Ragdoll.Mode = RagdollMode.Enabled;
+			_Ragdoll.ApplyVelocity( _Rigidbody.Velocity );
+		}
+		else
+		{
+			_Ragdoll.Mode = RagdollMode.None;
+		}
 
-		// Keep buffer sized to the deepest rewind we might need plus headroom.
-		float window = BeerLevel * _SecondsPerBeer + _RecoveryHistoryHeadroom;
-		float cutoff = Time.Now - window;
-		int keepFrom = 0;
-		while ( keepFrom < _history.Count - 1 && _history[keepFrom].Time < cutoff )
-			keepFrom++;
-		if ( keepFrom > 0 )
-			_history.RemoveRange( 0, keepFrom );
 	}
 
 	/// <summary>
 	/// Returns the sample from approximately secondsAgo in the past, clamped to the oldest sample
 	/// when history doesn't reach that far back. Falls back to the live transform if empty.
 	/// </summary>
-	private HistorySample GetRewoundSample( float secondsAgo )
+	private HistorySample GetRewoundSampleHelper( float secondsAgo )
 	{
 		if ( _history.Count == 0 )
 		{
@@ -512,7 +624,7 @@ public sealed class DrunkCC : Component
 	/// surface while the rigidbody origin sits above the sphere's contact point, so the point is
 	/// lifted by that standing offset to land resting on the ground rather than buried in it.
 	/// </summary>
-	private Vector3 SnapRecoveryToNavMesh( Vector3 pos )
+	private Vector3 SnapRecoveryToNavMeshHelper( Vector3 pos )
 	{
 		var nav = Scene.NavMesh;
 		if ( nav is null || !nav.IsEnabled )
@@ -526,11 +638,11 @@ public sealed class DrunkCC : Component
 			var here = _Rigidbody.WorldPosition;
 			var snappedHere = nav.GetClosestPoint( here, _RecoveryNavSearchRadius );
 			return snappedHere.HasValue
-				? snappedHere.Value + Vector3.Up * RecoveryStandOffset()
+				? snappedHere.Value + Vector3.Up * RecoveryStandOffsetHelper()
 				: here;
 		}
 
-		return snapped.Value + Vector3.Up * RecoveryStandOffset();
+		return snapped.Value + Vector3.Up * RecoveryStandOffsetHelper();
 	}
 
 	/// <summary>
@@ -538,7 +650,7 @@ public sealed class DrunkCC : Component
 	/// collider (Radius minus the collider's local Center.z). Lets the navmesh snap reproduce
 	/// the standing pose instead of embedding the sphere.
 	/// </summary>
-	private float RecoveryStandOffset()
+	private float RecoveryStandOffsetHelper()
 	{
 		var collider = _Rigidbody.GameObject.Components.Get<SphereCollider>();
 		if ( collider is null ) return 0f;
@@ -552,7 +664,7 @@ public sealed class DrunkCC : Component
 	/// colliders count as ground. Returns true when there's no sphere collider so a misconfigured
 	/// prefab doesn't silently make jumping impossible.
 	/// </summary>
-	private bool IsGrounded()
+	private bool IsGroundedHelper()
 	{
 		var collider = _Rigidbody.GameObject.Components.Get<SphereCollider>();
 		if ( collider is null ) return true;
@@ -568,9 +680,9 @@ public sealed class DrunkCC : Component
 	/// <summary>
 	/// Rule 7: stand back up at the rewound recovery point, facing that moment's heading, at zero velocity.
 	/// </summary>
-	private void ResetFromKnockdown()
+	private void ResetFromKnockdownHelper()
 	{
-		_Ragdoll.Mode = RagdollMode.None;
+		RagdollifyHelper(true);
 		if(IsProxy)
 			return;
 		
@@ -580,7 +692,7 @@ public sealed class DrunkCC : Component
 
 		// Snap the rewound point onto the navmesh if one exists. Quietly falls back to the raw
 		// position when there's no mesh, it's disabled, or the point is beyond the search radius.
-		rb.WorldPosition = SnapRecoveryToNavMesh( _knockdownRestorePosition );
+		rb.WorldPosition = SnapRecoveryToNavMeshHelper( _knockdownRestorePosition );
 		rb.WorldRotation = Rotation.LookAt( _knockdownHeading.Normal, Vector3.Up );
 		rb.Velocity = Vector3.Zero;
 		rb.AngularVelocity = Vector3.Zero;
@@ -599,7 +711,7 @@ public sealed class DrunkCC : Component
 	/// inertia I, c = 2*sqrt(k*I). Converting both gains to per-degree gives Kd = 2*sqrt(Kp*I/57.3).
 	/// Uses the inertia about the body's forward (local X) axis.
 	/// </summary>
-	private float CriticalRollDamping( Rigidbody rb )
+	private float CriticalRollDampingHelper( Rigidbody rb )
 	{
 		float inertiaFwd = rb.InertiaTensor.x;
 		if ( inertiaFwd <= 0f || _CorrectionStrength <= 0f ) return 0f;
@@ -611,7 +723,7 @@ public sealed class DrunkCC : Component
 	/// above. LockPitch stays on (the sphere would tumble as it rolls otherwise); LockYaw and
 	/// LockRoll must be off for the motorcycle behaviour to show.
 	/// </summary>
-	private void ApplyDebugLocks( Rigidbody rb )
+	private void ApplyDebugLocksHelper( Rigidbody rb )
 	{
 		if ( !LockPitch && !LockYaw && !LockRoll ) return;
 
@@ -629,9 +741,9 @@ public sealed class DrunkCC : Component
 		rb.WorldRotation = angles.ToRotation();
 	}
 
-	private void OnWallHitColliderEnter( Collider other )
+	private void OnWallHitColliderEnterHelper( Collider other )
 	{
-		Log.Info("Istrigger: " + other.IsTrigger + "---OnWallHitColliderEnter + " + other);
+		Log.Info("Istrigger: " + other.IsTrigger + "---OnWallHitColliderEnterHelper + " + other);
 
 		if ( other.IsTrigger || CurrentState == State.KnockedDown)
 			return;
@@ -640,9 +752,85 @@ public sealed class DrunkCC : Component
 		_hasCheckedHistObstacle = false;
 	}
 	
-	private void OnWallHitColliderExit( Collider other )
+	private void OnWallHitColliderExitHelper( Collider other )
 	{
-		// Log.Info("OnWallHitColliderExit + " + other);
+		// Log.Info("OnWallHitColliderExitHelper + " + other);
 	}
 
+	/// <summary>
+	/// Records a position/heading sample at _RecoverySampleInterval and trims the trail to the
+	/// window we need: current beer's rewind plus headroom, so higher future beer levels already
+	/// have trail to rewind into. Called only while Running.
+	/// </summary>
+	private void RecordRunningHistoryHelper()
+	{
+		if ( _sinceLastSample < _RecoverySampleInterval && _history.Count > 0 )
+			return;
+
+		_sinceLastSample = 0f;
+
+		var heading = _Rigidbody.WorldRotation.Forward.WithZ( 0f );
+		if ( heading.IsNearlyZero() ) heading = _Rigidbody.WorldRotation.Up.WithZ( 0f );
+
+		_history.Add( new HistorySample
+		{
+			Time = Time.Now,
+			Position = _Rigidbody.WorldPosition,
+			Heading = heading,
+		} );
+
+		// Keep buffer sized to the deepest rewind we might need plus headroom. Uses the same
+		// capped reading as OwnerEnterKnockedDownHelper so the trail is never shorter than the
+		// rewind it must serve nor kept uselessly longer.
+		float window = DifficultyBeerHelper() * _SecondsPerBeer + _RecoveryHistoryHeadroom;
+		float cutoff = Time.Now - window;
+		int keepFrom = 0;
+		while ( keepFrom < _history.Count - 1 && _history[keepFrom].Time < cutoff )
+			keepFrom++;
+		if ( keepFrom > 0 )
+			_history.RemoveRange( 0, keepFrom );
+	}
+	
+	/// <summary>
+	/// Proxy and Owned 
+	/// </summary>
+	[Rpc.Broadcast]
+	private void OnSpawnHelper(Connection connection)
+	{
+		DressPlayerHelper(GameObject, connection);
+		if ( IsProxy )
+			return;
+		
+		_gameManager = Scene.Scene.FindAllWithTagOrigin( "gamemanager" ).FirstOrDefault()?.GetComponent<GameManager>();
+		if ( _gameManager != null )
+		{
+			_gameManager.OnSpawn( connection, GameObject );
+		}
+		else
+		{
+			Log.Error( "GameManager not found, cannot apply account clothing." );
+		}
+	}
+	
+	/// <summary>
+	/// Applies the owning player's account clothing (Steam avatar) to their own player body's
+	/// Dresser. [Rpc.Broadcast] so every currently-connected client sees the same outfit on that
+	/// player, mirroring the drinker-dressing pattern in Bar.cs's DressDrinkerHelper. Only the
+	/// Clothing list comes from the account - Height/Age/Tint stay whatever the player prefab's
+	/// Dresser was preset to (see Extensions.ApplyClothingOnlyAsync), so every player keeps the
+	/// same body proportions regardless of their account avatar.
+	/// </summary>
+	[Rpc.Broadcast]
+	private async void DressPlayerHelper( GameObject player, Connection playerConnection )
+	{
+		var dresser = player.GetComponentInChildren<Dresser>( true );
+		if ( dresser is null || !dresser.BodyTarget.IsValid() )
+		{
+			Log.Error( "Player has no valid Dresser/BodyTarget, cannot apply account clothing." );
+			return;
+		}
+
+		var clothing = ClothingContainer.CreateFromConnection( playerConnection );
+		await dresser.ApplyClothingOnlyAsync( clothing );
+	}
 }
