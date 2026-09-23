@@ -98,6 +98,19 @@ public static class Extensions
 	}
 
 	/// <summary>
+	/// Same as <see cref="Scene.FindAllWithTag"/> but only returns the objects where the tag
+	/// originates: the object either has no parent, or its parent does not have that tag
+	/// (checked with inherited tags too, so an object whose ancestor carries the tag is not
+	/// an origin). Because Scene.Parent is null and the tag walk stops at the scene, a
+	/// top-level object in the scene counts as an origin unless the scene itself is tagged.
+	/// Effectively: the topmost tagged object of each tagged subtree.
+	/// </summary>
+	public static IEnumerable<GameObject> FindAllWithTagOrigin( this Scene scene, string tag )
+	{
+		return scene.Scene.FindAllWithTag( tag ).Where( x => x.Parent is null || !x.Parent.Tags.Has( tag ) );
+	}
+
+	/// <summary>
 	/// Applies only the Clothing list from an account's ClothingContainer to this Dresser's
 	/// BodyTarget - Height, Age and Tint are overwritten with the Dresser's own preset
 	/// (Manual*) values first, so an account's appearance data never overrides a character's
