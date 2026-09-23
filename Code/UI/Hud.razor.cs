@@ -74,7 +74,7 @@ public partial class Hud : PanelComponent
 		_drunk = _GameManager?.GetLocalDrunkCC();
 
 		// DEBUG toggle for the pants readout (raw key, not an input action - nothing binds F2).
-		if ( Input.Keyboard.Pressed( "F2" ) )
+		if ( Input.Keyboard.Pressed( "P" ) )
 			_ShowPantsDebug = !_ShowPantsDebug;
 	}
 
@@ -137,18 +137,21 @@ public partial class Hud : PanelComponent
 
 	/// <summary>
 	/// DEBUG: raw synced pants state of the local DrunkCC, e.g. "PANTS: UP".
-	/// Null player still reads Up (the enum's default), matching what a proxy would receive.
+	/// Shows "NO PLAYER" until the local DrunkCC resolves, so a fake UP default
+	/// can't be mistaken for a real sync value.
 	/// </summary>
-	private string PantsDebugText => _drunk?.CurrentPantsState == DrunkCC.PantsState.Down ? "PANTS: DOWN" : "PANTS: UP";
+	private string PantsDebugText => _drunk is null ? "NO PLAYER"
+		: _drunk.CurrentPantsState == DrunkCC.PantsState.Down ? "PANTS: DOWN"
+		: "PANTS: UP";
 
 	/// <summary>DEBUG: true colour so a stuck state is obvious at a glance (Up=green, Down=red).</summary>
 	private bool PantsDebugIsDown => _drunk?.CurrentPantsState == DrunkCC.PantsState.Down;
 
 	// Rebuild every frame while visible so timer/score/drunkenness track their live values;
 	// hash to a constant while hidden so the idle panel stays put (mirrors Minigame.BuildHash).
-	// The pants debug branch exists so the readout also tracks the synced state while the run
-	// HUD itself is hidden (PreRun etc.) - that's when checking the Up default matters.
+	// While hidden, the hash still tracks the pants-debug toggle/state so the readout keeps
+	// working pre-spawn (PreRun) instead of freezing at first paint.
 	protected override int BuildHash() => Visible
 		? HashCode.Combine( Visible, RealTime.Now )
-		: HashCode.Combine( Visible, _ShowPantsDebug, PantsDebugIsDown );
+		: HashCode.Combine( Visible, _ShowPantsDebug, PantsDebugText );
 }
