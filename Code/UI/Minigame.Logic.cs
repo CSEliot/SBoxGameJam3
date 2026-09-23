@@ -93,9 +93,12 @@ public partial class Minigame
 		if ( !IsPlaying )
 			return;
 
+		if(Input.Keyboard.Pressed("Z"))
+			_endsAt += 10f;
+		
 		if ( Input.Keyboard.Pressed( "space" ) )
 		{
-			SpawnABeerHelper();
+			SpawnABeerHelper( BeerSpawnLocation );
 
 			Progress += _FillPerPress;
 			Beers += _FillPerPress;
@@ -116,9 +119,15 @@ public partial class Minigame
 		}
 	}
 
+	// The spawn position must come in as an RPC argument: BeerSpawnLocation is a
+	// viewer-local, non-synced field (only set for the local seated player in
+	// Bar.ApplySitDownPlayer), so an argument-less broadcast made every client
+	// clone the mug at its OWN BeerSpawnLocation - remote players' beers showed
+	// up at the wrong drinker seat. Passing it replicates the presser's
+	// authoritative position to everyone.
 	[Rpc.Broadcast(NetFlags.Unreliable)]
-	public void SpawnABeerHelper()
+	public void SpawnABeerHelper( Vector3 spawnLocation )
 	{
-		_Mug.Clone( BeerSpawnLocation );
+		_Mug.Clone( spawnLocation );
 	}
 }
