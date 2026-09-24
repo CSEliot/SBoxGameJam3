@@ -52,6 +52,13 @@ public partial class Hud : PanelComponent
 	[Property] private float _TimerCriticalSeconds { get; set; } = 10f;
 
 	/// <summary>
+	/// Build/version watermark shown bottom-right (any text; empty string hides it).
+	/// No version field exists in the .sbproj, so this is the single source of truth -
+	/// bump it here (or override in the scene inspector) when shipping a build.
+	/// </summary>
+	[Property] private string _VersionLabel { get; set; } = "v0.2.0";
+
+	/// <summary>
 	/// DEBUG: show the local DrunkCC's CurrentPantsState (Up/Down) pinned mid-right edge.
 	/// Toggle at runtime with F2; this is a raw sync-state readout for pants debugging,
 	/// not the Design Screen 1 pants meter (which remains unimplemented).

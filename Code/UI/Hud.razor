@@ -75,4 +75,9 @@
 			<div class="pants-debug-hint">P: toggle showing pants debug</div>
 		</div>
 	}
+
+	@if ( !string.IsNullOrWhiteSpace( _VersionLabel ) )
+	{
+		<div class="version-label">@_VersionLabel</div>
+	}
 </root>
