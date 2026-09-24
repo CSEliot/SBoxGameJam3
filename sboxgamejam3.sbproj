@@ -1,8 +1,8 @@
 {
-  "Title": "Bottoms Up: One More Round",
+  "Title": "Bottoms Up [Staging]",
   "Type": "game",
   "Org": "cseliot",
-  "Ident": "bottomsup",
+  "Ident": "sboxgamejam3",
   "Schema": 1,
   "IncludeSourceFiles": false,
   "Resources": null,
