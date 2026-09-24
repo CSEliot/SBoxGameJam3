@@ -61,6 +61,46 @@ single beer (the `_Mug` prefab, cloned at the Drinker's `BeerSpawnLocation`) as 
 stand-in. The final implementation will replace this with a beer-drinking animation
 on the character.
 
+## HUD Target-Bar Preview (ScenePanel, built 2026-09-24)
+
+The HUD shows a spinning 3D render of the current target bar bottom-left (Design
+Screen 1, "Target Bar Preview"). It is a `ScenePanel` (`<scene @ref>` element in
+`Hud.razor`, gated on the HUD's run-`Visible`), which renders a PRIVATE scene
+(`ScenePanel.RenderScene`, `WantsSystemScene=false`, engine-owned, destroyed with
+the panel) to a texture composited in the UI layer - that is what makes it draw
+on top of in-world models; no render-layer flags involved.
+
+Data flow: `GameManager.GetTargetBar()` (read-only accessor over `_Bars[_targetBarWaiting]`,
+same target the arrow indicator and enter-ring follow) -> `Bar.ActiveBarModule.Name` ->
+matched BY INDEX against Hud's `[Property] string[] _BarPreviewNames` /
+`[Property] GameObject[] _BarPreviewPrefabs` (wired on the UI-Hud component in
+`minimal.scene`; names are "Garys" / "The Drunken Cam" / "The Spongey Splatoon").
+The `-JustModel` prefabs under `Assets/fbx/bars/*/` are the visual-only twins of the
+bar modules (model renderers + an authored SpotLight for UI visibility; gameplay
+components stripped). Adding a 4th bar means: make its `-JustModel` prefab, then add
+ONE ENTRY TO BOTH ARRAYS IN THE SAME INDEX POSITION.
+
+Runtime behavior (all in `Hud.razor.cs`, `UpdateTargetBarPreviewHelper`):
+- Rebuild fires only when the `<scene>` panel is recreated (run-gate re-entry nulls
+  the @ref; reopening creates a NEW RenderScene - detected via
+  `ReferenceEquals( _previewScene, host.RenderScene )`) or the target NAME changes.
+  Per-frame BuildHash rebuilds are block-diffed and never destroy the element.
+- The clone is made `startEnabled: false`, stripped (Collider/NavMeshArea/BarModule/
+  ParticleEffect/Enter-Ring destroyed, NetworkMode=Never recursively), then enabled -
+  gameplay components never tick inside the UI scene, not even for one frame.
+- Rig: tilt node (static `Rotation.FromRoll(_PreviewKilter)`) > spin node (per-frame
+  `Rotation.FromAxis(Vector3.Up, spin)`), camera + key/fill DirectionalLights created
+  in-scene; the prefabs' own SpotLight rides along with the clone.
+- Auto-frame is a RETRY LOOP (`FramePreviewHelper`, latched by `_previewFramed`):
+  `ModelRenderer.Bounds` returns a 16-unit fallback box until the Model resource
+  loads, so framing waits until every renderer's `Model != null` and the bounds
+  exceed 32 units; spin is held until framed so measurement happens at rest pose.
+  Framing: center clone via `LocalPosition = -bounds.Center`, camera distance from
+  bounds diagonal / tan(fov/2) x 1.2 margin.
+- `cam.IsMainCamera = true` forces synchronous `Scene.UpdateMainCamera()` so
+  ScenePanel's RenderScene.Camera branch resolves immediately; `CustomSize` is set
+  from the panel box each tick (null CustomSize = full-screen aspect distortion).
+
 
 
 

@@ -136,6 +136,7 @@ Timer                         Score                  Drunkenness
 Arrow Indicator (3D, floating above ground, points to target bar)
 
 [BOTTOM-LEFT]
+Target Bar Preview (3D model of the target bar, spinning on a slight kilter)
 Pants State
 [██] (Shift held = up, released = down)
 ```
@@ -169,6 +170,18 @@ Pants State
 - Size: Medium (visible but not obstructive)
 - Behavior: Dynamically updates to point to closest valid bar, rotates smoothly
 - Drunk effect: **None** (gameplay critical, must stay readable)
+
+**Target Bar Preview (bottom-left, BUILT 2026-09-24)**
+- Format: 3D render of the target bar's model (its `-JustModel` prefab), spinning slowly
+  on a slight kilter (~10° roll), inside a 300px box above the controls hint
+- Implementation: `ScenePanel` (`<scene>` element in Hud.razor) rendering a private scene -
+  composites in the UI layer, so it always draws ON TOP of in-world models
+- Behavior: shows whichever bar `GameManager.GetTargetBar()` currently targets (same target
+  the arrow/ring follow); gated on the HUD's run-Visible gate, so it never floats over the
+  menu, bar screens, or End-Game overlay
+- Tunables (UI-Hud inspector): `_PreviewSpinSpeed` (deg/s), `_PreviewKilter` (deg);
+  prefab/name pairing via `_BarPreviewPrefabs` + `_BarPreviewNames` (by index)
+- Drunk effect: TBD (not applied; consider exempting like the arrow if it becomes hard to read)
 
 **Pants State (bottom-left)**
 - Format: 2-state indicator (up / down), e.g. a pants icon that is filled while Shift is held and dim/broken when down

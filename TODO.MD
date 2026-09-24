@@ -1,6 +1,7 @@
 feedbakc:
 
-camera is shit. tighten it.
+Make pub interiors more unique
+Make the bottom left pub shower more obvious as to its purpose.
 
 
 ## OTHER
