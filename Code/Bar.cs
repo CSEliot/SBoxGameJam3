@@ -212,12 +212,13 @@ public sealed class Bar : Component, Component.ITriggerListener
 	}
 
 	/// <summary>
-	/// Toggles this bar's Enter-Ring particle effect (the ring node tagged under the active
-	/// BarModule that marks where the player should walk in). Called by GameManager whenever
-	/// the current target bar changes, so only the bar the player is meant to reach next
-	/// shows its ring. Returns false if the bar hasn't resolved its active module yet (OnStart
-	/// still pending), so the caller retries next frame instead of silently skipping the toggle.
-	/// A bar that IS started but has no ring node returns true (nothing to do).
+	/// Toggles this bar's Enter-Ring particle effect (the ring node named "Enter-Ring" under
+	/// the active BarModule that marks where the player should walk in; resolved by name
+	/// because several nodes in the prefab share the "particles" tag). Called by GameManager
+	/// whenever the current target bar changes, so only the bar the player is meant to reach
+	/// next shows its ring. Returns false if the bar hasn't resolved its active module yet
+	/// (OnStart still pending), so the caller retries next frame instead of silently skipping
+	/// the toggle. A bar that IS started but has no ring node returns true (nothing to do).
 	/// </summary>
 	public bool TrySetEnterRingVisible( bool visible )
 	{

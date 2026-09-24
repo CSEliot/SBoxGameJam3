@@ -267,10 +267,14 @@ public sealed class GameManager : Component, Component.INetworkListener
 	/// Keeps exactly one bar's Enter-Ring visible: the one at _targetBarWaiting (the bar the
 	/// local player must reach next). Mirrors UpdateArrowIndicatorHelper's guards - sparse
 	/// [Sync] _Bars may not be replicated yet, so a pass that finds an unready bar leaves
-	/// _ringsSyncedForTarget alone and simply retries next frame; it commits only once every
-	/// occupied slot applied its toggle. Runs on every client against its OWN target (rings
-	/// are per-client local visuals like the arrow, not synced state), which is also why
-	/// UpdateNextBarData's per-client RNG divergence can't desync a neighbour's ring.
+	/// _ringsSyncedForTarget alone and simply retries next frame. It also refuses to commit
+	/// an entirely empty pass (no occupied slot toggled yet = _Bars not replicated at all),
+	/// which would otherwise latch the gate at the initial target and strand the target
+	/// bar's ring hidden (rings are authored Enabled=false) until the next target change.
+	/// Runs on every client against its OWN target: the ring nodes are NetworkMode.Never in
+	/// bar.prefab, so GameObject.Enabled here is never replicated and per-client targets
+	/// can't clobber each other. A host handoff's local-object refresh can still reset the
+	/// Never-mode nodes to serialized state, hence the gate re-arm in OnActive.
 	/// </summary>
 	private void UpdateEnterRingVisibilityHelper()
 	{
@@ -281,16 +285,18 @@ public sealed class GameManager : Component, Component.INetworkListener
 			return;
 
 		bool allReady = true;
+		bool anyToggled = false;
 		for ( int i = 0; i < _Bars.Length; i++ )
 		{
 			if ( _Bars[i] == null )
 				continue;
 
+			anyToggled = true;
 			if ( !_Bars[i].TrySetEnterRingVisible( i == _targetBarWaiting ) )
 				allReady = false;
 		}
 
-		if ( allReady )
+		if ( allReady && anyToggled )
 			_ringsSyncedForTarget = _targetBarWaiting;
 	}
 
@@ -540,6 +546,11 @@ public sealed class GameManager : Component, Component.INetworkListener
 			_serverActive = true;
 			_localRandom =  new Random(_StartingSeed);
 			_targetBarWaiting = _StartingBar;
+			// Re-arm the ring gate: becoming (or (re)starting as) host triggers a scene
+			// handoff refresh that re-Deserializes NetworkMode.Never objects back to their
+			// authored Enabled=false, silently wiping whatever ring visibility this client
+			// had applied locally. Forcing the next OnUpdate pass to re-apply fixes it.
+			_ringsSyncedForTarget = -1;
 		}
 	}
 
