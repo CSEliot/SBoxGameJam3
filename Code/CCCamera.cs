@@ -190,6 +190,12 @@ public sealed class CCCamera : Component
 	private DrunkCC _drunkCC;
 
 	/// <summary>
+	/// Scene GameManager, resolved lazily by <see cref="AtBarMenuHelper"/> for the bar-menu
+	/// camera freeze (like DrunkCC's same-named field).
+	/// </summary>
+	private GameManager _gameManager;
+
+	/// <summary>
 	/// Tracks which ModelRenderers are currently obstructed and how far each has faded.
 	/// Values range 0..1 where 1 = fully opaque (default).
 	/// </summary>
@@ -240,6 +246,23 @@ public sealed class CCCamera : Component
 
 	protected override void OnUpdate()
 	{
+		// Bar-menu freeze: HandlePlayerBarTriggerEnter disables the player body for the
+		// "ONE MORE ROUND?" modal, but THIS component lives on its own scene node and keeps
+		// ticking: its cached follow/look-at tag GameObjects stay IsValid through the
+		// disabled player (IsValid only checks destroyed), so every frame the chase lerp
+		// still pulls toward target + the FIXED world-space _Offset (it never rotates with
+		// the player), EnforceBehindCap simultaneously sweeps the camera back behind the
+		// body's heading, and DoJerkHelper reads live Left/Right input. All that steering
+		// around a now-stationary body is the drift/orbit/slide seen the moment the
+		// enter-ring fires. Freezing the drive loop is the camera counterpart to the body
+		// disable (same pairing StartMiniGameHelper does with _CCCamera.Enabled, which is
+		// NOT usable here: unlike the sit-down flow there is no barcam to take over, so a
+		// disabled camera node would leave no active camera at all). The camera resumes
+		// automatically once the modal's state exits; the Play path disables it outright a
+		// frame later in StartMiniGameHelper and EndMiniGameHelper re-enables it.
+		if ( AtBarMenuHelper() )
+			return;
+
 		if ( (TryResolveGetTargetLookAtHelper() && TryResolveGetTargetFollowHelper() && TryResolveGetDrunkHelper()) == false)
 			return;
 
@@ -780,6 +803,19 @@ public sealed class CCCamera : Component
 			LocalPosition += LocalRotation.Right * distance * Time.Delta;
 		else
 			LocalPosition += LocalRotation.Left * distance * Time.Delta;
+	}
+
+	/// <summary>
+	/// True while the LOCAL client is sitting in the "ONE MORE ROUND?" modal (GameManager
+	/// state AtBarMenu). Mirrors DrunkCC.InMainMenuHelper(): lazy GameManager resolve,
+	/// fail-open (no GameManager in the scene = not frozen) so the camera behaves exactly
+	/// as before when the gate source is missing.
+	/// </summary>
+	private bool AtBarMenuHelper()
+	{
+		_gameManager ??= Scene.GetAllComponents<GameManager>().FirstOrDefault();
+		if ( _gameManager is null ) return false;
+		return _gameManager.GetLocalGameState() == GameManager.LocalGameState.AtBarMenu;
 	}
 
 	/// <summary>
