@@ -40,7 +40,7 @@
 						[
 							{
 								from = "polygoncity_mat_01_a.001.vmat"
-								to = "materials/glass/glass_a.vmat"
+								to = "materials/glass.vmat"
 							},
 						]
 						use_global_default = false
