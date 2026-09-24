@@ -2,10 +2,10 @@ feedbakc:
 
 Make pub interiors more unique
 Make the bottom left pub shower more obvious as to its purpose.
-
+remove the glass dome? or make it VERY transparent?
 
 ## OTHER
-
+ + make "try again?" text say "play again?" if they text appears after the player successfully cashed in instead of after running out of time.
  + floor mesh was never 1-1'd with actual floor model
  + add: track last knockdown location. if current knock location is within X distance (expose as property named _DoubleKnockdownDistance) then remove 
     the latest stored recovery history to make player respawn furhter back.
