@@ -79,6 +79,21 @@ SlotsOver-vs-SlotsOver and SlotsUnder-vs-SlotsUnder only, never cross-layer -
 so both garments are always worn AND always rendered; the boxers are simply
 buried inside the pants mesh, and list order changes nothing at runtime.
 
+FOLLOW-UP FIX (08:09, ecs, in editor) - "boxers never showed" root cause:
+the "can NEVER conflict" claim above is only true for the PROJECT trackie
+(clothing/trackie_bottoms_black.clothing: SlotsOver). The Dresser's Manual
+list had been pointing at the ADDON trackie
+(models/citizen_clothes/trousers/trackiebottoms/trackie_bottoms_black.clothing,
+guid d9661e3e), whose compiled slots are SlotsUnder: Groin..RightShin,
+SlotsOver: 0 - SAME layer as the boxers. ClothingContainer.Add's
+RemoveAll(!CanBeWornWith(new)) therefore evicted the boxers (earlier in the
+list) when the addon trackie was added: "last one wins", boxers child never
+spawned. Fix applied: Manual list repointed at the project trackie
+(4703f8c7) + project boxers (74a01f0d); zero slot intersection, both wear.
+Lesson: two .clothing assets can share one mesh with OPPOSITE slot layers -
+check the COMPILED .clothing_c slots of the asset actually referenced (guid
+in the prefab), not the same-named project copy.
+
 EDITOR-TIME PROBE MODE (added 03:30 - in-game testing was impractical):
 - PantsDropController now implements Component.ExecuteInEditor and has a
   [Property] bool `_ShaderInEditor` (default false). Editor scenes tick it only

@@ -37,7 +37,9 @@ using System.Collections.Generic;
 /// 5. Hide worn pants (renderer off): while knocked down (the flying-pants
 ///    prefab, ecs's system, replaces them) and - INTERIM, until the drop
 ///    shader's displacement works - while pants state is Down, revealing the
-///    always-worn heart boxers + Legs bodygroup. See HandlePantsHideHelper.
+///    always-worn heart boxers + Legs bodygroup. The underwear renderer is
+///    hidden while the pants are visible (its bulkier mesh would show through
+///    - there is no garment layering, only geometry). See HandlePantsHideHelper.
 ///
 /// Lives on the player prefab alongside DrunkCC/Dresser. No scene wiring
 /// beyond existing nodes needed; the pants asset is matched by model path.
@@ -74,6 +76,15 @@ public sealed class PantsDropController : Component, Component.ExecuteInEditor
 	[Property] private string _PantsModelMatch { get; set; } = "trackiebottoms";
 
 	/// <summary>
+	/// Substring identifying the underwear garment among clothing children
+	/// (asset path: models/citizen_clothes/underwear/boxers/...). Its renderer
+	/// is hidden while pants are Up: the boxers mesh is slightly bulkier than
+	/// the trackies and would otherwise show THROUGH them (no depth-based
+	/// garment layering exists - both render, geometry only).
+	/// </summary>
+	[Property] private string _UnderwearModelMatch { get; set; } = "boxers";
+
+	/// <summary>
 	/// Editor-time preview: run this controller in an EDITOR scene (not only
 	/// play mode) so the pants shader - e.g. the Pants-Calibration color
 	/// probe - can be inspected on a prefab instance dragged into a scene
@@ -101,6 +112,7 @@ public sealed class PantsDropController : Component, Component.ExecuteInEditor
 	private DrunkCC _drunkCC;
 	private SkinnedModelRenderer _bodyRenderer;
 	private SkinnedModelRenderer _pantsRenderer;
+	private SkinnedModelRenderer _underwearRenderer;
 
 	/// <summary>
 	/// Slot index -> the override that existed on that slot BEFORE our swap
@@ -180,6 +192,12 @@ public sealed class PantsDropController : Component, Component.ExecuteInEditor
 			_bodyRenderer = dresser.IsValid() ? dresser.BodyTarget : null;
 		}
 
+		// Underwear child is destroyed/recreated by the same re-dresses as
+		// the pants child - re-walk whenever either is missing. Cheap enough
+		// to check independently (the walk only runs on an actual miss).
+		if ( !_underwearRenderer.IsValid() && _bodyRenderer.IsValid() )
+			_underwearRenderer = FindClothingRendererHelper( _UnderwearModelMatch );
+
 		if ( _pantsRenderer.IsValid() )
 			return;
 
@@ -209,17 +227,18 @@ public sealed class PantsDropController : Component, Component.ExecuteInEditor
 		ReleaseOverrideStateHelper( restore: false );
 		_overrideFailed = false;
 		_legsChoice = -1;
-		_pantsRenderer = FindPantsRendererHelper();
+		_pantsRenderer = FindClothingRendererHelper( _PantsModelMatch );
 	}
 
 	/// <summary>
-	/// Walks the body's descendants for the clothing child whose model is the
-	/// forced trackie bottoms. Children are tagged "clothing" by the engine's
-	/// ClothingContainer.Apply (ClothingContainer.Dressing.cs:228); the tag is
-	/// the stable contract, the model path the garment discriminator (drinkers
-	/// wear account clothing too and could coincidentally own the same asset).
+	/// Walks the body's direct children for the clothing child whose model
+	/// path contains <paramref name="match"/>. Children are tagged "clothing"
+	/// by the engine's ClothingContainer.Apply (ClothingContainer.Dressing.cs:228);
+	/// the tag is the stable contract, the model path the garment discriminator
+	/// (drinkers wear account clothing too and could coincidentally own the
+	/// same asset).
 	/// </summary>
-	private SkinnedModelRenderer FindPantsRendererHelper()
+	private SkinnedModelRenderer FindClothingRendererHelper( string match )
 	{
 		// Direct children only: ClothingContainer.Apply parents each clothing GO
 		// straight under the body's GameObject.
@@ -233,7 +252,7 @@ public sealed class PantsDropController : Component, Component.ExecuteInEditor
 				continue;
 
 			var modelPath = renderer.Model?.ResourcePath ?? "";
-			if ( modelPath.Contains( _PantsModelMatch, StringComparison.OrdinalIgnoreCase ) )
+			if ( modelPath.Contains( match, StringComparison.OrdinalIgnoreCase ) )
 				return renderer;
 		}
 
@@ -352,15 +371,24 @@ public sealed class PantsDropController : Component, Component.ExecuteInEditor
 	private void HandlePantsHideHelper()
 	{
 		// Editor rig has no DrunkCC: never knocked down, never Down - pants
-		// stay visible for the shader preview.
-		var hidden = _drunkCC.IsValid() &&
+		// stay visible (underwear stays hidden) for the shader preview.
+		var pantsHidden = _drunkCC.IsValid() &&
 			(_drunkCC.CurrentState == DrunkCC.State.KnockedDown ||
 			 _drunkCC.CurrentPantsState == DrunkCC.PantsState.Down);
 
 		// The pants GO may also be mid-teleport/off-screen during knockdown
 		// rewind; toggling Enabled every frame is idempotent.
-		if ( _pantsRenderer.Enabled == hidden )
-			_pantsRenderer.Enabled = !hidden;
+		if ( _pantsRenderer.Enabled == pantsHidden )
+			_pantsRenderer.Enabled = !pantsHidden;
+
+		// Underwear shows exactly when the pants hide (same predicate - the
+		// boxers are worn at all times, but their mesh is bulkier than the
+		// trackies and shows through them; there is no garment layering, so
+		// while the pants are up the boxers renderer must be OFF). The
+		// renderer is optional: account-driven outfits may not include it, and
+		// the walk only ever runs while the body exists.
+		if ( _underwearRenderer.IsValid() && _underwearRenderer.Enabled == !pantsHidden )
+			_underwearRenderer.Enabled = pantsHidden;
 	}
 
 	/// <summary>
@@ -457,12 +485,18 @@ public sealed class PantsDropController : Component, Component.ExecuteInEditor
 
 	protected override void OnEnabled()
 	{
-		// Re-enabling after a hide: the renderer Enabled toggle in
-		// HandlePantsHideHelper re-asserts from state every frame, but
-		// re-stamp it here so a single render after enable is never stale.
-		if ( _pantsRenderer.IsValid() && _drunkCC.IsValid() )
-			_pantsRenderer.Enabled = _drunkCC.CurrentState != DrunkCC.State.KnockedDown
-				&& _drunkCC.CurrentPantsState != DrunkCC.PantsState.Down;
+		// Re-enabling after a hide: the renderer Enabled toggles in
+		// HandlePantsHideHelper re-assert from state every frame, but
+		// re-stamp them here so a single render after enable is never stale.
+		if ( _drunkCC.IsValid() )
+		{
+			var hidden = _drunkCC.CurrentState == DrunkCC.State.KnockedDown
+				|| _drunkCC.CurrentPantsState == DrunkCC.PantsState.Down;
+			if ( _pantsRenderer.IsValid() )
+				_pantsRenderer.Enabled = !hidden;
+			if ( _underwearRenderer.IsValid() )
+				_underwearRenderer.Enabled = hidden;
+		}
 	}
 
 	protected override void OnDestroy()
