@@ -134,9 +134,14 @@ public sealed class PlayerProgress : Component
 
 		Timer -= Time.Delta;
 
+		if ( Input.Keyboard.Down( "M" ) )
+			Score += 100;
+		
 		float multiplier = 1f + ( _drunkCC?.BeerLevel ?? 0f ) * DrunkScoreScale;
 		Score += BasePointsPerSec * multiplier * Time.Delta;
 
+		
+		
 		if ( Timer <= 0f )
 			OnTimerZero();
 	}
