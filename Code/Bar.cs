@@ -241,6 +241,37 @@ public sealed class Bar : Component, Component.ITriggerListener
 		return true;
 	}
 
+	/// <summary>
+	/// TEMP diagnostic (enter-ring bug hunt) - remove with the GameManager diag block.
+	/// Reports ring resolution, and whether the Enabled write actually sticks (read-back).
+	/// </summary>
+	public string EnterRingDiagHelper( int index )
+	{
+		string ringState;
+		if ( ActiveBarModule is null )
+			ringState = "module=null";
+		else if ( _enterRing is null || !_enterRing.IsValid() )
+		{
+			var found = ActiveBarModule.GameObject.Children
+				.FirstOrDefault( c => c.Name.Contains( "Enter-Ring", StringComparison.OrdinalIgnoreCase ) );
+			ringState = found is null ? "ring-notfound" : "ring-unresolved-cache";
+		}
+		else
+		{
+			// Read-back probe: set false, force an immediate re-read via a second write.
+			var before = _enterRing.Enabled;
+			_enterRing.Enabled = true;
+			var afterTrue = _enterRing.Enabled;
+			_enterRing.Enabled = false;
+			var afterFalse = _enterRing.Enabled;
+			_enterRing.Enabled = before;
+			var pe = _enterRing.GetComponent<ParticleEffect>( true );
+			ringState = $"ring(before={before},stickTrue={afterTrue},stickFalse={afterFalse},pe={pe is not null},peCount={pe?.ParticleCount},wpos={_enterRing.WorldPosition})";
+		}
+
+		return $"bar[{index}]'{GameObject.Name}' mod='{_activeModuleName}' {ringState}";
+	}
+
 	public void OnTriggerExit( Collider other )
 	{
 		if(other.GameObject.Network.IsOwner)

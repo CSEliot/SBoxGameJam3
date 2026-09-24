@@ -147,6 +147,10 @@ public sealed class GameManager : Component, Component.INetworkListener
 	/// bars aren't ready) until a pass completes.
 	/// </summary>
 	private int _ringsSyncedForTarget = -1;
+	/// <summary>
+	/// TEMP diagnostic latch (enter-ring bug hunt) - remove with the diag block.
+	/// </summary>
+	private bool _ringDiagLogged;
 
 	// every time a player joins, they join the latest group within 30 seconds (group has a timecreated) and if there isn't a group w 
 	// timecreated within 30 seconds, make a new one.
@@ -298,6 +302,22 @@ public sealed class GameManager : Component, Component.INetworkListener
 
 		if ( allReady && anyToggled )
 			_ringsSyncedForTarget = _targetBarWaiting;
+
+		// TEMP DIAGNOSTIC (enter-ring bug hunt) - remove once root-caused.
+		if ( !_ringDiagLogged )
+		{
+			_ringDiagLogged = true;
+			var sb = new System.Text.StringBuilder( $"RINGDIAG pass target={_targetBarWaiting} " );
+			for ( int i = 0; i < _Bars.Length; i++ )
+			{
+				if ( _Bars[i] == null )
+					continue;
+
+				sb.Append( _Bars[i].EnterRingDiagHelper( i ) ).Append( "; " );
+			}
+			sb.Append( $"allReady={allReady} anyToggled={anyToggled} committed={_ringsSyncedForTarget}" );
+			Log.Info( sb.ToString() );
+		}
 	}
 
 	/// <summary>
