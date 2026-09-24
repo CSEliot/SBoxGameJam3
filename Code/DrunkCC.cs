@@ -400,7 +400,7 @@ public sealed class DrunkCC : Component
 
 	protected override void OnStart()
 	{
-		WallHitColliderReporter.OnTriggerEnterCallback += OnWallHitColliderEnterHelper;
+		WallHitColliderReporter.OnTriggerStayCallback += OnWallHitColliderStayHelper;
 		WallHitColliderReporter.OnTriggerExitCallback += OnWallHitColliderExitHelper;
 		_ccCamera = Scene.Scene.FindAllWithTagOrigin( "cccamera" ).FirstOrDefault()?.GetComponent<CCCamera>(); //SceneNetworkSystem Get<CCCamera>();
 		if(_ccCamera == null)
@@ -911,9 +911,9 @@ public sealed class DrunkCC : Component
 		rb.WorldRotation = angles.ToRotation();
 	}
 
-	private void OnWallHitColliderEnterHelper( Collider other )
+	private void OnWallHitColliderStayHelper( Collider other )
 	{
-		Log.Info("Istrigger: " + other.IsTrigger + "---OnWallHitColliderEnterHelper + " + other);
+		Log.Info("Istrigger: " + other.IsTrigger + "---OnWallHitColliderStayHelper + " + other);
 
 		if ( other.IsTrigger || CurrentState == State.KnockedDown)
 			return;

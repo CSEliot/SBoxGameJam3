@@ -30,17 +30,34 @@ public sealed class CollisionReporter : Component, Component.ITriggerListener
 {
 
 	public Action<Collider> OnTriggerEnterCallback;
+	public Action<Collider> OnTriggerStayCallback;
 	public Action<Collider> OnTriggerExitCallback;
-	
+
+	public List<Collider> TriggeredColliders { get; private set; } = new();
+
 	public void OnTriggerExit( Collider other )
 	{
 		OnTriggerExitCallback?.Invoke(other);
+		TriggeredColliders.Remove(other);
 	}
 	
 	public void OnTriggerEnter( Collider other )
 	{
+		TriggeredColliders.Add(other);
 		OnTriggerEnterCallback?.Invoke(other);
 	}
 
+	protected override void OnFixedUpdate()
+	{
+		OnTriggerStay();
+	}
+	public void OnTriggerStay( )
+	{
+		foreach ( var collider in TriggeredColliders )
+		{
+			OnTriggerStayCallback?.Invoke(collider);
+		}
+	}
+	
 }
 
