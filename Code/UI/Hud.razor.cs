@@ -16,10 +16,16 @@
 // (PlayerProgress is owner-authoritative; this is a read-only view). All state
 // lives in those components, so this partial holds no game state of its own.
 //
-// Also feeds the LEFT-EDGE LIVE PLAYER LIST: UpdatePlayerListHelper enumerates every
-// tagged "player" body each frame and rebuilds a sorted row list (name + floored live
-// [Sync] Score, local row pinned first) that Hud.razor renders. Read-only over
-// PlayerProgress/Connection - it never mutates them.
+// Also feeds the TOP-LEFT PLAYER LIST COLUMN (design change 09-24: the list replaced
+// the standalone center SCORE readout, now deleted): UpdatePlayerListHelper enumerates
+// every tagged "player" body each frame and rebuilds a sorted row list (name + floored
+// live [Sync] Score, local row pinned first) that Hud.razor renders. Read-only over
+// PlayerProgress/Connection - it never mutates them. The render tree repaints throttled
+// (_TextRefreshRate) so digits tick calmly; OnUpdate itself stays every-frame.
+//
+// Also gates the AUTOMATIC PANTS-DOWN WARNING: the right-edge readout is hidden by
+// default and appears (blinking) once the local DrunkCC has been continuously
+// pants-DOWN for _PantsDownWarnSeconds; it resets the moment the pants come back up.
 //
 // Also owns the TARGET-BAR PREVIEW: a ScenePanel (<scene> element in the markup,
 // gated on Visible) whose private RenderScene hosts a clone of the current
@@ -74,11 +80,26 @@ public partial class Hud : PanelComponent
 	[Property] private string _VersionLabel { get; set; } = "v0.2.0";
 
 	/// <summary>
-	/// DEBUG: show the local DrunkCC's CurrentPantsState (Up/Down) pinned mid-right edge.
-	/// Toggle at runtime with F2; this is a raw sync-state readout for pants debugging,
-	/// not the Design Screen 1 pants meter (which remains unimplemented).
+	/// How many times per second the HUD text rebuilds (default 4). The visible BuildHash
+	/// branch quantizes RealTime.Now by this rate, throttling the repaint down from every
+	/// frame so score/beer digits tick calmly instead of churning. CSS animations (timer
+	/// flash, pants blink) are compositor-driven and unaffected. Values &lt;= 0 are clamped
+	/// to 1 where used.
 	/// </summary>
-	[Property] private bool _ShowPantsDebug { get; set; } = true;
+	[Property] private float _TextRefreshRate { get; set; } = 4f;
+
+	/// <summary>
+	/// Seconds of continuous pants-DOWN (local DrunkCC.CurrentPantsState) before the
+	/// right-edge pants warning readout appears blinking. Hidden (and the timer reset)
+	/// the moment the pants come back up.
+	/// </summary>
+	[Property] private float _PantsDownWarnSeconds { get; set; } = 2f;
+
+	/// <summary>
+	/// Blink rate of the pants warning sign, full on/off cycles per second. Drives the
+	/// animation-duration inline style on .pants-debug (step-end keyframe).
+	/// </summary>
+	[Property] private float _PantsDebugBlinksPerSecond { get; set; } = 6f;
 
 	/// <summary>
 	/// The bar "-JustModel" prefabs (Garys / The Drunken Cam / The Spongey Splatoon) used for
@@ -109,8 +130,13 @@ public partial class Hud : PanelComponent
 	private PlayerProgress _progress;
 	private DrunkCC _drunk;
 
+	// Continuous seconds the local player's pants have been DOWN (accumulated in OnUpdate
+	// off RealTime.Delta; reset the moment they're up or the DrunkCC is unresolved).
+	// Drives the automatic pants-warning gate (PantsDebugShown).
+	private float _pantsDownSeconds;
+
 	/// <summary>
-	/// One row of the left-edge live player list: display name, floored live score and
+	/// One row of the top-left live player list column: display name, floored live score and
 	/// whether this is the local player's row (pinned first, magenta name).
 	/// </summary>
 	private readonly struct PlayerListRow
@@ -127,8 +153,8 @@ public partial class Hud : PanelComponent
 		}
 	}
 
-	// Live player-list rows, rebuilt every frame in UpdatePlayerListHelper. Initialized
-	// empty so the razor @foreach never iterates null before the first tick.
+	// Live player-list rows (top-left column), rebuilt every frame in UpdatePlayerListHelper.
+	// Initialized empty so the razor @foreach never iterates null before the first tick.
 	private List<PlayerListRow> _playerRows = new();
 
 	// Target-bar preview state. _previewHost is the @ref-captured <scene> element (null while
@@ -162,17 +188,20 @@ public partial class Hud : PanelComponent
 		_progress = _GameManager?.GetLocalPlayerProgress();
 		_drunk = _GameManager?.GetLocalDrunkCC();
 
-		UpdatePlayerListHelper();
+		// Continuous pants-down timer for the automatic warning (RealTime, not Time:
+		// UI clock, unscaled, matching the rest of the HUD's timing).
+		if ( _drunk is null || _drunk.CurrentPantsState != DrunkCC.PantsState.Down )
+			_pantsDownSeconds = 0f;
+		else
+			_pantsDownSeconds += RealTime.Delta;
 
-		// DEBUG toggle for the pants readout (raw key, not an input action - nothing binds F2).
-		if ( Input.Keyboard.Pressed( "P" ) )
-			_ShowPantsDebug = !_ShowPantsDebug;
+		UpdatePlayerListHelper();
 
 		UpdateTargetBarPreviewHelper();
 	}
 
 	/// <summary>
-	/// Rebuilds _playerRows (left-edge live player list) from every tagged "player" body in
+	/// Rebuilds _playerRows (top-left live player list column) from every tagged "player" body in
 	/// the scene. Exactly one row per body - remote player bodies replicate to all clients,
 	/// so the enumeration itself is the roster. Deliberately NOT filtered through the
 	/// project's net.IsMine() extension: it returns true for EVERY proxy when networking is
@@ -180,9 +209,9 @@ public partial class Hud : PanelComponent
 	/// connection, or (solo/editor plain-clone case: no NetworkObject, so no connections at
 	/// all) when its PlayerProgress is the local one already cached in _progress.
 	/// Read-only: touches no state on PlayerProgress/Connection. Called every frame - the
-	/// visible BuildHash branch already repaints on RealTime.Now, so the list tracks live
-	/// [Sync] scores without any extra invalidation logic. Sort: local row pinned first,
-	/// then score descending, ties by name (Ordinal).
+	/// throttled visible BuildHash branch (_TextRefreshRate) still repaints often enough
+	/// for the list to track live [Sync] scores without any extra invalidation logic.
+	/// Sort: local row pinned first, then score descending, ties by name (Ordinal).
 	/// </summary>
 	private void UpdatePlayerListHelper()
 	{
@@ -585,9 +614,6 @@ public partial class Hud : PanelComponent
 		}
 	}
 
-	/// <summary>Design Screen 1: 4-digit zero-padded score, e.g. 0042.</summary>
-	private string ScoreText => ( (int)MathF.Floor( _progress?.Score ?? 0f ) ).ToString( "D4" );
-
 	/// <summary>Design Screen 1: one-decimal beer count, e.g. 3.5.</summary>
 	private string BeersText => ( _drunk?.BeerLevel ?? 0f ).ToString( "F2" );
 
@@ -603,13 +629,39 @@ public partial class Hud : PanelComponent
 	/// <summary>DEBUG: true colour so a stuck state is obvious at a glance (Up=green, Down=red).</summary>
 	private bool PantsDebugIsDown => _drunk?.CurrentPantsState == DrunkCC.PantsState.Down;
 
-	// Rebuild every frame while visible so timer/score/drunkenness track their live values;
-	// hash to a constant while hidden so the idle panel stays put (mirrors Minigame.BuildHash).
-	// While hidden, the hash still tracks the pants-debug toggle/state so a P-toggle made
-	// while off-street is applied on the next repaint instead of freezing at first paint.
+	/// <summary>
+	/// Automatic gate for the right-edge pants warning: hidden by default; appears once the
+	/// local DrunkCC's pants have been continuously DOWN for _PantsDownWarnSeconds, and hides
+	/// (the timer resetting) the moment the pants come back up. Never shows off-street
+	/// (IsPubCrawling) or before the local DrunkCC resolves.
+	/// </summary>
+	private bool PantsDebugShown => IsPubCrawling && _drunk is not null && _pantsDownSeconds >= _PantsDownWarnSeconds;
+
+	/// <summary>
+	/// One full blink cycle of the pants warning in seconds (1 / _PantsDebugBlinksPerSecond,
+	/// floored at 0.1 blinks/s so a bogus property can't produce an infinite/zero duration).
+	/// Invariant-culture formatted: it lands verbatim in an inline CSS animation-duration, so
+	/// a comma-decimal locale must never leak through.
+	/// </summary>
+	private string PantsBlinkDurationText
+	{
+		get
+		{
+			float duration = 1f / MathF.Max( _PantsDebugBlinksPerSecond, 0.1f );
+			return duration.ToString( "F3", System.Globalization.CultureInfo.InvariantCulture ) + "s";
+		}
+	}
+
+	// Repaint throttled to _TextRefreshRate rebuilds/second while visible (RealTime.Now
+	// quantized to that rate) so score/beer digits tick calmly instead of churning every
+	// frame; CSS animations (timer flash, pants blink) are compositor-driven and unaffected.
+	// OnUpdate/UpdatePlayerListHelper still run every frame - only the RENDER is throttled.
+	// While hidden, the hash still tracks the pants-warning gate so its text updates while
+	// off-street are applied on the next repaint instead of freezing at first paint.
 	// IsPubCrawling is in BOTH branches so the menu/bar -> street state flip repaints the
-	// gated blocks.
+	// gated blocks. Hash to a constant floor while hidden so the idle panel stays put
+	// (mirrors Minigame.BuildHash).
 	protected override int BuildHash() => Visible
-		? HashCode.Combine( Visible, IsPubCrawling, RealTime.Now )
-		: HashCode.Combine( Visible, IsPubCrawling, _ShowPantsDebug, PantsDebugText );
+		? HashCode.Combine( Visible, IsPubCrawling, PantsDebugShown, (int)( RealTime.Now * MathF.Max( _TextRefreshRate, 1f ) ) )
+		: HashCode.Combine( Visible, IsPubCrawling, PantsDebugShown );
 }

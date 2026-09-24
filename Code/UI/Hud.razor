@@ -12,7 +12,9 @@
 //
 // Description:
 // Pub-crawling HUD overlay (Design.md, Screen 1). Always-visible-during-run
-// readout of Timer (top-left), Score (top-center) and Drunkenness (top-right).
+// readout of the live Player List (top-LEFT column of the HUD row - design
+// change 09-24: it replaced the standalone center SCORE readout, and remains
+// the only score display), Timer (top-center) and Drunkenness (top-right).
 // Read-only view over the local player's PlayerProgress/DrunkCC, resolved via
 // a [Property] GameManager ref. Hidden during the mini-game (that overlay owns
 // the screen) and before the player has spawned. Markup only; display formatting
@@ -27,12 +29,16 @@
 // (ScreenPanel, AfterPostProcess), the preview always draws ON TOP of in-world
 // models.
 //
-// Not implemented here: the PANTS METER (Design Screen 1, bottom-left) - a debug
-// readout of DrunkCC.CurrentPantsState (Up/Down, F2-toggleable) was added on the
-// right edge instead, see pants-debug in Hud.razor/scss.
-// Also renders the LEFT-EDGE LIVE PLAYER LIST: one row per connected player (solo
-// clone included) with their replicated score, local row pinned first and magenta;
-// rows are built each frame in Hud.razor.cs (UpdatePlayerListHelper).
+// Not implemented here: the PANTS METER (Design Screen 1, bottom-left) - instead an
+// AUTOMATIC right-edge warning blinks once DrunkCC.CurrentPantsState has been
+// continuously Down for _PantsDownWarnSeconds (see pants-debug in Hud.razor/scss).
+// Also renders the LIVE PLAYER LIST as the top-LEFT column of the HUD row (design
+// change 09-24 - it replaced the standalone center SCORE readout and remains the
+// only score display; TIME is top-center, BEERS top-right):
+// one row per connected player (solo clone included) with their replicated score,
+// local row pinned first and magenta; rows are built each frame in Hud.razor.cs
+// (UpdatePlayerListHelper), while the render tree itself repaints throttled
+// (_TextRefreshRate) so digits tick calmly.
 // The Arrow Indicator is a 3D world-space model (the event-arrow
 // node on the player prefab, aimed by BarArrowIndicator), not a razor element.
 // The Drunk Effect System (Design lines 116-123, 150, 157,
@@ -52,14 +58,20 @@
 	@if ( Visible )
 	{
 		<div class="row @( IsPaused ? "paused" : "" )">
+			<div class="stat players">
+				<div class="label">PLAYERS</div>
+				@foreach ( var row in _playerRows )
+				{
+					<div class="pl-row @( row.IsLocal ? "local" : "" )">
+						<div class="pl-name">@( row.Name )</div>
+						<div class="pl-score">@( row.Score.ToString( "D4" ) )</div>
+					</div>
+				}
+			</div>
+
 			<div class="stat timer @( TimerClass )">
 				<div class="label">TIME</div>
 				<div class="value">@TimerText</div>
-			</div>
-
-			<div class="stat score">
-				<div class="label">SCORE</div>
-				<div class="value">@ScoreText</div>
 			</div>
 
 			<div class="stat drunk">
@@ -78,24 +90,12 @@
 			<div>Getting Stuck? Press: <b>R</b></div>
 			<div>Jump: <b>Spacebar</b></div>
 		</div>
-
-		<div class="player-list">
-			<div class="pl-label">PLAYERS</div>
-			@foreach ( var row in _playerRows )
-			{
-				<div class="pl-row @( row.IsLocal ? "local" : "" )">
-					<div class="pl-name">@( row.Name )</div>
-					<div class="pl-score">@( row.Score.ToString( "D4" ) )</div>
-				</div>
-			}
-		</div>
 	}
 
-	@if ( _ShowPantsDebug && IsPubCrawling )
+	@if ( PantsDebugShown )
 	{
 		<div class="pants-debug-col">
-			<div class="pants-debug @( PantsDebugIsDown ? "down" : "up" )">@PantsDebugText</div>
-			<div class="pants-debug-hint">P: toggle showing pants debug</div>
+			<div class="pants-debug @( PantsDebugIsDown ? "down" : "up" )" style="animation-duration: @( PantsBlinkDurationText );">@PantsDebugText</div>
 		</div>
 	}
 

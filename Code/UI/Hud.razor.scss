@@ -29,11 +29,10 @@ Hud
 		align-items: flex-start;
 		width: 100%;
 		padding: 40px 60px;
-		// Design Screen 1: timer top-left, score top-center, drunkenness top-right.
-		// Three equal-width columns (flex 1 1 0) so the score column is always the exact
-		// middle third of the row and stays truly centered regardless of the timer's or
-		// drunkenness's intrinsic text width (e.g. "2:00" vs "10:00"). Each column aligns
-		// its own contents to its edge/center below.
+		// Three equal columns (flex 1 1 0): player list top-left, timer top-center,
+		// drunkenness top-right. Equal flex keeps TIME the exact middle third
+		// regardless of the neighbours' intrinsic text width (e.g. "2:00" vs
+		// "10:00"). Each column aligns its own contents to its edge/center below.
 
 		&.paused
 		{
@@ -54,9 +53,42 @@ Hud
 		}
 	}
 
+	.stat.players
+	{
+		// Top-left per design change 09-24: this column REPLACED the removed top-center
+		// SCORE readout - the per-player rows are the only score display.
+		align-items: flex-start;
+
+		.pl-row
+		{
+			flex-direction: row;
+			align-items: center;
+			gap: 16px;
+
+			&.local .pl-name
+			{
+				color: $wild;
+			}
+		}
+
+		.pl-name
+		{
+			font-family: $body;
+			font-size: 24px;
+			color: rgba( #fff, 0.85 );
+		}
+
+		.pl-score
+		{
+			font-family: $display;
+			font-size: 32px;
+			color: $warm; // score colour role, kept from the removed center readout
+		}
+	}
+
 	.stat.timer
 	{
-		align-items: flex-start;
+		align-items: center;
 
 		.value
 		{
@@ -78,17 +110,6 @@ Hud
 			animation-duration: 0.5s;
 			animation-iteration-count: infinite;
 			animation-timing-function: ease-in-out;
-		}
-	}
-
-	.stat.score
-	{
-		align-items: center;
-
-		.value
-		{
-			font-size: 80px;
-			color: $warm;
 		}
 	}
 
@@ -146,60 +167,6 @@ Hud
 		pointer-events: none;
 	}
 
-	// Live player list: mid left edge, one row per player (name + replicated score,
-	// local row pinned first with a magenta name - the EndGame/MainMenu leaderboard
-	// convention). Full-height left-edge column, flex-centred vertically - mirrors
-	// pants-debug-col on the right and deliberately avoids percentage `top`/transform,
-	// keeping placement on the plain flex layout path. Vertical centering keeps the list
-	// clear of the top-left timer and the bottom-left controls-hint/target-bar-preview
-	// for typical jam-size rosters (~5 rows); long rosters grow into those bands - no
-	// cap/clamp for now. Flat like the rest of the HUD: fonts + palette roles do the styling.
-	.player-list
-	{
-		position: absolute;
-		left: 60px;
-		top: 0px;
-		bottom: 0px;
-		flex-direction: column;
-		justify-content: center;
-		align-items: flex-start;
-		gap: 8px;
-
-		.pl-label
-		{
-			font-family: $body;
-			font-size: 18px;
-			color: #4C74E5; // label blue, same role as .stat .label
-			margin-bottom: 4px;
-		}
-
-		.pl-row
-		{
-			flex-direction: row;
-			align-items: center;
-			gap: 16px;
-
-			&.local .pl-name
-			{
-				color: $wild;
-			}
-		}
-
-		.pl-name
-		{
-			font-family: $body;
-			font-size: 24px;
-			color: rgba( #fff, 0.85 );
-		}
-
-		.pl-score
-		{
-			font-family: $display;
-			font-size: 32px;
-			color: $warm; // same colour role as the main score readout
-		}
-	}
-
 	// Build watermark - small, dim, bottom-right (mirrors controls-hint bottom-left).
 	// Deliberately OUTSIDE the run-Visible gate in Hud.razor so it shows on the menu too.
 	.version-label
@@ -212,10 +179,12 @@ Hud
 		color: rgba( #fff, 0.4 );
 	}
 
-	// DEBUG pants-state readout (not Design Screen 1's pants meter): pinned mid right edge,
-	// big flat block of colour so Up/Down is obvious. Toggle with F2 (see Hud.razor.cs).
-	// Full-height right-edge column, flex-centred vertically - avoids percentage `top`
-	// and transform, keeping placement on the plain flex layout path.
+	// AUTOMATIC pants-down warning (not Design Screen 1's pants meter): hidden by default,
+	// appears once the local pants have been continuously Down for _PantsDownWarnSeconds
+	// (see Hud.razor.cs PantsDebugShown) and blinks hard until they come back up. Pinned
+	// mid right edge, big flat block of colour so Up/Down is obvious. Full-height right-edge
+	// column, flex-centred vertically - avoids percentage `top` and transform, keeping
+	// placement on the plain flex layout path.
 	.pants-debug-col
 	{
 		position: absolute;
@@ -243,14 +212,18 @@ Hud
 			{
 				color: #fff;
 				background-color: #d42020;
-			}
-		}
 
-		.pants-debug-hint
-		{
-			font-family: $body;
-			font-size: 16px;
-			color: rgba( #fff, 0.5 );
+				// Hard on/off blink; animation-duration comes from the inline style
+				// (PantsBlinkDurationText -> 1 / _PantsDebugBlinksPerSecond seconds).
+				// steps(2, end), NOT step-end: the engine applies the easing to the whole
+				// cycle delta once (Styles.Animation.cs) and its StepEnd(f) returns 0 for
+				// every delta < 1 - the opacity would pin at 1 and never blink. Steps(2)
+				// resolves 0% (opacity 1) for the first half, 50% (opacity 0) for the
+				// second. Also correct standard CSS.
+				animation-name: pants-blink;
+				animation-iteration-count: infinite;
+				animation-timing-function: steps(2, end);
+			}
 		}
 	}
 }
@@ -265,6 +238,24 @@ Hud
 	50%
 	{
 		opacity: 0.3;
+	}
+
+	100%
+	{
+		opacity: 1;
+	}
+}
+
+@keyframes pants-blink
+{
+	0%
+	{
+		opacity: 1;
+	}
+
+	50%
+	{
+		opacity: 0;
 	}
 
 	100%
