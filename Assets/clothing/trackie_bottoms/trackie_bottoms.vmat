@@ -1,0 +1,11 @@
+
+Layer0
+{
+	shader "shaders/complex.shader_c"
+
+	TextureColor "clothing/trackie_bottoms/trackie_bottoms_black_color.png"
+	TextureAmbientOcclusion "clothing/trackie_bottoms/trackie_bottoms_ao.png"
+	TextureNormal "clothing/trackie_bottoms/trackie_bottoms_normal.png"
+	TextureRoughness "clothing/trackie_bottoms/trackie_bottoms_rough.png"
+
+}
