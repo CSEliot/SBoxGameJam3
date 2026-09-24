@@ -73,6 +73,19 @@ public sealed class GameManager : Component, Component.INetworkListener
 		ResolveLocalPlayerHelper();
 		return _LocalDrunkCC;
 	}
+
+	/// <summary>
+	/// The Bar this client is currently being sent to - the same _targetBarWaiting the arrow
+	/// indicator and enter-ring follow. Returns null while the sparse [Sync] _Bars array
+	/// hasn't replicated yet or the slot is empty, so HUD/UI callers must handle null.
+	/// Read-only accessor for HUD/UI (mirrors UpdateArrowIndicatorHelper's guards).
+	/// </summary>
+	public Bar GetTargetBar()
+	{
+		if ( _Bars == null || _targetBarWaiting < 0 || _targetBarWaiting >= _Bars.Length )
+			return null;
+		return _Bars[_targetBarWaiting];
+	}
 	
 	/// <summary>
 	/// After this many beers, the difficulty effects that scale with drunkenness (run speed,
