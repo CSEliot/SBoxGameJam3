@@ -30,6 +30,9 @@
 // Not implemented here: the PANTS METER (Design Screen 1, bottom-left) - a debug
 // readout of DrunkCC.CurrentPantsState (Up/Down, F2-toggleable) was added on the
 // right edge instead, see pants-debug in Hud.razor/scss.
+// Also renders the LEFT-EDGE LIVE PLAYER LIST: one row per connected player (solo
+// clone included) with their replicated score, local row pinned first and magenta;
+// rows are built each frame in Hud.razor.cs (UpdatePlayerListHelper).
 // The Arrow Indicator is a 3D world-space model (the event-arrow
 // node on the player prefab, aimed by BarArrowIndicator), not a razor element.
 // The Drunk Effect System (Design lines 116-123, 150, 157,
@@ -74,6 +77,17 @@
 			<div>Move side to side: <b>A</b> and <b>D</b></div>
 			<div>Getting Stuck? Press: <b>R</b></div>
 			<div>Jump: <b>Spacebar</b></div>
+		</div>
+
+		<div class="player-list">
+			<div class="pl-label">PLAYERS</div>
+			@foreach ( var row in _playerRows )
+			{
+				<div class="pl-row @( row.IsLocal ? "local" : "" )">
+					<div class="pl-name">@( row.Name )</div>
+					<div class="pl-score">@( row.Score.ToString( "D4" ) )</div>
+				</div>
+			}
 		</div>
 	}
 

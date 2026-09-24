@@ -16,6 +16,11 @@
 // (PlayerProgress is owner-authoritative; this is a read-only view). All state
 // lives in those components, so this partial holds no game state of its own.
 //
+// Also feeds the LEFT-EDGE LIVE PLAYER LIST: UpdatePlayerListHelper enumerates every
+// tagged "player" body each frame and rebuilds a sorted row list (name + floored live
+// [Sync] Score, local row pinned first) that Hud.razor renders. Read-only over
+// PlayerProgress/Connection - it never mutates them.
+//
 // Also owns the TARGET-BAR PREVIEW: a ScenePanel (<scene> element in the markup,
 // gated on Visible) whose private RenderScene hosts a clone of the current
 // target bar's -JustModel prefab (paired by BarModule display name via the
@@ -104,6 +109,28 @@ public partial class Hud : PanelComponent
 	private PlayerProgress _progress;
 	private DrunkCC _drunk;
 
+	/// <summary>
+	/// One row of the left-edge live player list: display name, floored live score and
+	/// whether this is the local player's row (pinned first, magenta name).
+	/// </summary>
+	private readonly struct PlayerListRow
+	{
+		public string Name { get; }
+		public int Score { get; }
+		public bool IsLocal { get; }
+
+		public PlayerListRow( string name, int score, bool isLocal )
+		{
+			Name = name;
+			Score = score;
+			IsLocal = isLocal;
+		}
+	}
+
+	// Live player-list rows, rebuilt every frame in UpdatePlayerListHelper. Initialized
+	// empty so the razor @foreach never iterates null before the first tick.
+	private List<PlayerListRow> _playerRows = new();
+
 	// Target-bar preview state. _previewHost is the @ref-captured <scene> element (null while
 	// the Visible gate has it unrendered - the engine nulls @refs when their block is
 	// destroyed). The rest caches what was built INTO the host's private RenderScene so a
@@ -135,11 +162,86 @@ public partial class Hud : PanelComponent
 		_progress = _GameManager?.GetLocalPlayerProgress();
 		_drunk = _GameManager?.GetLocalDrunkCC();
 
+		UpdatePlayerListHelper();
+
 		// DEBUG toggle for the pants readout (raw key, not an input action - nothing binds F2).
 		if ( Input.Keyboard.Pressed( "P" ) )
 			_ShowPantsDebug = !_ShowPantsDebug;
 
 		UpdateTargetBarPreviewHelper();
+	}
+
+	/// <summary>
+	/// Rebuilds _playerRows (left-edge live player list) from every tagged "player" body in
+	/// the scene. Exactly one row per body - remote player bodies replicate to all clients,
+	/// so the enumeration itself is the roster. Deliberately NOT filtered through the
+	/// project's net.IsMine() extension: it returns true for EVERY proxy when networking is
+	/// inactive, which would double-list bodies. A body counts when it has an owner
+	/// connection, or (solo/editor plain-clone case: no NetworkObject, so no connections at
+	/// all) when its PlayerProgress is the local one already cached in _progress.
+	/// Read-only: touches no state on PlayerProgress/Connection. Called every frame - the
+	/// visible BuildHash branch already repaints on RealTime.Now, so the list tracks live
+	/// [Sync] scores without any extra invalidation logic. Sort: local row pinned first,
+	/// then score descending, ties by name (Ordinal).
+	/// </summary>
+	private void UpdatePlayerListHelper()
+	{
+		// The list only renders while the HUD body does; skip the whole-scene tag scan
+		// and row allocations while hidden (menu, bar screens, minigame - most of a
+		// session). Safe: OnUpdate runs before the hash-driven repaint, so the first
+		// visible frame rebuilds the rows before they render.
+		if ( !Visible )
+			return;
+
+		var rows = new List<PlayerListRow>();
+
+		// One null-guarded read: Connection.Local is a fake local connection and can be
+		// null in editor contexts (same guard idiom as MainMenu's leaderboard rows).
+		var localConnection = Connection.Local;
+
+		foreach ( var body in Scene.Scene.FindAllWithTagOrigin( "player" ) )
+		{
+			if ( !body.IsValid() )
+				continue;
+
+			var progress = body.GetComponent<PlayerProgress>();
+			if ( progress is null || !progress.IsValid() )
+				continue;
+
+			var net = body.Network;
+			// Defensive null-check on the accessor itself (same guard Extensions.IsMine
+			// carries): null or inactive Network => no connections, the solo plain-clone case.
+			bool netActive = net is not null && net.Active;
+			var owner = netActive ? net.Owner : null;
+
+			bool isLocal = localConnection is not null && (owner?.Id ?? Guid.Empty) == localConnection.Id;
+
+			if ( owner is null )
+			{
+				// No owner: either a proxy/unowned netted body (skip - its owner's client
+				// lists it under its own connection elsewhere) or the solo plain-clone
+				// (no NetworkObject at all). Only the clone of OUR local player counts,
+				// and it is by definition the local row even when Local is null.
+				if ( netActive || !ReferenceEquals( progress, _progress ) )
+					continue;
+
+				isLocal = true;
+			}
+
+			// Remote rows use their owner's DisplayName; only the solo-clone row falls
+			// back to the local connection's name (null in some editor contexts).
+			string name = owner is not null ? owner.DisplayName : localConnection?.DisplayName;
+			if ( string.IsNullOrWhiteSpace( name ) )
+				name = "PLAYER";
+
+			rows.Add( new PlayerListRow( name, (int)MathF.Floor( progress.Score ), isLocal ) );
+		}
+
+		_playerRows = rows
+			.OrderByDescending( r => r.IsLocal )
+			.ThenByDescending( r => r.Score )
+			.ThenBy( r => r.Name, StringComparer.Ordinal )
+			.ToList();
 	}
 
 	/// <summary>
