@@ -139,6 +139,11 @@
 	private DrunkCC _drunk;
 	private Sandbox.Services.Leaderboards.Board2 _leaderboard;
 	private bool _leaderboardLoaded;
+
+	/// <summary>Previous frame's Visible state, for detecting the hidden->visible transition
+	/// that re-arms the leaderboard refresh on each finished run.</summary>
+	private bool _leaderboardWasVisible;
+
 	private int _refreshKey;
 
 	protected override void OnStart()
@@ -162,12 +167,19 @@
 		_progress = _GameManager?.GetLocalPlayerProgress();
 		_drunk = _GameManager?.GetLocalDrunkCC();
 
-		// Refresh leaderboard when screen becomes visible
-		if ( Visible && !_leaderboardLoaded && _leaderboard != null )
+		// Re-arm the one-shot leaderboard refresh every time the screen becomes visible
+		// (each finished run), so the merged rows work against freshly fetched entries
+		// instead of whatever the first run's fetch returned. The engine rate-limits
+		// Board2.Refresh itself (static semaphore), and _refreshKey still forces the UI
+		// rebuild when entries arrive.
+		bool visibleNow = Visible;
+		if ( visibleNow && !_leaderboardWasVisible && !_leaderboardLoaded && _leaderboard != null )
 		{
 			_ = RefreshLeaderboardAsync();
 		}
-
+		if ( !visibleNow )
+			_leaderboardLoaded = false;
+		_leaderboardWasVisible = visibleNow;
 	}
 
 	private async System.Threading.Tasks.Task RefreshLeaderboardAsync()
