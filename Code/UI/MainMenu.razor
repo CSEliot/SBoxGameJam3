@@ -16,10 +16,10 @@
 // only while GameManager.GetLocalGameState() == LocalGameState.InMainMenu (the opaque
 // backdrop sits INSIDE the gate, so it can never cover gameplay). PLAY calls
 // GameManager.StartGame(); SETTINGS opens the engine settings modal (mirrors
-// EscMenu.OpenSettings); HOW TO PLAY opens the rules/controls modal; CREDITS opens a
-// small inline modal; QUIT closes the game (mirrors EscMenu/EndGame's Game.Close()).
-// Also shows a compact Top-N leaderboard
-// to the left of the menu column. Self-contained inline @code, no code-behind
+// EscMenu.OpenSettings); HOW TO PLAY opens a paginated rules/controls modal; CREDITS
+// opens a small inline modal; QUIT closes the game (mirrors EscMenu/EndGame's
+// Game.Close()). Also shows a compact Top-N leaderboard to the left of the menu
+// column. Self-contained inline @code, no code-behind
 // partial - mirrors EscMenu/BarMenu so there's no cross-file Rider
 // codebehind-resolution trap to worry about.
 //
@@ -78,36 +78,77 @@
 			<div class="howtoplay-modal">
 				<div class="htp-title">HOW TO PLAY</div>
 
-				@if ( CurrentPage == 0 )
-				{
-					<div class="htp-page">
+				<div class="htp-page">
+					<div class="htp-image"></div>
+					@if ( CurrentPage == 0 )
+					{
+						<div class="htp-heading">How to Win</div>
+					}
+					else if ( CurrentPage == 1 )
+					{
 						<div class="htp-heading">How to Win:</div>
 						<div class="htp-line">Run to the next pub as indicated by the arrow above your head, and chug Chug CHUG!!</div>
+					}
+					else if ( CurrentPage == 2 )
+					{
+						<div class="htp-heading">How to Win:</div>
 						<div class="htp-line">Every second, you gain points based on how drunk you are.</div>
+					}
+					else if ( CurrentPage == 3 )
+					{
+						<div class="htp-heading">How to Win:</div>
 						<div class="htp-line">The more you drink, the harder the game. You move faster and it's easier to fall over.</div>
+					}
+					else if ( CurrentPage == 4 )
+					{
+						<div class="htp-heading">How to Win:</div>
 						<div class="htp-line">Don't worry! The more you drink, the more time gets added for you to make it to the next bar!</div>
-					</div>
-				}
-				else if ( CurrentPage == 1 )
-				{
-					<div class="htp-page">
+					}
+					else if ( CurrentPage == 5 )
+					{
+						<div class="htp-heading">Controls</div>
+					}
+					else if ( CurrentPage == 6 )
+					{
 						<div class="htp-heading">Controls:</div>
 						<div class="htp-line">Hold Shift: Keep your pants up! (still working on the graphics for this, please rely on the pants graphic to the right.)</div>
+					}
+					else if ( CurrentPage == 7 )
+					{
+						<div class="htp-heading">Controls:</div>
 						<div class="htp-line">A / D: Tilt left and right.</div>
+					}
+					else if ( CurrentPage == 8 )
+					{
+						<div class="htp-heading">Controls:</div>
 						<div class="htp-line">Forward: This is automatic, you're always going forward.</div>
+					}
+					else if ( CurrentPage == 9 )
+					{
+						<div class="htp-heading">Controls:</div>
 						<div class="htp-line">Backwards: You can't! But let go of shift to drop your pants and lower your speed!</div>
+					}
+					else if ( CurrentPage == 10 )
+					{
+						<div class="htp-heading">Controls:</div>
 						<div class="htp-line">Spacebar: Jump!</div>
+					}
+					else if ( CurrentPage == 11 )
+					{
+						<div class="htp-heading">Controls:</div>
 						<div class="htp-line">Escape: Opening the Escape Menu.</div>
-					</div>
-				}
-				else
-				{
-					<div class="htp-page">
+					}
+					else if ( CurrentPage == 12 )
+					{
+						<div class="htp-heading">How to Lose</div>
+					}
+					else if ( CurrentPage == 13 )
+					{
 						<div class="htp-heading">How to Lose:</div>
 						<div class="htp-line">If your timer runs out (top left) you lose ALL YOUR POINTS. So every pub you hit, decide: Cash in or risk it all for ...</div>
 						<div class="htp-line htp-shout">ANOTHER ROUND!!</div>
-					</div>
-				}
+					}
+				</div>
 
 				<div class="htp-nav">
 					<div class="htp-arrow" onclick=@PrevPage>&lt;</div>
@@ -156,8 +197,9 @@
 	public bool ShowCredits { get; private set; }
 	public bool ShowHowToPlay { get; private set; }
 
-	/// <summary>How-to-play modal pages (How to Win / Controls / How to Lose).</summary>
-	private const int PageCount = 3;
+	/// <summary>How-to-play modal pages: a cover page per section (Win / Controls /
+	/// Lose) plus one page per rules line, so each page has room for its own image.</summary>
+	private const int PageCount = 14;
 	private int CurrentPage;
 
 	/// <summary>The panel renders only while the local client is in the main-menu
@@ -181,6 +223,17 @@
 
 	protected override void OnUpdate()
 	{
+		// Page navigation while the how-to-play modal is up. Raw KeyboardCode names
+		// (KeyTranslation lookup is case-insensitive), same style as Hud's "P" and
+		// Minigame's "space". Only when visible - A/D are gameplay keys elsewhere.
+		if ( Visible && ShowHowToPlay )
+		{
+			if ( Input.Keyboard.Pressed( "a" ) || Input.Keyboard.Pressed( "leftarrow" ) )
+				PrevPage();
+			else if ( Input.Keyboard.Pressed( "d" ) || Input.Keyboard.Pressed( "rightarrow" ) )
+				NextPage();
+		}
+
 		if ( !_leaderboardLoaded && _leaderboard != null )
 		{
 			_ = RefreshLeaderboardAsync();
@@ -233,12 +286,25 @@
 
 	private void HowToPlayClicked()
 	{
+		CurrentPage = 0;
 		ShowHowToPlay = true;
 	}
 
 	private void CloseHowToPlay()
 	{
 		ShowHowToPlay = false;
+	}
+
+	private void PrevPage()
+	{
+		if ( CurrentPage > 0 )
+			CurrentPage--;
+	}
+
+	private void NextPage()
+	{
+		if ( CurrentPage < PageCount - 1 )
+			CurrentPage++;
 	}
 
 	private void CreditsClicked()
@@ -256,5 +322,5 @@
 		Game.Close();
 	}
 
-	protected override int BuildHash() => HashCode.Combine( Visible, ShowCredits, ShowHowToPlay, _refreshKey );
+	protected override int BuildHash() => HashCode.Combine( Visible, ShowCredits, ShowHowToPlay, CurrentPage, _refreshKey );
 }
