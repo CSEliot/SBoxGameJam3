@@ -79,12 +79,22 @@ public partial class Hud : PanelComponent
 	}
 
 	/// <summary>
-	/// Shown once the player exists AND the run is live (Running or Paused). Hidden before
-	/// spawn, before the first bar starts the run (PreRun), and after Ended. Intentionally NOT
-	/// gated on LocalGameState: Design #45 wants the HUD dimmed-and-paused WHILE in a bar, and
-	/// the paused window coincides with WaitingToStartMinigame/PlayingMinigame (the timer is
-	/// paused the same frame the state leaves PubCrawling), so gating on PubCrawling would make
-	/// the paused HUD unreachable. RunState alone is the correct signal.
+	/// True only while the local client is pub-crawling on the street - false in the main
+	/// menu, while inside a bar (AtBarMenu decision, WaitingToStartMinigame, PlayingMinigame),
+	/// and fail-closed if GameManager is unwired. Gates the HUD body (nothing may sit behind
+	/// the BarMenu modal or the minigame overlay) and the pants-debug column (it used to only
+	/// exclude the menu, so it floated over bar screens too).
+	/// </summary>
+	private bool IsPubCrawling => _GameManager?.GetLocalGameState() == GameManager.LocalGameState.PubCrawling;
+
+	/// <summary>
+	/// Shown once the player exists AND the run is live (Running or Paused) AND the local
+	/// client is on the street (IsPubCrawling). Hidden before spawn, before the first bar
+	/// starts the run (PreRun), after Ended, and while IN A BAR: the BarMenu decision and
+	/// the minigame own the screen, so the HUD must not sit behind them. RunState alone
+	/// can't express this - the timer is Paused for the whole bar visit, which is exactly
+	/// the window to hide. Design.md Screen 2 puts the paused timer inside the BarMenu
+	/// modal's own corner spec (not yet built there), not on a dimmed HUD underneath it.
 	/// </summary>
 	private bool Visible
 	{
@@ -93,20 +103,14 @@ public partial class Hud : PanelComponent
 			if ( _progress is null )
 				return false;
 
+			if ( !IsPubCrawling )
+				return false;
+
 			var state = _progress.RunState;
 			return state == PlayerProgress.RunStateEnum.Running
 				|| state == PlayerProgress.RunStateEnum.Paused;
 		}
 	}
-
-	/// <summary>
-	/// False only while the local client sits in GameManager.LocalGameState.InMainMenu -
-	/// the pre-gamestart main menu, now merged into this scene. Null GameManager returns
-	/// true (fail-open: unwired scenes keep today's behavior). Used to keep the
-	/// pants-debug column from floating over the menu - it renders outside the
-	/// run-Visible gate and _ShowPantsDebug is true in the scene JSON.
-	/// </summary>
-	private bool NotInMainMenu => _GameManager?.GetLocalGameState() != GameManager.LocalGameState.InMainMenu;
 
 	/// <summary>Design #45: timer freezes in the bar - dim the HUD and show a paused banner.</summary>
 	private bool IsPaused => _progress?.RunState == PlayerProgress.RunStateEnum.Paused;
@@ -158,10 +162,11 @@ public partial class Hud : PanelComponent
 
 	// Rebuild every frame while visible so timer/score/drunkenness track their live values;
 	// hash to a constant while hidden so the idle panel stays put (mirrors Minigame.BuildHash).
-	// While hidden, the hash still tracks the pants-debug toggle/state so the readout keeps
-	// working pre-spawn (PreRun) instead of freezing at first paint. NotInMainMenu is in
-	// BOTH branches so the menu -> in-game state flip repaints the pants-debug gate.
+	// While hidden, the hash still tracks the pants-debug toggle/state so a P-toggle made
+	// while off-street is applied on the next repaint instead of freezing at first paint.
+	// IsPubCrawling is in BOTH branches so the menu/bar -> street state flip repaints the
+	// gated blocks.
 	protected override int BuildHash() => Visible
-		? HashCode.Combine( Visible, NotInMainMenu, RealTime.Now )
-		: HashCode.Combine( Visible, NotInMainMenu, _ShowPantsDebug, PantsDebugText );
+		? HashCode.Combine( Visible, IsPubCrawling, RealTime.Now )
+		: HashCode.Combine( Visible, IsPubCrawling, _ShowPantsDebug, PantsDebugText );
 }

@@ -68,7 +68,7 @@
 		</div>
 	}
 
-	@if ( _ShowPantsDebug && NotInMainMenu )
+	@if ( _ShowPantsDebug && IsPubCrawling )
 	{
 		<div class="pants-debug-col">
 			<div class="pants-debug @( PantsDebugIsDown ? "down" : "up" )">@PantsDebugText</div>
