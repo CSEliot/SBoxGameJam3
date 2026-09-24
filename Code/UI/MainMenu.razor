@@ -217,6 +217,7 @@
 			Log.Warning( "MainMenu: _GameManager is not wired - the menu will stay hidden." );
 
 		_leaderboard = Sandbox.Services.Leaderboards.GetFromStat( "score" );
+		_leaderboard.SetAggregationMax(); // Best single run per player - the backend defaults to Sum, which would add every run together
 		_leaderboard.SetSortDescending();
 		_leaderboard.MaxEntries = 100;
 	}

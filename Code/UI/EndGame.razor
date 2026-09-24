@@ -29,6 +29,7 @@
 @namespace Sandbox.UI
 
 @using System
+@using System.Linq
 @using Sandbox
 @using Sandbox.UI
 
@@ -47,12 +48,12 @@
 					<div class="lb-title">@( "BEST DRUNKARDS" )</div>
 					@* <div class="lb-title">@( "\U0001F3C6 BEST DRUNKARDS \U0001F3C6" )</div> *@
 
-	    		    @foreach ( var row in TopRows )
+					@foreach ( var row in TopRows )
 					{
 						<div class="lb-row rank-@( row.Rank ) @( row.IsLocal ? "local" : "" )">
 							<div class="lb-rank">@( row.Rank ).</div>
-							<div class="lb-name">@( row.Entry.DisplayName )</div>
-						<div class="lb-score">@( ( (int)row.Entry.Value ).ToString( "D4" ) )</div>
+							<div class="lb-name">@( row.DisplayName )</div>
+							<div class="lb-score">@( ( (int)row.Value ).ToString( "D4" ) )</div>
 						</div>
 					}
 
@@ -61,8 +62,8 @@
 						<div class="lb-divider"></div>
 						<div class="lb-row local pinned">
 							<div class="lb-rank">@( LocalPinnedRow.Value.Rank ).</div>
-							<div class="lb-name">@( LocalPinnedRow.Value.Entry.DisplayName )</div>
-						<div class="lb-score">@( ( (int)LocalPinnedRow.Value.Entry.Value ).ToString( "D4" ) )</div>
+							<div class="lb-name">@( LocalPinnedRow.Value.DisplayName )</div>
+							<div class="lb-score">@( ( (int)LocalPinnedRow.Value.Value ).ToString( "D4" ) )</div>
 						</div>
 					}
 				</div>
@@ -99,13 +100,27 @@
 	/// the local run (PlayerProgress.ResetRun) then respawns the player.</summary>
 	public Action OnTryAgain;
 	
-	/// <summary>One leaderboard row as rendered on this screen: its 1-based rank, the entry
-	/// data, and whether it belongs to the local player (for the highlight glow).</summary>
+	/// <summary>One leaderboard row as rendered on this screen: its 1-based rank, the display
+	/// name/score to show, and whether it belongs to the local player (for the highlight glow).
+	/// Name/value are carried directly instead of a Board2.Entry because the local player's
+	/// score may be corrected against a stale backend board, and Entry is a readonly struct
+	/// with an internal ctor that game code cannot construct or mutate.</summary>
 	public readonly struct Row
 	{
 		public int Rank { get; init; }
-		public Sandbox.Services.Leaderboards.Board2.Entry Entry { get; init; }
+		public string DisplayName { get; init; }
+		public double Value { get; init; }
 		public bool IsLocal { get; init; }
+
+		/// <summary>Copy with a recomputed 1-based rank (structs are readonly, so ranks are
+		/// assigned after the merged/corrected row list has been ordered).</summary>
+		public Row WithRankHelper( int rank ) => new Row
+		{
+			Rank = rank,
+			DisplayName = DisplayName,
+			Value = Value,
+			IsLocal = IsLocal,
+		};
 	}
 	
 	/// <summary>
@@ -133,6 +148,7 @@
 
 		// Initialize the s&box API leaderboard for the "score" stat
 		_leaderboard = Sandbox.Services.Leaderboards.GetFromStat( "score" );
+		_leaderboard.SetAggregationMax(); // Show each player's best single run - the backend defaults to Sum, which would add every run together
 		_leaderboard.SetSortDescending(); // Highest scores first
 		_leaderboard.MaxEntries = 100; // Fetch more than we display to find local player
 	}
@@ -206,57 +222,79 @@
 	private IReadOnlyList<Sandbox.Services.Leaderboards.Board2.Entry> Leaderboard => _leaderboard?.Entries ?? Array.Empty<Sandbox.Services.Leaderboards.Board2.Entry>();
 
 	/// <summary>
-	/// Index of the local player's entry in the leaderboard, or -1 if they haven't submitted
-	/// a score yet or aren't in the fetched entries.
+	/// The fetched board entries with the local player's just-finished run merged in. The
+	/// backend can lag the score we just submitted (and summed every run before the
+	/// SetAggregationMax fix in OnStart), so the local row shows max(fetched value,
+	/// FinalScore), and a player with no fetched entry yet (first run / backend lag) gets a
+	/// synthetic row. ONLY the local row is ever adjusted - everyone else is rendered exactly
+	/// as fetched. Stable-sorted descending by display value (equal scores keep the backend's
+	/// own order), ranks recomputed as display-only positions in this merged list. Built fresh
+	/// from _leaderboard.Entries + FinalScore on every call - no accumulated state.
 	/// </summary>
-	private int LocalRankIndex
+	private List<Row> MergedRowsHelper()
 	{
-		get
-		{
-			var list = Leaderboard;
-			var localSteamId = Connection.Local.SteamId;
+		var list = Leaderboard;
+		var local = Connection.Local;
+		var localSteamId = local?.SteamId ?? default;
+		var rows = new List<Row>( list.Count + 1 );
+		bool localFound = false;
 
-			for ( int i = 0; i < list.Count; i++ )
+		for ( int i = 0; i < list.Count; i++ )
+		{
+			bool isLocal = local is not null && list[i].SteamId == localSteamId;
+			double value = list[i].Value;
+			if ( isLocal )
 			{
-				if ( list[i].SteamId == localSteamId )
-					return i;
+				localFound = true;
+				// Stale-board correction: only ever raise the local score to the frozen
+				// FinalScore when it beats what the backend returned - never lower it.
+				if ( FinalScore > value )
+					value = FinalScore;
 			}
-			return -1;
+			rows.Add( new Row { Rank = i + 1, DisplayName = list[i].DisplayName, Value = value, IsLocal = isLocal } );
 		}
+
+		if ( !localFound && local is not null && FinalScore > 0 )
+		{
+			// First run, or the refresh hasn't returned us yet: synthetic row at FinalScore,
+			// slotted below equal scores by the stable sort below.
+			rows.Add( new Row { Rank = 0, DisplayName = LocalDisplayName, Value = FinalScore, IsLocal = true } );
+		}
+
+		var ordered = rows.OrderByDescending( r => r.Value ).ToList();
+		for ( int i = 0; i < ordered.Count; i++ )
+			ordered[i] = ordered[i].WithRankHelper( i + 1 );
+		return ordered;
 	}
 
-	/// <summary>Design Screen 4/5: the always-visible Top N rows, local player highlighted
-	/// in place if they happen to be within range.</summary>
+	/// <summary>Design Screen 4/5: the always-visible Top N rows of the merged/corrected
+	/// board, local player highlighted in place if they're within range.</summary>
 	private List<Row> TopRows
 	{
 		get
 		{
-			var list = Leaderboard;
-			int localIndex = LocalRankIndex;
-			var rows = new List<Row>();
-			int count = Math.Min( _DisplayTopCount, list.Count );
-			for ( int i = 0; i < count; i++ )
-			{
-				rows.Add( new Row { Rank = i + 1, Entry = list[i], IsLocal = i == localIndex } );
-			}
-			return rows;
+			var rows = MergedRowsHelper();
+			return rows.GetRange( 0, Math.Min( _DisplayTopCount, rows.Count ) );
 		}
 	}
 
 	/// <summary>
-	/// Design Screen 4: if the local player is outside the visible Top N, their row is pinned
-	/// below it (separated by a divider) so they can always see their own placement. Null when
-	/// they're within the Top N already (already shown in TopRows) or have no entry yet.
+	/// Design Screen 4: if the local player's corrected position is outside the visible
+	/// Top N, their row is pinned below it (separated by a divider) so they can always see
+	/// their own placement. Null when they're within the Top N already (shown in TopRows -
+	/// never both) or have no row at all yet.
 	/// </summary>
 	private Row? LocalPinnedRow
 	{
 		get
 		{
-			int localIndex = LocalRankIndex;
-			if ( localIndex < 0 || localIndex < _DisplayTopCount )
-				return null;
-
-			return new Row { Rank = localIndex + 1, Entry = Leaderboard[localIndex], IsLocal = true };
+			var rows = MergedRowsHelper();
+			for ( int i = _DisplayTopCount; i < rows.Count; i++ )
+			{
+				if ( rows[i].IsLocal )
+					return rows[i];
+			}
+			return null;
 		}
 	}
 
