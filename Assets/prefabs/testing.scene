@@ -219,14 +219,10 @@
           {
             "Target": {
               "Type": "Component",
-              "IdValue": "de58172e-f9ea-4e18-b1c9-fcdc27eedee3"
+              "IdValue": "bfbdcc6f-422f-43d8-b416-1f24e94f248a"
             },
-            "Property": "Materials",
-            "Value": {
-              "indexed": {
-                "0": "models/citizen_clothes/trousers/trackiebottoms/textures/trackie_bottoms_black.vmat_pants_drop"
-              }
-            }
+            "Property": "_ShaderInEditor",
+            "Value": false
           }
         ],
         "MovedObjects": [

@@ -94,6 +94,23 @@ Lesson: two .clothing assets can share one mesh with OPPOSITE slot layers -
 check the COMPILED .clothing_c slots of the asset actually referenced (guid
 in the prefab), not the same-named project copy.
 
+UNDERWEAR SHOW-THROUGH FIX (08:35) - WORKING, playtest-confirmed by ecs:
+with both garments worn, the boxers mesh is bulkier than the trackies and
+rendered THROUGH them permanently ("always shows over the pants"). There is
+no garment layering in the clothing system - both surviving entries get a
+renderer and both draw, geometry only - so the undergarment must be hidden
+while the outer one is up. Fix in PantsDropController: new
+`_UnderwearModelMatch` ("boxers") + `_underwearRenderer`, finder generalized
+to `FindClothingRendererHelper( match )`, re-walked in EnsureRefsHelper on
+re-dress, and `HandlePantsHideHelper` now drives BOTH renderers off one
+predicate `pantsHidden = KnockedDown || PantsState == Down`:
+pants = !pantsHidden, underwear = pantsHidden (+ OnEnabled re-stamp).
+Underwear lookup is optional-guarded (account outfits may lack it).
+Net: Up = trackies only; Down/knocked-down = boxers + Legs.
+STILL OPEN: the drop SHADER itself (color probe armed, PANTS_COLOR_PROBE 1 -
+the pants currently render as the RGB vPositionOs diagnostic gradient, and
+the Down state is a hard hide, not a slide).
+
 EDITOR-TIME PROBE MODE (added 03:30 - in-game testing was impractical):
 - PantsDropController now implements Component.ExecuteInEditor and has a
   [Property] bool `_ShaderInEditor` (default false). Editor scenes tick it only
