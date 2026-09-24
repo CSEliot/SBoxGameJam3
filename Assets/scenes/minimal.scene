@@ -610,6 +610,25 @@
           "__guid": "cc0c174d-87db-4798-8ffd-56137134250d",
           "__enabled": true,
           "Flags": 0,
+          "_BarPreviewNames": [
+            "Garys",
+            "The Drunken Cam",
+            "The Spongey Splatoon"
+          ],
+          "_BarPreviewPrefabs": [
+            {
+              "_type": "gameobject",
+              "prefab": "fbx/bars/garys/Garys-JustModel.prefab"
+            },
+            {
+              "_type": "gameobject",
+              "prefab": "fbx/bars/thedrunkencam/TheDrunkenCam-JustModel.prefab"
+            },
+            {
+              "_type": "gameobject",
+              "prefab": "fbx/bars/thespongeysplatoon/TheSpongeySplatoon-JustModel.prefab"
+            }
+          ],
           "_GameManager": {
             "_type": "component",
             "component_id": "f80e2d64-81c8-49ec-83fd-9682f3cdaa01",

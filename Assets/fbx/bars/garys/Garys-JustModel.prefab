@@ -3,7 +3,7 @@
     "__guid": "2de0ae3b-d5bf-48e3-ba95-70fef579275e",
     "__version": 2,
     "Flags": 0,
-    "Name": "Garys-JustModel",
+    "Name": "garys-justmodel",
     "Position": "0,0,0",
     "Rotation": "0,0,0.707106709,-0.707106709",
     "Scale": "1.29999995,1.29999995,1.29999995",
@@ -44,77 +44,6 @@
         },
         "RenderType": "On",
         "Tint": "1,1,1,1"
-      },
-      {
-        "__type": "Sandbox.NavMeshArea",
-        "__guid": "bf6ab83e-58d2-4914-a719-984041b9234b",
-        "__enabled": true,
-        "Flags": 0,
-        "Area": null,
-        "IsBlocker": true,
-        "LinkedCollider": null,
-        "OnComponentDestroy": null,
-        "OnComponentDisabled": null,
-        "OnComponentEnabled": null,
-        "OnComponentFixedUpdate": null,
-        "OnComponentStart": null,
-        "OnComponentUpdate": null,
-        "SceneVolume": {
-          "Type": "Box",
-          "Sphere": {
-            "Center": "0,0,0",
-            "Radius": 10
-          },
-          "Box": {
-            "Mins": "-50,-50,-50",
-            "Maxs": "50,50,50"
-          },
-          "Capsule": {
-            "CenterA": "0,0,10",
-            "CenterB": "0,0,90",
-            "Radius": 10
-          }
-        }
-      },
-      {
-        "__type": "Sandbox.BoxCollider",
-        "__guid": "aeb3fcba-9136-4c47-b99b-23ea8c8a1855",
-        "__enabled": true,
-        "Flags": 0,
-        "Center": "-27.5082855,1.63700867,82.515358",
-        "ColliderFlags": 0,
-        "Elasticity": null,
-        "Friction": null,
-        "IsTrigger": false,
-        "OnComponentDestroy": null,
-        "OnComponentDisabled": null,
-        "OnComponentEnabled": null,
-        "OnComponentFixedUpdate": null,
-        "OnComponentStart": null,
-        "OnComponentUpdate": null,
-        "OnObjectTriggerEnter": null,
-        "OnObjectTriggerExit": null,
-        "OnTriggerEnter": null,
-        "OnTriggerExit": null,
-        "RollingResistance": null,
-        "Scale": "245.511444,248.785385,164.843414",
-        "Static": true,
-        "Surface": null,
-        "SurfaceVelocity": "0,0,0"
-      },
-      {
-        "__type": "Sandbox.UI.BarModule",
-        "__guid": "d27acdd4-0603-4ec1-aa4a-801b9c841169",
-        "__enabled": true,
-        "Flags": 0,
-        "Name": "Garys",
-        "OnComponentDestroy": null,
-        "OnComponentDisabled": null,
-        "OnComponentEnabled": null,
-        "OnComponentFixedUpdate": null,
-        "OnComponentStart": null,
-        "OnComponentUpdate": null,
-        "SpawnPoint": null
       }
     ],
     "Children": [
@@ -176,8 +105,73 @@
           }
         ],
         "Children": []
+      },
+      {
+        "__guid": "695e0c2f-4bf3-41cd-aa1a-d999d4ed37a3",
+        "__version": 2,
+        "Flags": 0,
+        "Name": "Spot Light",
+        "Position": "-19.1707096,228.219376,70.7059021",
+        "Rotation": "0,0,-0.707106769,0.707106769",
+        "Scale": "1,1,1",
+        "Tags": "light_spot,light",
+        "Enabled": true,
+        "NetworkMode": 2,
+        "NetworkFlags": 0,
+        "NetworkOrphaned": 0,
+        "NetworkTransmit": true,
+        "OwnerTransfer": 1,
+        "Components": [
+          {
+            "__type": "Sandbox.SpotLight",
+            "__guid": "97f1628c-a1ad-494b-ba55-8b9e08a75cb4",
+            "__enabled": true,
+            "Flags": 0,
+            "Attenuation": 0.9192825,
+            "ConeInner": 34.70852,
+            "ConeOuter": 41.973095,
+            "Contribution": "Diffuse, Specular, Transmissive",
+            "Cookie": null,
+            "FogMode": "Enabled",
+            "FogStrength": 1,
+            "LightColor": "0.91373,0.98039,1,1",
+            "OnComponentDestroy": null,
+            "OnComponentDisabled": null,
+            "OnComponentEnabled": null,
+            "OnComponentFixedUpdate": null,
+            "OnComponentStart": null,
+            "OnComponentUpdate": null,
+            "Radius": 200,
+            "ShadowBias": 0,
+            "ShadowHardness": 0,
+            "Shadows": true
+          }
+        ],
+        "Children": []
       }
-    ]
+    ],
+    "__properties": {
+      "NetworkInterpolation": true,
+      "PhysicsMode": "Physics3D",
+      "TimeScale": 1,
+      "WantsSystemScene": true,
+      "Metadata": {},
+      "NavMesh": {
+        "Enabled": false,
+        "IncludeStaticBodies": true,
+        "IncludeKeyframedBodies": true,
+        "EditorAutoUpdate": false,
+        "AgentHeight": 64,
+        "AgentRadius": 16,
+        "AgentStepSize": 18,
+        "AgentMaxSlope": 40,
+        "ExcludedBodies": "",
+        "IncludedBodies": "",
+        "DeferGeneration": false,
+        "CustomBounds": false
+      }
+    },
+    "__variables": []
   },
   "ResourceVersion": 2,
   "ShowInMenu": false,
