@@ -327,10 +327,15 @@ Behavior notes:
   minimums pass (time since last record >= `MinTimePerPosition` AND distance from
   newest sample >= `MinDistancePerPosition`); the time gate stays armed while the
   distance gate blocks, so the sample lands the instant spacing is reached.
-- On recovery the queue is cleared and the sample timer restarts, so the recovery
-  position itself is never seeded into the fresh queue (a knocked-down-again-
-  immediately player stands up where they fell instead of snapping back to the
-  same spot twice).
+- On recovery the queue is KEPT (the pre-crash trail survives, so a drunk rewind
+  after repeated crashes still lands far back up the route rather than next to the
+  wall it would have refilled around) and only the sample timer restarts. The
+  recovery position itself is never seeded into the queue: recording has no
+  empty-queue bypass and waits a full `MinTimePerPosition` after the timer reset,
+  so a knocked-down-again-immediately player stands up where they fell instead of
+  snapping back to the same spot twice. Trade-off: after recovering at an older
+  entry, the entries between that point and the crash describe the abandoned run
+  and remain selectable by later low-beer knockdowns.
 - Empty queue at knockdown: fallback to the live transform (stand up where you
   fell). Queue shorter than the target index: clamp to the oldest available.
 - The recovery point is still snapped onto the navmesh

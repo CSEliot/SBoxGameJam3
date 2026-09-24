@@ -1,5 +1,8 @@
 ## OTHER
 
+ + add: track last knockdown location. if current knock location is within X distance (expose as property named _DoubleKnockdownDistance) then remove 
+    the latest stored recovery history to make player respawn furhter back.
+ + re-enable per-character costumes (but everything except for age and IF the clothing covers slots groin and below, either layer over/under.
  + Re-enable dome and collision mesh upon game start.
  + RECOVERY NEEDS TO TAKE INTO ACCOUNT NEW BEER LEVELS
  + Arrow falls like physical object on knockdown.

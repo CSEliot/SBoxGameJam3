@@ -134,6 +134,14 @@ public sealed class DrunkCC : Component
 	private readonly List<HistorySample> _history = new();
 
 	/// <summary>
+	/// Where the player last entered KnockedDown, for the double-knockdown check in
+	/// OwnerEnterKnockedDownHelper. Only meaningful once _hasLastKnockdownPosition is true
+	/// (the first knockdown of a run has nothing to compare against).
+	/// </summary>
+	private Vector3 _lastKnockdownPosition;
+	private bool _hasLastKnockdownPosition;
+
+	/// <summary>
 	/// Timer gating how often a HistorySample is appended.
 	/// </summary>
 	private TimeSince _sinceLastSample;
@@ -168,15 +176,22 @@ public sealed class DrunkCC : Component
 	/// </summary>
 	[Property] public float MaxBeerLevel { get; set; } = 10f;
 
-	// /// <summary>
-	// /// Rec Distance No Matter Beer Level
-	// /// </summary>
-	// [Property] private float _RecoveryMinTracking { get; set; } = 2f;
+	/// <summary>
+	/// If a knockdown happens within this distance (units) of the PREVIOUS knockdown's
+	/// location, the newest recovery-history entry is dropped before the recovery point is
+	/// picked, so a player falling twice in the same stretch respawns one position further
+	/// back instead of on top of the same spot. 0 or below disables the check.
+	/// </summary>
+	[Property] private float _DoubleKnockdownDistance { get; set; } = 100f;
 
 	/// <summary>
 	/// Search radius (units) when snapping the recovery point onto the navmesh.
 	/// </summary>
 	[Property] private float _RecoveryNavSearchRadius { get; set; } = 1024f;
+	/// <summary>
+	/// How much height to add to the recovery point when snapping it onto the navmesh.
+	/// </summary>
+	[Property] private float _RecoveryAdditionalHeight { get; set; } = 100f;
 	
 	/// <summary>
 	/// Upright spring stiffness: corrective torque per degree of roll beyond _RollResponseFloor.
@@ -327,10 +342,12 @@ public sealed class DrunkCC : Component
 	/// Custom Ragdoll Code by Small Fish Library
 	/// </summary>
 	[Property] private ShrimpleRagdoll _Ragdoll { get; set; }
+	[Property] private float _BarSpawnNoKnockdownSeconds { get; set; } = 2;
 	
 	private CCCamera _ccCamera;
 	private GameManager _gameManager;
 	private bool _isGrounded;
+	public float TimeSinceBarSpawn;
 
 	/// <summary>
 	/// The BeerLevel value difficulty effects should read: the raw level saturated at
@@ -477,15 +494,20 @@ public sealed class DrunkCC : Component
 		if ( CurrentState == State.Running)
 		{
 				OwnerHandleRunningHelper();
-				// Rule 5: leaned too far -> knocked down.
-				if ( _MaxHitRoll > 0f && MathF.Abs( _rollDeg ) > _MaxHitRoll )
+				if ( Time.Now - TimeSinceBarSpawn > _BarSpawnNoKnockdownSeconds )
 				{
-					OwnerEnterKnockedDownHelper();
-				}
-				else if ( _HasHitObstacle )
-				{
-					_HasHitObstacle = false;
-					OwnerEnterKnockedDownHelper();
+					if ( _MaxHitRoll > 0f && MathF.Abs( _rollDeg ) > _MaxHitRoll )
+					{
+						if(_history.Count > 0)
+							OwnerEnterKnockedDownHelper(_history.Count - 1);
+						else
+							OwnerEnterKnockedDownHelper();
+					}
+					else if ( _HasHitObstacle )
+					{
+						_HasHitObstacle = false;
+						OwnerEnterKnockedDownHelper();
+					}
 				}
 		}
 		if(CurrentState == State.KnockedDown)
@@ -626,23 +648,52 @@ public sealed class DrunkCC : Component
 		}
 	}
 	
-	
-	private void OwnerEnterKnockedDownHelper()
+	/// <summary>
+	/// 
+	/// </summary>
+	/// <param name="recoveryQueueIndex">Automatically calculated by RecoveryQueueIndexHelper() unless passed.</param>
+	private void OwnerEnterKnockedDownHelper(int? recoveryQueueIndex = null)
 	{
 		if(IsProxy)
 			Log.Error("OwnerEnterKnockedDownHelper CALLED BY PROXY! THIS IS WRONG!");
 
 		CurrentState = State.KnockedDown;
 		_knockdownEnds = _KnockdownRecoveryTime;
-			
+
 		RagdollifyHelper();
+
+		// Double-knockdown pushback: falling within _DoubleKnockdownDistance of where we last
+		// fell means the recovery point we're about to pick is in the same stretch of road we
+		// already failed to get out of, so drop the newest queue entry first. On the
+		// beer-scaled path the entry index counts back from the newest, so dropping the top
+		// shifts every candidate one sample further up the trail; repeated falls in the same
+		// place keep walking it back. (A caller that passes an explicit index pointing at the
+		// OLDEST entry is unaffected here: the oldest sample doesn't move when the newest is
+		// removed, so the pushback can only erode the queue on that path, not go deeper.)
+		// Skipped when there's only one entry left: removing it would empty the queue, and the
+		// empty-queue fallback stands you up exactly where you fell, which is the opposite of
+		// further back.
+		if ( _hasLastKnockdownPosition
+			&& _history.Count > 1
+			&& _DoubleKnockdownDistance > 0f
+			&& _Rigidbody.WorldPosition.Distance( _lastKnockdownPosition ) <= _DoubleKnockdownDistance )
+		{
+			_history.RemoveAt( _history.Count - 1 );
+		}
+
+		// Record where THIS knockdown happened for the next one to compare against.
+		_lastKnockdownPosition = _Rigidbody.WorldPosition;
+		_hasLastKnockdownPosition = true;
+
+		if(recoveryQueueIndex == null)
+			recoveryQueueIndex = RecoveryQueueIndexHelper();
 		
 		// Recovery picks its queue entry by beer ratio: the drunker you are, the further back
 		// down the queue (toward the oldest position) you get thrown. Short queues clamp to
 		// the oldest available; an empty queue stands you up where you fell.
-		var restore = GetRecoverySampleHelper( RecoveryQueueIndexHelper() );
+		var restore = GetRecoverySampleHelper( recoveryQueueIndex.Value );
 
-		_knockdownRestorePosition = restore.Position;
+		_knockdownRestorePosition = restore.Position + Vector3.Up * _RecoveryAdditionalHeight;
 		_knockdownHeading = restore.Heading;
 		if ( _knockdownHeading.IsNearlyZero() ) _knockdownHeading = Vector3.Forward;
 	}
@@ -779,12 +830,8 @@ public sealed class DrunkCC : Component
 		// A knockdown can interrupt a jump; clear the gate so recovery doesn't leave jumping stuck off.
 		_isJumping = false;
 		_hasLeftGround = false;
-
-		// The rewound trail is spent; don't let stale pre-knockdown samples seed the next
-		// rewind. Also restart the sample timer so the fresh trail's first point lands a full
-		// MinTimePerPosition into the new run - never at the recovery position itself
-		// (that seed made back-to-back knockdowns recover to the same spot).
-		_history.Clear();
+		
+		// reset timer to give player travel time.
 		_sinceLastSample = 0f;
 	}
 
@@ -859,8 +906,7 @@ public sealed class DrunkCC : Component
 		// gate passes so it never re-arms the timer — on a spacing miss _sinceLastSample
 		// keeps counting, and the sample lands the instant spacing is reached. An empty
 		// queue has nothing to measure against, so it records on the time gate alone.
-		if ( _history.Count > 0 &&
-			_Rigidbody.WorldPosition.Distance( _history[^1].Position ) < MinDistancePerPosition )
+		if ( _history.Count > 0 && _Rigidbody.WorldPosition.Distance( _history[^1].Position ) < MinDistancePerPosition )
 			return;
 
 		_sinceLastSample = 0f;
