@@ -476,6 +476,8 @@ public sealed class GameManager : Component, Component.INetworkListener
 			return;
 		}
 		
+		// Teleports invalidate recovery history and the double-knockdown reference point.
+		_LocalDrunkCC?.InvalidateRecoveryStateHelper();
 		_LocalPlayer.WorldPosition = spawnLocation.WorldPosition;
 		_LocalPlayer.WorldRotation = spawnRotation; //todo: ASAP is this fix?!
 		_CCCamera.WorldPosition = spawnLocation.WorldPosition;

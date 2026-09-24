@@ -498,16 +498,21 @@ public sealed class DrunkCC : Component
 				{
 					if ( _MaxHitRoll > 0f && MathF.Abs( _rollDeg ) > _MaxHitRoll )
 					{
-						if(_history.Count > 0)
-							OwnerEnterKnockedDownHelper(_history.Count - 1);
-						else
-							OwnerEnterKnockedDownHelper();
+						OwnerEnterKnockedDownHelper();
 					}
 					else if ( _HasHitObstacle )
 					{
 						_HasHitObstacle = false;
 						OwnerEnterKnockedDownHelper();
 					}
+				}
+				else
+				{
+					// Bar-spawn grace: obstacle touches during the window must not latch, or the
+					// stale flag fires a knockdown the instant grace expires, wherever the player
+					// has driven to by then. Clearing here makes the obstacle check level-triggered
+					// like the roll check above it.
+					_HasHitObstacle = false;
 				}
 		}
 		if(CurrentState == State.KnockedDown)
@@ -667,9 +672,8 @@ public sealed class DrunkCC : Component
 		// already failed to get out of, so drop the newest queue entry first. On the
 		// beer-scaled path the entry index counts back from the newest, so dropping the top
 		// shifts every candidate one sample further up the trail; repeated falls in the same
-		// place keep walking it back. (A caller that passes an explicit index pointing at the
-		// OLDEST entry is unaffected here: the oldest sample doesn't move when the newest is
-		// removed, so the pushback can only erode the queue on that path, not go deeper.)
+		// place keep walking it back. (No caller passes an explicit index anymore; if one
+		// ever did, it would resolve against the post-removal queue like any other pick.)
 		// Skipped when there's only one entry left: removing it would empty the queue, and the
 		// empty-queue fallback stands you up exactly where you fell, which is the opposite of
 		// further back.
@@ -833,6 +837,22 @@ public sealed class DrunkCC : Component
 		
 		// reset timer to give player travel time.
 		_sinceLastSample = 0f;
+	}
+
+	/// <summary>
+	/// Owner-side: drop recovery state that a teleport invalidates. Pre-teleport history
+	/// samples would rewind across the map, and a stale last-knockdown position would
+	/// trigger a false double-knockdown pushback at the new location. With the queue
+	/// empty, a knockdown before the next sample accrues stands the player up where they
+	/// fell (GetRecoverySampleHelper's live-transform fallback).
+	/// </summary>
+	public void InvalidateRecoveryStateHelper()
+	{
+		if ( IsProxy )
+			return;
+		_history.Clear();
+		_hasLastKnockdownPosition = false;
+		_sinceLastSample = 0f; // fresh post-teleport sampling window
 	}
 
 	/// <summary>
