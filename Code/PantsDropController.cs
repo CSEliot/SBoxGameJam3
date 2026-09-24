@@ -34,14 +34,17 @@ using System.Collections.Generic;
 ///    The citizen Legs group is all-or-nothing and BOTH the pants and the
 ///    heart boxers hide it, so this runtime toggle is the only thing keeping
 ///    slid-down pants from revealing a legless gap.
-/// 5. Knockdown: the worn pants hide entirely (renderer disabled) while Legs
-///    is shown - the flying-pants prefab (ecs's system) replaces them and
-///    reads the same state; no bodygroup trickery substitutes for this hide.
+/// 5. Hide worn pants (renderer off): while knocked down (the flying-pants
+///    prefab, ecs's system, replaces them) and - INTERIM, until the drop
+///    shader's displacement works - while pants state is Down, revealing the
+///    always-worn heart boxers + Legs bodygroup. See HandlePantsHideHelper.
 ///
 /// Lives on the player prefab alongside DrunkCC/Dresser. No scene wiring
 /// beyond existing nodes needed; the pants asset is matched by model path.
+/// Also usable at EDITOR time on a standalone pants rig (Assets/prefabs/
+/// pants.prefab) via _ShaderInEditor - see that property.
 /// </summary>
-public sealed class PantsDropController : Component
+public sealed class PantsDropController : Component, Component.ExecuteInEditor
 {
 	/// <summary>
 	/// How fast the drop tween runs (fraction of full drop per second) while
@@ -69,6 +72,19 @@ public sealed class PantsDropController : Component
 	/// (asset path: models/citizen_clothes/trousers/trackiebottoms/...).
 	/// </summary>
 	[Property] private string _PantsModelMatch { get; set; } = "trackiebottoms";
+
+	/// <summary>
+	/// Editor-time preview: run this controller in an EDITOR scene (not only
+	/// play mode) so the pants shader - e.g. the Pants-Calibration color
+	/// probe - can be inspected on a prefab instance dragged into a scene
+	/// without pressing play. Works via Component.ExecuteInEditor on this
+	/// class. A standalone rig (no DrunkCC/Dresser, e.g. pants.prefab) is
+	/// driven in a static pants-up state. Does NOT run inside the prefab
+	/// editor itself (PrefabCacheScene never ticks components) - view the
+	/// prefab as an instance in a scene. Ignored in play mode: game behavior
+	/// is identical either way.
+	/// </summary>
+	[Property] private bool _ShaderInEditor { get; set; }
 
 	/// <summary>
 	/// Shader and its material copies are shared by every player instance -
@@ -107,7 +123,15 @@ public sealed class PantsDropController : Component
 		_drunkCC = GameObject.GetComponent<DrunkCC>( true );
 		if ( _drunkCC is null )
 		{
-			Log.Error( $"{nameof( PantsDropController )}: no DrunkCC on this GameObject, pants visual disabled" );
+			// Editor preview rig (e.g. pants.prefab) has no DrunkCC - allowed,
+			// driven in a static pants-up state. In play mode it is still a
+			// wiring error: self-disable exactly as before.
+			if ( Scene.IsEditor )
+			{
+				Log.Info( $"{nameof( PantsDropController )}: no DrunkCC, editor preview mode (static pants-up state) on {GameObject.Name}" );
+				return;
+			}
+			Log.Error( $"{nameof( PantsDropController )}: no DrunkCC on this GameObject '{GameObject.Name}', pants visual disabled" );
 			Enabled = false;
 			return;
 		}
@@ -115,7 +139,16 @@ public sealed class PantsDropController : Component
 
 	protected override void OnUpdate()
 	{
-		if ( _drunkCC is null ) return;
+		// Editor scenes only tick when both the engine marker
+		// (Component.ExecuteInEditor) and the author-facing toggle agree -
+		// an ExecuteInEditor component alone would run on EVERY editor scene
+		// load, incl. scenes that merely contain a player prefab instance.
+		if ( Scene.IsEditor && !_ShaderInEditor )
+			return;
+
+		// Play-mode behavior is unchanged: nothing to drive without state.
+		if ( _drunkCC is null && !Scene.IsEditor )
+			return;
 
 		EnsureRefsHelper();
 
@@ -128,7 +161,7 @@ public sealed class PantsDropController : Component
 		if ( !_overrideActive && !_overrideFailed )
 			TryApplyOverrideHelper();
 
-		HandleKnockdownHideHelper();
+		HandlePantsHideHelper();
 		TweenAndPushHelper();
 		SyncLegsBodyGroupHelper();
 	}
@@ -147,7 +180,25 @@ public sealed class PantsDropController : Component
 			_bodyRenderer = dresser.IsValid() ? dresser.BodyTarget : null;
 		}
 
-		if ( _pantsRenderer.IsValid() || !_bodyRenderer.IsValid() )
+		if ( _pantsRenderer.IsValid() )
+			return;
+
+		// Editor preview rig fallback (e.g. pants.prefab): no Dresser/body,
+		// the trackie SkinnedModelRenderer sits on THIS GameObject. Play-mode
+		// player instances always have a Dresser, so this only ever fires on
+		// standalone rigs.
+		if ( !_bodyRenderer.IsValid() )
+		{
+			var own = GameObject.GetComponent<SkinnedModelRenderer>( true );
+			if ( own.IsValid() &&
+				(own.Model?.ResourcePath ?? "").Contains( _PantsModelMatch, StringComparison.OrdinalIgnoreCase ) )
+			{
+				_pantsRenderer = own;
+				return;
+			}
+		}
+
+		if ( !_bodyRenderer.IsValid() )
 			return;
 
 		// Previous pants renderer died (re-dress) - drop our slot state so the
@@ -284,20 +335,32 @@ public sealed class PantsDropController : Component
 	}
 
 	/// <summary>
-	/// Knockdown hides the worn pants entirely (the flying prefab replaces them
-	/// - ecs's system, reading the same replicated state). Hide = renderer off;
-	/// Legs visibility is handled by SyncLegsBodyGroupHelper from the combined
-	/// knockdown+state, matching the "flip Legs with the hide, restore by STATE
-	/// not by knockdown alone" rule.
+	/// Hides the worn pants entirely (renderer off) while knocked down - the
+	/// flying prefab replaces them (ecs's system, reading the same replicated
+	/// state) - OR while the pants state is Down. The Down hide is INTERIM:
+	/// the shader displacement is a no-op until the vPositionOs probe
+	/// concludes (Pants-Calibration/README.md), and the heart boxers are
+	/// already worn+rendered underneath (no slot conflict with the trackies -
+	/// Clothing.CanBeWornWith intersects only SlotsOver-vs-SlotsOver and
+	/// SlotsUnder-vs-SlotsUnder, boxers are SlotsUnder / trackies SlotsOver),
+	/// just buried inside the pants mesh; hiding the pants is the only way to
+	/// reveal them without the slide. Revert to knockdown-only once the slide
+	/// shader works. Legs visibility is handled by SyncLegsBodyGroupHelper
+	/// from the combined knockdown+state, matching the "flip Legs with the
+	/// hide, restore by STATE not by knockdown alone" rule.
 	/// </summary>
-	private void HandleKnockdownHideHelper()
+	private void HandlePantsHideHelper()
 	{
-		var knockedDown = _drunkCC.CurrentState == DrunkCC.State.KnockedDown;
+		// Editor rig has no DrunkCC: never knocked down, never Down - pants
+		// stay visible for the shader preview.
+		var hidden = _drunkCC.IsValid() &&
+			(_drunkCC.CurrentState == DrunkCC.State.KnockedDown ||
+			 _drunkCC.CurrentPantsState == DrunkCC.PantsState.Down);
 
 		// The pants GO may also be mid-teleport/off-screen during knockdown
 		// rewind; toggling Enabled every frame is idempotent.
-		if ( _pantsRenderer.Enabled == knockedDown )
-			_pantsRenderer.Enabled = !knockedDown;
+		if ( _pantsRenderer.Enabled == hidden )
+			_pantsRenderer.Enabled = !hidden;
 	}
 
 	/// <summary>
@@ -309,7 +372,9 @@ public sealed class PantsDropController : Component
 	/// </summary>
 	private void TweenAndPushHelper()
 	{
-		var target = _drunkCC.CurrentPantsState == DrunkCC.PantsState.Down ? 1f : 0f;
+		// Editor rig: no DrunkCC, static pants-up tween target (the shader's
+		// own Default values carry the probe; the push just stays identity).
+		var target = _drunkCC.IsValid() && _drunkCC.CurrentPantsState == DrunkCC.PantsState.Down ? 1f : 0f;
 		var speed = target > _dropAmount ? _DropDownSpeed : _DropUpSpeed;
 		var step = speed * Time.Delta;
 		if ( Math.Abs( target - _dropAmount ) <= step )
@@ -392,11 +457,12 @@ public sealed class PantsDropController : Component
 
 	protected override void OnEnabled()
 	{
-		// Re-enabling after a knockdown: the renderer Enabled toggle in
-		// HandleKnockdownHideHelper re-asserts from state every frame, but
+		// Re-enabling after a hide: the renderer Enabled toggle in
+		// HandlePantsHideHelper re-asserts from state every frame, but
 		// re-stamp it here so a single render after enable is never stale.
 		if ( _pantsRenderer.IsValid() && _drunkCC.IsValid() )
-			_pantsRenderer.Enabled = _drunkCC.CurrentState != DrunkCC.State.KnockedDown;
+			_pantsRenderer.Enabled = _drunkCC.CurrentState != DrunkCC.State.KnockedDown
+				&& _drunkCC.CurrentPantsState != DrunkCC.PantsState.Down;
 	}
 
 	protected override void OnDestroy()

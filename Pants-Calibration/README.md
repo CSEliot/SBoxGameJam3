@@ -67,6 +67,45 @@ COLOR PROBE reading table (pants stay IN PLACE, any pants state):
 Restore after probe: PANTS_COLOR_PROBE 0 in COMMON (displacement probe), then
 restore the shipping line + smoothstep and Default values per comments in MainVs.
 
+INTERIM VISUAL (06:05, ecs request, while the shader fix is pending): pants
+state Down now HIDES the pants renderer entirely (was knockdown-only),
+revealing the heart boxers. Implemented in PantsDropController
+HandlePantsHideHelper (renamed from HandleKnockdownHideHelper) + OnEnabled;
+marked INTERIM in-code, revert to knockdown-only once displacement works.
+NOT a Dresser-list reorder: boxers (SlotsUnder: Groin,LeftThigh,RightThigh,
+LeftKnee,RightKnee) and trackies (SlotsOver: Groin,...,RightShin) can NEVER
+conflict - Clothing.CanBeWornWith (Clothing.cs:390-391) intersects
+SlotsOver-vs-SlotsOver and SlotsUnder-vs-SlotsUnder only, never cross-layer -
+so both garments are always worn AND always rendered; the boxers are simply
+buried inside the pants mesh, and list order changes nothing at runtime.
+
+EDITOR-TIME PROBE MODE (added 03:30 - in-game testing was impractical):
+- PantsDropController now implements Component.ExecuteInEditor and has a
+  [Property] bool `_ShaderInEditor` (default false). Editor scenes tick it only
+  when the toggle is on; play mode behavior is UNCHANGED (the toggle is ignored
+  at runtime).
+- No-DrunkCC handling split: in an EDITOR scene a missing DrunkCC is allowed
+  (static pants-up preview state, Log.Info); in play mode it still self-disables
+  with the old Log.Error. All DrunkCC reads are IsValid-guarded.
+- EnsureRefsHelper gained a rig fallback: no Dresser/body + own GameObject's
+  SkinnedModelRenderer model path contains _PantsModelMatch -> drive that
+  renderer directly (this is pants.prefab's shape; player instances always have
+  a Dresser so the fallback never fires on them).
+- `Assets/prefabs/pants.prefab` now carries a PantsDropController with
+  _ShaderInEditor=true (guid bfbdcc6f-422f-43d8-b416-1f24e94f248a).
+- HOW TO VIEW: open `Assets/prefabs/testing.scene` (already instances
+  pants.prefab) - NOT the prefab editor itself: PrefabCacheScene never ticks
+  components (Component.cs:132), so the override only applies to a scene
+  instance. The rig's renderer has no BoneMergeTarget, so GetPelvisUpHelper's
+  fallback axis (world up) is used; the color probe ignores the axis anyway.
+- CAVEAT: the rig renders WITHOUT bone-merge and possibly without the
+  D_CS_VERTEX_ANIMATION combo active, i.e. it may take the rigid VS path that
+  DOES read vPositionOs. A rig reading "stream alive" does not fully clear H2
+  for the in-game bone-merged clothing draw; if the rig shows alive-but-game-
+  shows-dead, that divergence is itself the H2 confirmation. A rig showing
+  BLACK kills H2-alive everywhere (the stream is dead even on the friendly
+  path) - equally decisive.
+
 HOW TO RUN (adversarial-review findings folded in):
 1. RESTART the editor before the playtest (do not just enter play). Two
    reasons: PantsDropController's static negative-caches (_dropShaderLoadFailed,

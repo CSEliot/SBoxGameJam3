@@ -127,6 +127,24 @@
         "Static": false,
         "Surface": null,
         "SurfaceVelocity": "0,0,0"
+      },
+      {
+        "__type": "PantsDropController",
+        "__guid": "bfbdcc6f-422f-43d8-b416-1f24e94f248a",
+        "__enabled": true,
+        "Flags": 0,
+        "_DropDistance": 25,
+        "_DropDownSpeed": 1.2,
+        "_DropUpSpeed": 2.5,
+        "_PantsModelMatch": "trackiebottoms",
+        "_PelvisBoneName": "pelvis",
+        "_ShaderInEditor": true,
+        "OnComponentDestroy": null,
+        "OnComponentDisabled": null,
+        "OnComponentEnabled": null,
+        "OnComponentFixedUpdate": null,
+        "OnComponentStart": null,
+        "OnComponentUpdate": null
       }
     ],
     "Children": []
