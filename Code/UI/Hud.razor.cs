@@ -16,6 +16,15 @@
 // (PlayerProgress is owner-authoritative; this is a read-only view). All state
 // lives in those components, so this partial holds no game state of its own.
 //
+// Also owns the TARGET-BAR PREVIEW: a ScenePanel (<scene> element in the markup,
+// gated on Visible) whose private RenderScene hosts a clone of the current
+// target bar's -JustModel prefab (paired by BarModule display name via the
+// _BarPreviewNames/_BarPreviewPrefabs arrays wired in the scene), spinning on a
+// slightly-kiltered turntable, camera auto-framed from the model's renderer
+// bounds. ScenePanel composites into the UI layer, so the preview always draws
+// on top of in-world models. Any leftover gameplay components (colliders,
+// NavMeshArea, particles) are stripped from the clone - it is a pure visual.
+//
 // Naming note: this file is Hud.razor.cs (longer path than Hud.razor), so the
 // engine's shortest-source-path stylesheet derivation still resolves to
 // Hud.razor.scss. Do NOT add a bare Hud.cs to this partial - it would become the
@@ -32,6 +41,7 @@
 // other dealings in the software.
 
 using System;
+using System.Linq;
 using Sandbox;
 
 namespace Sandbox.UI;
@@ -65,9 +75,54 @@ public partial class Hud : PanelComponent
 	/// </summary>
 	[Property] private bool _ShowPantsDebug { get; set; } = true;
 
+	/// <summary>
+	/// The bar "-JustModel" prefabs (Garys / The Drunken Cam / The Spongey Splatoon) used for
+	/// the bottom-left target-bar preview. Wire all three in the scene inspector on the UI-Hud
+	/// GameObject; each entry must line up BY INDEX with _BarPreviewNames below.
+	/// </summary>
+	[Property] private GameObject[] _BarPreviewPrefabs { get; set; }
+
+	/// <summary>
+	/// The BarModule display Name matching each entry of _BarPreviewPrefabs (same order):
+	/// "Garys", "The Drunken Cam", "The Spongey Splatoon". The -JustModel prefabs carry no
+	/// BarModule of their own anymore (stripped 09-24), so the pairing is authored here /
+	/// in the scene inspector instead of read off the prefab. An unmatched or empty pairing
+	/// just logs a warning and shows nothing.
+	/// </summary>
+	[Property] private string[] _BarPreviewNames { get; set; }
+
+	/// <summary>Preview turntable spin speed, degrees per second.</summary>
+	[Property] private float _PreviewSpinSpeed { get; set; } = 24f;
+
+	/// <summary>
+	/// Preview "kilter": static roll tilt (degrees) applied to the turntable root so the bar
+	/// sits slightly off-level while spinning. 0 = upright.
+	/// </summary>
+	[Property] private float _PreviewKilter { get; set; } = 10f;
+
 	// Cached each frame in OnUpdate so the render-tree accessors below don't each re-resolve.
 	private PlayerProgress _progress;
 	private DrunkCC _drunk;
+
+	// Target-bar preview state. _previewHost is the @ref-captured <scene> element (null while
+	// the Visible gate has it unrendered - the engine nulls @refs when their block is
+	// destroyed). The rest caches what was built INTO the host's private RenderScene so a
+	// rebuild only happens when the host panel is recreated (leaving/returning to the run)
+	// or the target bar changes. The RenderScene is owned by ScenePanel and destroyed with it,
+	// so there is nothing to clean up here beyond dropping the references. _previewFramed
+	// latches the auto-frame: ModelRenderer.Bounds falls back to a 16-unit box while the
+	// model resource is still loading, so framing retries each frame until the real bounds
+	// resolve (the turntable stays still until then, keeping the measurement at rest pose).
+	private ScenePanel _previewHost;
+	private Scene _previewScene;
+	private GameObject _previewPivot;   // spin node (child of the kilter-tilt node)
+	private GameObject _previewTiltGo;
+	private GameObject _previewCamGo;
+	private GameObject _previewClone;
+	private CameraComponent _previewCamera;
+	private string _previewBarName;
+	private float _previewSpin;
+	private bool _previewFramed;
 
 	protected override void OnStart()
 	{
@@ -83,6 +138,285 @@ public partial class Hud : PanelComponent
 		// DEBUG toggle for the pants readout (raw key, not an input action - nothing binds F2).
 		if ( Input.Keyboard.Pressed( "P" ) )
 			_ShowPantsDebug = !_ShowPantsDebug;
+
+		UpdateTargetBarPreviewHelper();
+	}
+
+	/// <summary>
+	/// Keeps the bottom-left target-bar preview alive: rebuilds the ScenePanel's private scene
+	/// when the &lt;scene&gt; element was recreated (run gate re-entry) or the target bar
+	/// changed, otherwise spins the turntable and keeps the camera's render size matched to the
+	/// panel. Runs every frame; all the expensive work is inside the rebuild branch, which only
+	/// fires on those transitions (at most once per transition even when the target name is
+	/// transiently null - the name mismatch flips _previewBarName in the same pass). Null-target
+	/// frames (sparse [Sync] _Bars not replicated yet, ActiveBarModule unresolved) simply retry
+	/// next frame.
+	/// </summary>
+	private void UpdateTargetBarPreviewHelper()
+	{
+		var host = _previewHost;
+		if ( host is null || !host.IsValid() )
+		{
+			// Gate closed (not in a live run): the panel and its owned RenderScene are gone.
+			ClearTargetBarPreviewCacheHelper();
+			return;
+		}
+
+		string targetName = _GameManager?.GetTargetBar()?.ActiveBarModule?.Name;
+
+		bool hostChanged = _previewScene is null
+			|| !_previewScene.IsValid()
+			|| !ReferenceEquals( _previewScene, host.RenderScene );
+		if ( hostChanged )
+		{
+			_previewScene = null;
+			_previewBarName = null;
+		}
+
+		if ( _previewScene is null && targetName is null )
+			return; // nothing to show yet - retry once the target bar resolves
+
+		if ( _previewScene is null || targetName != _previewBarName )
+			RebuildTargetBarPreviewHelper( host, targetName );
+		else
+			TickTargetBarPreviewHelper( host );
+	}
+
+	/// <summary>
+	/// (Re)builds the preview scene contents from scratch: clears every root object of the
+	/// ScenePanel's private scene, then creates the camera, two directional lights (the private
+	/// scene has no env/sky light), the kilter-tilt &gt; spin rig, and a clone of the target
+	/// bar's -JustModel prefab parented under the spin node. The clone starts DISABLED, is
+	/// stripped to a pure visual (colliders, NavMeshArea, BarModule, the disabled Enter-Ring
+	/// particle node, and network modes all removed/neutralized - gameplay components have no
+	/// business in a UI-owned scene), and only then enabled. Framing is NOT done here:
+	/// ModelRenderer.Bounds returns a 16-unit fallback until the model resource loads, so
+	/// TickTargetBarPreviewHelper retries FramePreviewHelper each frame until the real bounds
+	/// resolve (see _previewFramed).
+	/// </summary>
+	private void RebuildTargetBarPreviewHelper( ScenePanel host, string barName )
+	{
+		var scene = host.RenderScene;
+		if ( scene is null || !scene.IsValid() )
+			return;
+
+		// Clear previous contents (old model, camera, lights, rig).
+		foreach ( var child in scene.Children.ToList() )
+			child.Destroy();
+
+		_previewScene = scene;
+		_previewBarName = barName;
+		_previewPivot = null;
+		_previewTiltGo = null;
+		_previewCamGo = null;
+		_previewClone = null;
+		_previewCamera = null;
+		_previewSpin = 0f;
+		_previewFramed = false;
+
+		var prefab = FindBarPreviewPrefabHelper( barName );
+		if ( barName is not null && prefab is null )
+			Log.Warning( $"Hud: no -JustModel prefab paired with target bar name '{barName}' in _BarPreviewNames/_BarPreviewPrefabs; the target-bar preview will be empty." );
+
+		using ( scene.Push() )
+		{
+			var camGo = scene.CreateObject();
+			camGo.Name = "bar-preview-camera";
+			var cam = camGo.Components.Create<CameraComponent>();
+			cam.FieldOfView = 45f;
+			cam.BackgroundColor = Color.Transparent;
+			cam.ZNear = 1f;
+			// IsMainCamera forces Scene.UpdateMainCamera() synchronously at creation, so
+			// ScenePanel's RenderScene.Camera branch resolves to THIS camera immediately
+			// instead of waiting for the next enable/priority shuffle.
+			cam.IsMainCamera = true;
+			// Default pose until FramePreviewHelper lands the auto-frame (a rig with no
+			// model must still get a sane camera instead of one sitting at the origin).
+			camGo.WorldPosition = PreviewCamDir * 256f;
+			camGo.WorldRotation = Rotation.LookAt( -PreviewCamDir );
+			_previewCamGo = camGo;
+			_previewCamera = cam;
+
+			// Key + fill: the private scene has no environment lighting of its own.
+			var keyGo = scene.CreateObject();
+			keyGo.WorldRotation = Rotation.From( 45f, 30f, 0f );
+			keyGo.Components.Create<DirectionalLight>().LightColor = Color.White * 2f;
+			var fillGo = scene.CreateObject();
+			fillGo.WorldRotation = Rotation.From( 20f, 210f, 0f );
+			fillGo.Components.Create<DirectionalLight>().LightColor = Color.White * 0.4f;
+
+			// tilt (static kilter, screen-plane roll) > spin (turntable about local up).
+			var tiltGo = scene.CreateObject();
+			tiltGo.Name = "bar-preview-tilt";
+			var spinGo = scene.CreateObject();
+			spinGo.Name = "bar-preview-spin";
+			spinGo.Parent = tiltGo;
+			_previewTiltGo = tiltGo;
+			_previewPivot = spinGo;
+
+			if ( prefab is null || !prefab.IsValid() )
+			{
+				// Rig only; when the target name resolves, the mismatch triggers a rebuild.
+				TickTargetBarPreviewHelper( host );
+				return;
+			}
+
+			// Clone DISABLED, strip, then enable - gameplay components (colliders etc.) must
+			// never get an OnEnable/OnStart tick inside the UI-owned scene, even for one frame.
+			var clone = prefab.Clone( global::Transform.Zero, spinGo, false );
+			if ( clone is null || !clone.IsValid() )
+			{
+				Log.Warning( $"Hud: cloning '{barName}' preview prefab failed; the target-bar preview will be empty." );
+				TickTargetBarPreviewHelper( host );
+				return;
+			}
+
+			StripPreviewCloneHelper( clone );
+			clone.Enabled = true;
+			_previewClone = clone;
+
+			if ( !clone.GetComponentsInChildren<ModelRenderer>( true ).Any() )
+				Log.Warning( $"Hud: '{barName}' preview clone has no ModelRenderer; nothing to frame." );
+		}
+
+		TickTargetBarPreviewHelper( host );
+	}
+
+	/// <summary>
+	/// Per-frame preview upkeep: completes the auto-frame once the model's bounds are ready,
+	/// advances the turntable spin (held until framed, so the bounds measurement happens at
+	/// the rest pose), and keeps the scene camera's render size matched to the panel's layout
+	/// box (a null CustomSize makes CameraComponent fall back to full-screen aspect,
+	/// distorting the square preview).
+	/// </summary>
+	private void TickTargetBarPreviewHelper( ScenePanel host )
+	{
+		if ( !_previewFramed )
+			_previewFramed = FramePreviewHelper();
+
+		if ( _previewFramed && _previewPivot is not null && _previewPivot.IsValid() )
+		{
+			_previewSpin += _PreviewSpinSpeed * RealTime.Delta;
+			_previewPivot.LocalRotation = Rotation.FromAxis( Vector3.Up, _previewSpin );
+		}
+
+		if ( _previewCamera is not null && _previewCamera.IsValid() )
+		{
+			var size = host.Box.RectInner.Size;
+			if ( size.x > 0f && size.y > 0f )
+				_previewCamera.CustomSize = size;
+		}
+	}
+
+	/// <summary>Camera direction for the preview shot: mostly -X, slightly above and to the side.</summary>
+	private static readonly Vector3 PreviewCamDir = new Vector3( -1f, 0.25f, 0.18f ).Normal;
+
+	/// <summary>
+	/// Auto-frames the preview ONCE: centers the clone on the spin origin and backs the camera
+	/// off along the bounds diagonal so the whole bar fits with a margin, then applies the
+	/// kilter tilt last (framing measures an untilted model centered at origin). Returns false
+	/// while the model resource hasn't loaded yet - ModelRenderer.Bounds falls back to a
+	/// 16-unit box when Model is null (ModelRenderer.Bounds.cs), and framing off that would
+	/// park the camera inside the bar permanently. Called every frame until it succeeds.
+	/// </summary>
+	private bool FramePreviewHelper()
+	{
+		if ( _previewClone is null || !_previewClone.IsValid() )
+			return true; // no model to frame; the default camera pose stands
+
+		var renderers = _previewClone.GetComponentsInChildren<ModelRenderer>( true ).ToList();
+		if ( renderers.Count == 0 )
+			return true; // warned at rebuild; nothing will ever load to frame
+
+		// Bounds are only trustworthy once every renderer's Model resource has resolved.
+		foreach ( var r in renderers )
+		{
+			if ( r.Model is null )
+				return false;
+		}
+
+		var bounds = BBox.FromBoxes( renderers.Select( r => r.Bounds ) );
+		if ( bounds.Size.Length < 32f )
+			return false; // still the fallback-box signature; retry next frame
+
+		_previewClone.LocalPosition = -bounds.Center;
+
+		float halfFovRad = _previewCamera.FieldOfView * 0.5f * MathF.PI / 180f;
+		float distance = MathF.Max( ( bounds.Size.Length * 0.5f ) / MathF.Tan( halfFovRad ) * 1.2f, 64f );
+		_previewCamGo.WorldPosition = PreviewCamDir * distance;
+		_previewCamGo.WorldRotation = Rotation.LookAt( -PreviewCamDir );
+
+		// Apply the kilter LAST so framing measured an untilted model centered at origin.
+		_previewTiltGo.WorldRotation = Rotation.FromRoll( _PreviewKilter );
+		return true;
+	}
+
+	/// <summary>Drops all cached preview references (gate closed; ScenePanel owns/destroys the scene).</summary>
+	private void ClearTargetBarPreviewCacheHelper()
+	{
+		_previewScene = null;
+		_previewPivot = null;
+		_previewTiltGo = null;
+		_previewCamGo = null;
+		_previewClone = null;
+		_previewCamera = null;
+		_previewBarName = null;
+		_previewFramed = false;
+	}
+
+	/// <summary>
+	/// Finds the -JustModel prefab paired (by index) with the target bar's
+	/// ActiveBarModule.Name in _BarPreviewNames/_BarPreviewPrefabs. Returns null when
+	/// nothing is wired/matches (caller warns).
+	/// </summary>
+	private GameObject FindBarPreviewPrefabHelper( string barName )
+	{
+		if ( string.IsNullOrEmpty( barName ) || _BarPreviewPrefabs is null || _BarPreviewNames is null )
+			return null;
+
+		for ( int i = 0; i < _BarPreviewNames.Length && i < _BarPreviewPrefabs.Length; i++ )
+		{
+			if ( _BarPreviewNames[i] != barName )
+				continue;
+
+			var prefab = _BarPreviewPrefabs[i];
+			if ( prefab is not null && prefab.IsValid() )
+				return prefab;
+		}
+
+		return null;
+	}
+
+	/// <summary>
+	/// Strips the gameplay pieces the -JustModel prefabs carry (static colliders, NavMeshArea,
+	/// BarModule, the disabled Enter-Ring particle node) and neutralizes network modes across
+	/// the hierarchy. The preview clone lives in a UI-owned private scene with no physics/
+	/// navmesh/network systems; leaving them on risks warnings and pointless per-scene physics
+	/// world creation, and snapshot-mode nodes have no meaning outside the game scene.
+	/// </summary>
+	private static void StripPreviewCloneHelper( GameObject clone )
+	{
+		foreach ( var c in clone.GetComponentsInChildren<Collider>( true ).ToList() )
+			c.Destroy();
+		foreach ( var c in clone.GetComponentsInChildren<NavMeshArea>( true ).ToList() )
+			c.Destroy();
+		foreach ( var c in clone.GetComponentsInChildren<BarModule>( true ).ToList() )
+			c.Destroy();
+		foreach ( var c in clone.GetComponentsInChildren<ParticleEffect>( true ).ToList() )
+			c.Destroy();
+
+		// The Enter-Ring node (Spongey) is particle-only; drop the whole child.
+		var ring = clone.Children.FirstOrDefault( c => c.Name.Contains( "Enter-Ring", StringComparison.OrdinalIgnoreCase ) );
+		ring?.Destroy();
+
+		NeutralizeNetworkHelper( clone );
+	}
+
+	private static void NeutralizeNetworkHelper( GameObject go )
+	{
+		go.NetworkMode = NetworkMode.Never;
+		foreach ( var child in go.Children )
+			NeutralizeNetworkHelper( child );
 	}
 
 	/// <summary>

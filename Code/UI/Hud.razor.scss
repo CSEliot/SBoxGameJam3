@@ -132,6 +132,20 @@ Hud
 		color: rgba( #fff, 0.6 );
 	}
 
+	// Target-bar preview: a ScenePanel rendering the target bar's -JustModel prefab on a
+	// slow turntable with a slight kilter. Bottom-left, ABOVE the controls hint (which owns
+	// the very corner). ScenePanel composites in the UI layer (ScreenPanel AfterPostProcess,
+	// ZIndex 100), so it always draws on top of in-world models. Never eats clicks.
+	.target-bar-preview
+	{
+		position: absolute;
+		left: 48px;
+		bottom: 148px;
+		width: 300px;
+		height: 300px;
+		pointer-events: none;
+	}
+
 	// Build watermark - small, dim, bottom-right (mirrors controls-hint bottom-left).
 	// Deliberately OUTSIDE the run-Visible gate in Hud.razor so it shows on the menu too.
 	.version-label

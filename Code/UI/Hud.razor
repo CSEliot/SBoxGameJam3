@@ -18,6 +18,15 @@
 // the screen) and before the player has spawned. Markup only; display formatting
 // lives in Hud.razor.cs.
 //
+// Also hosts the TARGET-BAR PREVIEW: a ScenePanel (the <scene> tag) rendering the
+// current target bar's -JustModel prefab spinning slowly on a slight kilter,
+// bottom-left, above the controls hint. Shown under the same Visible gate as the
+// HUD body (live run on the street), so it never floats over the menu, the bar
+// screens, or the End-Game overlay. Scene setup/spin lives in Hud.razor.cs
+// (UpdateTargetBarPreviewHelper). Because ScenePanel composites into the UI layer
+// (ScreenPanel, AfterPostProcess), the preview always draws ON TOP of in-world
+// models.
+//
 // Not implemented here: the PANTS METER (Design Screen 1, bottom-left) - a debug
 // readout of DrunkCC.CurrentPantsState (Up/Down, F2-toggleable) was added on the
 // right edge instead, see pants-debug in Hud.razor/scss.
@@ -79,5 +88,10 @@
 	@if ( !string.IsNullOrWhiteSpace( _VersionLabel ) )
 	{
 		<div class="version-label">@_VersionLabel</div>
+	}
+
+	@if ( Visible )
+	{
+		<scene @ref="_previewHost" class="target-bar-preview" />
 	}
 </root>
