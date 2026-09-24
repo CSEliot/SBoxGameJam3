@@ -79,6 +79,12 @@ COMMON
 {
 	#define BLEND_MODE_ALREADY_SET
 
+	// COLOR PROBE master switch (Pants-Calibration/README.md): 1 = MainVs paints
+	// raw vPositionOs data into vVertexColor and MainPs returns it unlit, with
+	// ALL displacement disabled. Set to 0 to restore the displacement probe /
+	// shipping path below.
+	#define PANTS_COLOR_PROBE 1
+
 	#include "system.fxc"
 	#include "vr_common.fxc"
 }
@@ -138,6 +144,26 @@ VS
 	{
 		PS_INPUT o = VS_SharedStandardProcessing( i );
 
+#if PANTS_COLOR_PROBE
+		// COLOR PROBE: paint the raw gradient inputs, displace NOTHING.
+		//   R = i.vPositionOs.z normalized by 95.78 (raw-CM full height):
+		//       dead stream (H2) -> solid BLACK; compiled inches -> darkest
+		//       red only at the cuffs, ~0.4 at the waist; raw cm -> full
+		//       black->red ramp ankle to waist.
+		//   G = t exactly as the shipping gradient computes it (inches-calibrated):
+		//       solid GREEN everywhere -> waistband/above saturating (H3 raw cm);
+		//       smooth green ramp ankle->waist -> gradient ALIVE and correct;
+		//       no green at all -> t==0 (H2).
+		//   B = frac(i.vPositionOs.z) * 1 -> fine height banding, proves the
+		//       stream varies at all even where R/G saturate.
+		// Alpha stays 1 (opaque). Read on the UNMOVED garment, any state.
+		float flSpanProbe = max( g_flPantsWaistZ - g_flPantsAnkleZ, 0.001 );
+		float tProbe = saturate( (i.vPositionOs.z - g_flPantsAnkleZ) / flSpanProbe );
+		o.vVertexColor.rgb = float3( saturate( i.vPositionOs.z / 95.78 ), tProbe, frac( i.vPositionOs.z ) );
+		o.vVertexColor.a = 1.0;
+		return VS_CommonProcessing_Post( o );
+#endif
+
 		// Bind-pose height gradient t: 1 at the waistband, 0 at the cuffs.
 		// i.vPositionOs is the untouched POSITION stream - identical on both
 		// skin paths - so this works whether the posed position came from the
@@ -189,6 +215,17 @@ PS
 
 	PS_OUTPUT MainPs( PS_INPUT i )
 	{
+#if PANTS_COLOR_PROBE
+		// COLOR PROBE: return the VS-painted vVertexColor UNLIT and direct -
+		// the standard path would multiply it by the (BLACK) trackie albedo and
+		// every channel would read black. No lighting, no post.
+		{
+			PS_OUTPUT probe_output;
+			probe_output.vColor = float4( i.vVertexColor.rgb, 1.0 );
+			return probe_output;
+		}
+#endif
+
 		// Depth prepass / shadow maps only need the (displaced) geometry from
 		// MainVs - skip all lighting, matching the engine's S_MODE_DEPTH bail
 		// (terrain.shader:174-177/205-207, glass, sprite - and note those all

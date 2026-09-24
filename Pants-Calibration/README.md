@@ -36,6 +36,37 @@ discriminates by SHAPE:
                                  H1(push) + H4(bodygroup)
 SHIPPING line + smoothstep are commented in place for restore.
 
+UPDATE 03:17 (ecs report after displacement probe): C# clean, pants state
+reports Up/Down correctly, "all an issue with the shader". Observed: relative
+to the clothing renderer's bone-merge target, triangles weighted to at least
+pelvis/leg_upper_L/leg_upper_R - particularly the bottom-most - missing or
+moved. That shape fits BOTH H3-with-burial (rigid 76cm slide of everything
+above mid-thigh, lower hem buried) and plain H4 (the BODY's own leg meshes -
+weighted to exactly pelvis/leg_upper_L/R - appearing/disappearing at the
+groin on the state flip) and cannot be separated by eyeballing displaced
+geometry. Therefore the shader now carries a COLOR PROBE instead
+(PANTS_COLOR_PROBE=1 in COMMON; MainVs paints raw vPositionOs data into
+vVertexColor, MainPs returns it unlit; all displacement disabled). Compiled
+clean 03:17:25 ("Done 12 combos", no DXC errors).
+
+COLOR PROBE reading table (pants stay IN PLACE, any pants state):
+- Solid BLACK garment            -> H2 CONFIRMED: vPositionOs.z reads 0.
+- Smooth black->red ramp ankle->waist + smooth green ramp + fine blue banding
+                                 -> stream ALIVE in RAW CM (H3): red reaches
+                                    ~1.0 at the waist (95.78 normalizer) and
+                                    green saturates to 1 from mid-thigh up.
+- Red only faint at cuffs, ~0.4 max at waist, green smooth 0->1 ankle->waist
+                                 -> stream ALIVE in compiled INCHES - gradient
+                                    correct; then the playtest no-op was purely
+                                    C#-push (H1) and the displacement probe
+                                    result needs re-reading.
+- NO color at all (pants render normal black trackie look)
+                                 -> the override shader is NOT on the drawn
+                                    mesh (H1 renderer/slot identity): this VS
+                                    never runs on what you see.
+Restore after probe: PANTS_COLOR_PROBE 0 in COMMON (displacement probe), then
+restore the shipping line + smoothstep and Default values per comments in MainVs.
+
 HOW TO RUN (adversarial-review findings folded in):
 1. RESTART the editor before the playtest (do not just enter play). Two
    reasons: PantsDropController's static negative-caches (_dropShaderLoadFailed,
