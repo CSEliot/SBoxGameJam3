@@ -1,0 +1,189 @@
+{
+  "RootObject": {
+    "__guid": "2de0ae3b-d5bf-48e3-ba95-70fef579275e",
+    "__version": 2,
+    "Flags": 0,
+    "Name": "Garys-JustModel",
+    "Position": "0,0,0",
+    "Rotation": "0,0,0.707106709,-0.707106709",
+    "Scale": "1.29999995,1.29999995,1.29999995",
+    "Tags": "",
+    "Enabled": true,
+    "NetworkMode": 2,
+    "NetworkFlags": 0,
+    "NetworkOrphaned": 0,
+    "NetworkTransmit": true,
+    "OwnerTransfer": 1,
+    "Components": [
+      {
+        "__type": "Sandbox.ModelRenderer",
+        "__guid": "18257c32-723f-4c7e-9949-fadada93590c",
+        "__enabled": true,
+        "Flags": 0,
+        "BodyGroups": 18446744073709551615,
+        "CreateAttachments": false,
+        "LodOverride": null,
+        "MaterialGroup": null,
+        "MaterialOverride": null,
+        "Materials": null,
+        "Model": {
+          "Id": "723ec5ac-96a6-4d41-8802-a95bb260d3a3",
+          "Path": "fbx/bars/garys/garys-nolights.vmdl"
+        },
+        "OnComponentDestroy": null,
+        "OnComponentDisabled": null,
+        "OnComponentEnabled": null,
+        "OnComponentFixedUpdate": null,
+        "OnComponentStart": null,
+        "OnComponentUpdate": null,
+        "RenderOptions": {
+          "GameLayer": true,
+          "OverlayLayer": false,
+          "BloomLayer": false,
+          "AfterUILayer": false
+        },
+        "RenderType": "On",
+        "Tint": "1,1,1,1"
+      },
+      {
+        "__type": "Sandbox.NavMeshArea",
+        "__guid": "bf6ab83e-58d2-4914-a719-984041b9234b",
+        "__enabled": true,
+        "Flags": 0,
+        "Area": null,
+        "IsBlocker": true,
+        "LinkedCollider": null,
+        "OnComponentDestroy": null,
+        "OnComponentDisabled": null,
+        "OnComponentEnabled": null,
+        "OnComponentFixedUpdate": null,
+        "OnComponentStart": null,
+        "OnComponentUpdate": null,
+        "SceneVolume": {
+          "Type": "Box",
+          "Sphere": {
+            "Center": "0,0,0",
+            "Radius": 10
+          },
+          "Box": {
+            "Mins": "-50,-50,-50",
+            "Maxs": "50,50,50"
+          },
+          "Capsule": {
+            "CenterA": "0,0,10",
+            "CenterB": "0,0,90",
+            "Radius": 10
+          }
+        }
+      },
+      {
+        "__type": "Sandbox.BoxCollider",
+        "__guid": "aeb3fcba-9136-4c47-b99b-23ea8c8a1855",
+        "__enabled": true,
+        "Flags": 0,
+        "Center": "-27.5082855,1.63700867,82.515358",
+        "ColliderFlags": 0,
+        "Elasticity": null,
+        "Friction": null,
+        "IsTrigger": false,
+        "OnComponentDestroy": null,
+        "OnComponentDisabled": null,
+        "OnComponentEnabled": null,
+        "OnComponentFixedUpdate": null,
+        "OnComponentStart": null,
+        "OnComponentUpdate": null,
+        "OnObjectTriggerEnter": null,
+        "OnObjectTriggerExit": null,
+        "OnTriggerEnter": null,
+        "OnTriggerExit": null,
+        "RollingResistance": null,
+        "Scale": "245.511444,248.785385,164.843414",
+        "Static": true,
+        "Surface": null,
+        "SurfaceVelocity": "0,0,0"
+      },
+      {
+        "__type": "Sandbox.UI.BarModule",
+        "__guid": "d27acdd4-0603-4ec1-aa4a-801b9c841169",
+        "__enabled": true,
+        "Flags": 0,
+        "Name": "Garys",
+        "OnComponentDestroy": null,
+        "OnComponentDisabled": null,
+        "OnComponentEnabled": null,
+        "OnComponentFixedUpdate": null,
+        "OnComponentStart": null,
+        "OnComponentUpdate": null,
+        "SpawnPoint": null
+      }
+    ],
+    "Children": [
+      {
+        "__guid": "318accaf-0489-4852-98bc-ae97670602e4",
+        "__version": 2,
+        "Flags": 0,
+        "Name": "LightsMDL",
+        "Position": "-0.00371162593,0.507628798,-0.000164031982",
+        "Rotation": "0,0,0,1",
+        "Scale": "1,1,1",
+        "Tags": "",
+        "Enabled": true,
+        "NetworkMode": 2,
+        "NetworkFlags": 0,
+        "NetworkOrphaned": 0,
+        "NetworkTransmit": true,
+        "OwnerTransfer": 1,
+        "Components": [
+          {
+            "__type": "Sandbox.ModelRenderer",
+            "__guid": "9f365562-a137-456f-be13-f6f9b438101e",
+            "__enabled": true,
+            "Flags": 0,
+            "BodyGroups": 18446744073709551615,
+            "CreateAttachments": false,
+            "LodOverride": null,
+            "MaterialGroup": null,
+            "MaterialOverride": {
+              "Id": "51ffa2d2-33c9-4d02-bc87-b34cc3f76d30",
+              "Path": "fbx/bars/garys/glowmat.vmat"
+            },
+            "Materials": {
+              "indexed": {
+                "0": {
+                  "Id": "51ffa2d2-33c9-4d02-bc87-b34cc3f76d30",
+                  "Path": "fbx/bars/garys/glowmat.vmat"
+                }
+              }
+            },
+            "Model": {
+              "Id": "ba5f25b2-463f-4729-86d5-2267344333ca",
+              "Path": "fbx/bars/garys/garys-lights.vmdl"
+            },
+            "OnComponentDestroy": null,
+            "OnComponentDisabled": null,
+            "OnComponentEnabled": null,
+            "OnComponentFixedUpdate": null,
+            "OnComponentStart": null,
+            "OnComponentUpdate": null,
+            "RenderOptions": {
+              "GameLayer": true,
+              "OverlayLayer": false,
+              "BloomLayer": false,
+              "AfterUILayer": false
+            },
+            "RenderType": "On",
+            "Tint": "1,1,1,1"
+          }
+        ],
+        "Children": []
+      }
+    ]
+  },
+  "ResourceVersion": 2,
+  "ShowInMenu": false,
+  "MenuPath": null,
+  "MenuIcon": null,
+  "DontBreakAsTemplate": false,
+  "__references": [],
+  "__version": 2
+}

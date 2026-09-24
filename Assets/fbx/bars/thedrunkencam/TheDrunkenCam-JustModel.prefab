@@ -1,0 +1,207 @@
+{
+  "RootObject": {
+    "__guid": "6dd92353-3f5c-4abc-b0f4-3302dafc9d15",
+    "__version": 2,
+    "Flags": 0,
+    "Name": "TheDrunkenCam-JustModel",
+    "Position": "0,0,0",
+    "Rotation": "0,0,-0.99999994,0",
+    "Scale": "1.29999995,1.29999995,1.29999995",
+    "Tags": "",
+    "Enabled": true,
+    "NetworkMode": 2,
+    "NetworkFlags": 0,
+    "NetworkOrphaned": 0,
+    "NetworkTransmit": true,
+    "OwnerTransfer": 1,
+    "Components": [
+      {
+        "__type": "Sandbox.ModelRenderer",
+        "__guid": "96522144-56f4-41dc-9269-1fbaffce4e22",
+        "__enabled": true,
+        "Flags": 0,
+        "BodyGroups": 18446744073709551615,
+        "CreateAttachments": false,
+        "LodOverride": null,
+        "MaterialGroup": null,
+        "MaterialOverride": {
+          "Id": "176d5957-387f-425d-9461-84874d6a94fb",
+          "Path": "fbx/bars/thedrunkencam/thedrunkencam-nolights.vmat"
+        },
+        "Materials": {
+          "indexed": {
+            "0": {
+              "Id": "176d5957-387f-425d-9461-84874d6a94fb",
+              "Path": "fbx/bars/thedrunkencam/thedrunkencam-nolights.vmat"
+            }
+          }
+        },
+        "Model": {
+          "Id": "4f6db53d-a4d9-4b28-99ff-c4791bd57464",
+          "Path": "fbx/bars/thedrunkencam/thedrunkencam-nolights.vmdl"
+        },
+        "OnComponentDestroy": null,
+        "OnComponentDisabled": null,
+        "OnComponentEnabled": null,
+        "OnComponentFixedUpdate": null,
+        "OnComponentStart": null,
+        "OnComponentUpdate": null,
+        "RenderOptions": {
+          "GameLayer": true,
+          "OverlayLayer": false,
+          "BloomLayer": false,
+          "AfterUILayer": false
+        },
+        "RenderType": "On",
+        "Tint": "1,1,1,1"
+      },
+      {
+        "__type": "Sandbox.BoxCollider",
+        "__guid": "d2796f56-3796-4aed-87ac-fd0ebc16c7e0",
+        "__enabled": true,
+        "Flags": 0,
+        "Center": "-18.5793152,1.13097382,101.808167",
+        "ColliderFlags": 0,
+        "Elasticity": null,
+        "Friction": null,
+        "IsTrigger": false,
+        "OnComponentDestroy": null,
+        "OnComponentDisabled": null,
+        "OnComponentEnabled": null,
+        "OnComponentFixedUpdate": null,
+        "OnComponentStart": null,
+        "OnComponentUpdate": null,
+        "OnObjectTriggerEnter": null,
+        "OnObjectTriggerExit": null,
+        "OnTriggerEnter": null,
+        "OnTriggerExit": null,
+        "RollingResistance": null,
+        "Scale": "320.287964,243.217377,204.134155",
+        "Static": true,
+        "Surface": null,
+        "SurfaceVelocity": "0,0,0"
+      },
+      {
+        "__type": "Sandbox.NavMeshArea",
+        "__guid": "f20aa56a-7dbc-43fe-9d6f-9795f9b3e44c",
+        "__enabled": true,
+        "Flags": 0,
+        "Area": null,
+        "IsBlocker": true,
+        "LinkedCollider": null,
+        "OnComponentDestroy": null,
+        "OnComponentDisabled": null,
+        "OnComponentEnabled": null,
+        "OnComponentFixedUpdate": null,
+        "OnComponentStart": null,
+        "OnComponentUpdate": null,
+        "SceneVolume": {
+          "Type": "Box",
+          "Sphere": {
+            "Center": "0,0,0",
+            "Radius": 10
+          },
+          "Box": {
+            "Mins": "-50,-50,-50",
+            "Maxs": "50,50,50"
+          },
+          "Capsule": {
+            "CenterA": "0,0,10",
+            "CenterB": "0,0,90",
+            "Radius": 10
+          }
+        }
+      },
+      {
+        "__type": "Sandbox.UI.BarModule",
+        "__guid": "6e2d05ea-db8d-4ecf-8212-e24d45a10498",
+        "__enabled": true,
+        "Flags": 0,
+        "Name": "The Drunken Cam",
+        "OnComponentDestroy": null,
+        "OnComponentDisabled": null,
+        "OnComponentEnabled": null,
+        "OnComponentFixedUpdate": null,
+        "OnComponentStart": null,
+        "OnComponentUpdate": null,
+        "SpawnPoint": null
+      }
+    ],
+    "Children": [
+      {
+        "__guid": "997fbbd9-42f9-469d-a5bb-28f4a54da99f",
+        "__version": 2,
+        "Flags": 0,
+        "Name": "LightsMDL",
+        "Position": "-3.05536887E-05,0.413085938,-0.237114787",
+        "Rotation": "0,0,0,1",
+        "Scale": "1,1,1",
+        "Tags": "",
+        "Enabled": true,
+        "NetworkMode": 2,
+        "NetworkFlags": 0,
+        "NetworkOrphaned": 0,
+        "NetworkTransmit": true,
+        "OwnerTransfer": 1,
+        "Components": [
+          {
+            "__type": "Sandbox.ModelRenderer",
+            "__guid": "acd4a790-15b9-4a97-a1a7-3d79a2791f4f",
+            "__enabled": true,
+            "Flags": 0,
+            "BodyGroups": 18446744073709551615,
+            "CreateAttachments": false,
+            "LodOverride": null,
+            "MaterialGroup": null,
+            "MaterialOverride": {
+              "Id": "fd007c1a-13e4-464b-9ede-9b950a58b474",
+              "Path": "fbx/bars/thedrunkencam/glowmat.vmat"
+            },
+            "Materials": {
+              "indexed": {
+                "0": {
+                  "Id": "fd007c1a-13e4-464b-9ede-9b950a58b474",
+                  "Path": "fbx/bars/thedrunkencam/glowmat.vmat"
+                },
+                "1": {
+                  "Id": "fd007c1a-13e4-464b-9ede-9b950a58b474",
+                  "Path": "fbx/bars/thedrunkencam/glowmat.vmat"
+                },
+                "2": {
+                  "Id": "fd007c1a-13e4-464b-9ede-9b950a58b474",
+                  "Path": "fbx/bars/thedrunkencam/glowmat.vmat"
+                }
+              }
+            },
+            "Model": {
+              "Id": "37adf76d-ab97-4c1c-ba1f-acb8aa9ce1dc",
+              "Path": "fbx/bars/thedrunkencam/thedrunkencam-lights.vmdl"
+            },
+            "OnComponentDestroy": null,
+            "OnComponentDisabled": null,
+            "OnComponentEnabled": null,
+            "OnComponentFixedUpdate": null,
+            "OnComponentStart": null,
+            "OnComponentUpdate": null,
+            "RenderOptions": {
+              "GameLayer": true,
+              "OverlayLayer": false,
+              "BloomLayer": false,
+              "AfterUILayer": false
+            },
+            "RenderType": "On",
+            "Tint": "1,1,1,1"
+          }
+        ],
+        "Children": []
+      }
+    ]
+  },
+  "ResourceVersion": 2,
+  "ShowInMenu": false,
+  "MenuPath": null,
+  "MenuIcon": null,
+  "DontBreakAsTemplate": false,
+  "__references": [],
+  "__version": 2
+}
