@@ -261,12 +261,16 @@
 		get
 		{
 			var list = Leaderboard;
-			SteamId localSteamId = Connection.Local?.SteamId ?? default;
+			var local = Connection.Local;
+			SteamId localSteamId = local?.SteamId ?? default;
 			var rows = new List<Row>();
 			int count = Math.Min( _DisplayTopCount, list.Count );
 			for ( int i = 0; i < count; i++ )
 			{
-				rows.Add( new Row { Rank = i + 1, Entry = list[i], IsLocal = list[i].SteamId == localSteamId } );
+				// local null-guard: without it, a null Connection.Local (editor solo mode)
+				// makes localSteamId default(0) and any fetched entry with SteamId 0 would
+				// falsely render as the local player's row (mirrors EndGame's guard).
+				rows.Add( new Row { Rank = i + 1, Entry = list[i], IsLocal = local is not null && list[i].SteamId == localSteamId } );
 			}
 			return rows;
 		}
