@@ -245,12 +245,18 @@ MainMenu
 			width: 100%;
 			min-height: 420px;
 
-			// Reserved slot above the text for a per-page image. Empty for now;
-			// fill via background-image (engine supports positioned backgrounds).
+			// Per-page image slot above the text. NOTE: the panel engine's texture
+			// loader takes image files, NOT .sprite (that's the scene SpriteRenderer
+			// format) - coolimagehere.sprite compiles from this same PNG. Swap the
+			// url per page (inline style or per-page classes) when art exists.
 			.htp-image
 			{
 				width: 100%;
 				height: 260px;
+				background-image: url( materials/coolimagehere.png );
+				background-size: contain;
+				background-position: center;
+				background-repeat: no-repeat;
 			}
 
 			.htp-heading
@@ -263,17 +269,40 @@ MainMenu
 
 			// White body copy uses s&box's built-in default font (Poppins, same as
 			// EscMenu) instead of the project's $body font.
+			// Emphasis: same look as the ANOTHER ROUND shout (First Blood, $wild),
+			// inline in the Poppins body lines. display:inline is REQUIRED for the
+			// engine's inline-paragraph flow (InlineFormattingContext
+			// .CanParticipate rejects non-inline spans) - without it the span is a
+			// separate flex item and jumps whole to the next line.
+			.htp-emph
+			{
+				display: inline;
+				font-family: $display;
+				color: $wild;
+			}
+
 			.htp-line
 			{
+				// display:block is the other half of the inline-span flow: the
+				// paragraph formatter only engages on block containers (CanFormat).
+				display: block;
 				font-family: Poppins;
 				font-size: 22px;
 				color: white;
 
 				&.htp-shout
 				{
+					// No inline spans in this one, so undo display:block - the
+					// centering below is flex (justify-content), not block, styling.
+					display: flex;
 					font-family: $display;
 					font-size: 34px;
 					color: $wild;
+					// text-align alone didn't visibly center it - the shout is a
+					// stretched flex row, so also center its text child on the main
+					// axis and let it size to content.
+					width: 100%;
+					justify-content: center;
 					text-align: center;
 					margin-top: 14px;
 				}

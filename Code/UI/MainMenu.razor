@@ -87,22 +87,22 @@
 					else if ( CurrentPage == 1 )
 					{
 						<div class="htp-heading">How to Win:</div>
-						<div class="htp-line">Run to the next pub as indicated by the arrow above your head, and chug Chug CHUG!!</div>
+						<div class="htp-line">Run to the next pub as indicated by the arrow above your head, and <span class="htp-emph">chug Chug CHUG!!</span></div>
 					}
 					else if ( CurrentPage == 2 )
 					{
 						<div class="htp-heading">How to Win:</div>
-						<div class="htp-line">Every second, you gain points based on how drunk you are.</div>
+						<div class="htp-line">Every second, you gain points based on how <span class="htp-emph">drunk</span> you are.</div>
 					}
 					else if ( CurrentPage == 3 )
 					{
 						<div class="htp-heading">How to Win:</div>
-						<div class="htp-line">The more you drink, the harder the game. You move faster and it's easier to fall over.</div>
+						<div class="htp-line">The more you drink, the harder the game. You move <span class="htp-emph">faster</span> and it's easier to <span class="htp-emph">fall over</span>.</div>
 					}
 					else if ( CurrentPage == 4 )
 					{
 						<div class="htp-heading">How to Win:</div>
-						<div class="htp-line">Don't worry! The more you drink, the more time gets added for you to make it to the next bar!</div>
+						<div class="htp-line">Don't worry! The more you drink, the more <span class="htp-emph">time</span> gets added for you to make it to the <span class="htp-emph">next bar</span>!</div>
 					}
 					else if ( CurrentPage == 5 )
 					{
@@ -111,12 +111,12 @@
 					else if ( CurrentPage == 6 )
 					{
 						<div class="htp-heading">Controls:</div>
-						<div class="htp-line">Hold Shift: Keep your pants up! (still working on the graphics for this, please rely on the pants graphic to the right.)</div>
+						<div class="htp-line">Hold <span class="htp-emph">Shift</span>: Keep your pants <span class="htp-emph">up</span>! (still working on the graphics for this, please rely on the pants graphic to the right.)</div>
 					}
 					else if ( CurrentPage == 7 )
 					{
 						<div class="htp-heading">Controls:</div>
-						<div class="htp-line">A / D: Tilt left and right.</div>
+						<div class="htp-line"><span class="htp-emph">A / D</span>: Tilt left and right.</div>
 					}
 					else if ( CurrentPage == 8 )
 					{
@@ -126,17 +126,17 @@
 					else if ( CurrentPage == 9 )
 					{
 						<div class="htp-heading">Controls:</div>
-						<div class="htp-line">Backwards: You can't! But let go of shift to drop your pants and lower your speed!</div>
+						<div class="htp-line">Backwards: You can't! But let go of <span class="htp-emph">shift</span> to <span class="htp-emph">drop</span> your pants and lower your speed!</div>
 					}
 					else if ( CurrentPage == 10 )
 					{
 						<div class="htp-heading">Controls:</div>
-						<div class="htp-line">Spacebar: Jump!</div>
+						<div class="htp-line"><span class="htp-emph">Spacebar</span>: Jump!</div>
 					}
 					else if ( CurrentPage == 11 )
 					{
 						<div class="htp-heading">Controls:</div>
-						<div class="htp-line">Escape: Opening the Escape Menu.</div>
+						<div class="htp-line"><span class="htp-emph">Escape</span>: Opening the Escape Menu.</div>
 					}
 					else if ( CurrentPage == 12 )
 					{
@@ -145,7 +145,7 @@
 					else if ( CurrentPage == 13 )
 					{
 						<div class="htp-heading">How to Lose:</div>
-						<div class="htp-line">If your timer runs out (top left) you lose ALL YOUR POINTS. So every pub you hit, decide: Cash in or risk it all for ...</div>
+						<div class="htp-line">If your <span class="htp-emph">timer</span> runs out (top left) you lose <span class="htp-emph">ALL YOUR POINTS</span>. So every pub you hit, decide: Cash in or risk it all for ...</div>
 						<div class="htp-line htp-shout">ANOTHER ROUND!!</div>
 					}
 				</div>
@@ -305,6 +305,8 @@
 	{
 		if ( CurrentPage < PageCount - 1 )
 			CurrentPage++;
+		else if ( CurrentPage == PageCount - 1 )
+			CurrentPage = 0;
 	}
 
 	private void CreditsClicked()
