@@ -88,7 +88,9 @@ public sealed class GameManager : Component, Component.INetworkListener
 	[Property] private Clothing _LongPants { get; set; }
 	[Property] private GameObject _PlayerPrefab { get; set; }
 	[Property] private GameObject _DefaultSpawnLocation { get; set; }
-	[Property] private GameObject _OnEntrySpawnLocation { get; set; }
+	[Property] private GameObject _CityMesh { get; set; }
+	[Property] private GameObject _Dome { get; set; }
+	
 	[Property, ReadOnly] private GameObject _CCCamera { get; set; } = null;
 	[Property] private GameObject _MiniGamePanel { get; set; }
 	/// <summary>
@@ -138,7 +140,14 @@ public sealed class GameManager : Component, Component.INetworkListener
 	/// The bar that player will start minigame in upon collision of sphere.
 	/// </summary>
 	[Property, ReadOnly] private int _targetBarWaiting = 1;
-	
+	private bool _startGameCalled;
+	/// <summary>
+	/// Gate for UpdateEnterRingVisibilityHelper: which _targetBarWaiting value the bar rings
+	/// were last synced to. -1 = never applied yet, so the helper runs (and retries while
+	/// bars aren't ready) until a pass completes.
+	/// </summary>
+	private int _ringsSyncedForTarget = -1;
+
 	// every time a player joins, they join the latest group within 30 seconds (group has a timecreated) and if there isn't a group w 
 	// timecreated within 30 seconds, make a new one.
 	// also if they join as party, they get the same startingBar (targetBarWaiting).
@@ -181,6 +190,11 @@ public sealed class GameManager : Component, Component.INetworkListener
 
 	protected override void OnUpdate()
 	{
+		// Deliberately BEFORE the local-player early-out: ring visibility only depends on
+		// _Bars/_targetBarWaiting, so bars get sorted out even while sitting in the menu
+		// (no local player resolves yet) instead of every prefab ring rendering until PLAY.
+		UpdateEnterRingVisibilityHelper();
+
 		if (ResolveLocalPlayerHelper() == false)
 			return;
 
@@ -247,6 +261,37 @@ public sealed class GameManager : Component, Component.INetworkListener
 		}
 
 		UpdateArrowIndicatorHelper();
+	}
+
+	/// <summary>
+	/// Keeps exactly one bar's Enter-Ring visible: the one at _targetBarWaiting (the bar the
+	/// local player must reach next). Mirrors UpdateArrowIndicatorHelper's guards - sparse
+	/// [Sync] _Bars may not be replicated yet, so a pass that finds an unready bar leaves
+	/// _ringsSyncedForTarget alone and simply retries next frame; it commits only once every
+	/// occupied slot applied its toggle. Runs on every client against its OWN target (rings
+	/// are per-client local visuals like the arrow, not synced state), which is also why
+	/// UpdateNextBarData's per-client RNG divergence can't desync a neighbour's ring.
+	/// </summary>
+	private void UpdateEnterRingVisibilityHelper()
+	{
+		if ( _Bars == null )
+			return;
+
+		if ( _ringsSyncedForTarget == _targetBarWaiting )
+			return;
+
+		bool allReady = true;
+		for ( int i = 0; i < _Bars.Length; i++ )
+		{
+			if ( _Bars[i] == null )
+				continue;
+
+			if ( !_Bars[i].TrySetEnterRingVisible( i == _targetBarWaiting ) )
+				allReady = false;
+		}
+
+		if ( allReady )
+			_ringsSyncedForTarget = _targetBarWaiting;
 	}
 
 	/// <summary>
@@ -393,8 +438,11 @@ public sealed class GameManager : Component, Component.INetworkListener
 	{
 		spawnLocation ??= _DefaultSpawnLocation;
 		var spawnRotation = spawnLocation.Parent.LocalRotation;
-		if(isBarExit)
+		if ( isBarExit )
+		{
 			spawnRotation = spawnLocation.WorldRotation;
+			_LocalDrunkCC.TimeSinceBarSpawn = Time.Now;
+		}
 		
 		if ( _LocalPlayerRigidbody == null )
 		{
@@ -538,9 +586,14 @@ public sealed class GameManager : Component, Component.INetworkListener
 	/// </summary>
 	public void StartGame()
 	{
-		if ( _localGameState != LocalGameState.InMainMenu )
+		if ( _localGameState != LocalGameState.InMainMenu || _startGameCalled)
 			return;
 
+		_startGameCalled = true;
+
+		_Dome.Enabled = true;
+		_CityMesh.Enabled = true;
+		
 		if ( ResolveLocalPlayerHelper() == false )
 		{
 			if ( Networking.IsActive )

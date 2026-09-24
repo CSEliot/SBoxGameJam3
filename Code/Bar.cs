@@ -48,6 +48,7 @@ public sealed class Bar : Component, Component.ITriggerListener
 	[Property] private GameObject[] _Drinkers { get; set; }
 	private GameManager _gameManager = null;
 	private Dictionary<Guid, int> _connectionToPatronIndex =  new();
+	private GameObject _enterRing = null;
 	
 	protected override void OnStart()
 	{
@@ -208,6 +209,35 @@ public sealed class Bar : Component, Component.ITriggerListener
 		}
 
 		_ = dresser.Apply();
+	}
+
+	/// <summary>
+	/// Toggles this bar's Enter-Ring particle effect (the ring node tagged under the active
+	/// BarModule that marks where the player should walk in). Called by GameManager whenever
+	/// the current target bar changes, so only the bar the player is meant to reach next
+	/// shows its ring. Returns false if the bar hasn't resolved its active module yet (OnStart
+	/// still pending), so the caller retries next frame instead of silently skipping the toggle.
+	/// A bar that IS started but has no ring node returns true (nothing to do).
+	/// </summary>
+	public bool TrySetEnterRingVisible( bool visible )
+	{
+		if ( _enterRing is null || !_enterRing.IsValid() )
+		{
+			if ( ActiveBarModule is null )
+				return false;
+
+			_enterRing = ActiveBarModule.GameObject.Children
+				.FirstOrDefault( c => c.Name.Contains( "Enter-Ring", StringComparison.OrdinalIgnoreCase ) );
+
+			if ( _enterRing is null )
+			{
+				Log.Warning( $"Bar '{GameObject.Name}' active module '{_activeModuleName}' has no Enter-Ring child; its ring can't be shown/hidden." );
+				return true;
+			}
+		}
+
+		_enterRing.Enabled = visible;
+		return true;
 	}
 
 	public void OnTriggerExit( Collider other )
