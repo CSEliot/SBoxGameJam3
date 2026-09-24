@@ -508,10 +508,12 @@ public sealed class DrunkCC : Component
 				}
 				else
 				{
-					// Bar-spawn grace: obstacle touches during the window must not latch, or the
-					// stale flag fires a knockdown the instant grace expires, wherever the player
-					// has driven to by then. Clearing here makes the obstacle check level-triggered
-					// like the roll check above it.
+					// Bar-spawn grace: discard obstacle latches so a touch during the window
+					// doesn't fire a knockdown the instant grace expires. The check stays
+					// EDGE-triggered (ITriggerListener has enter/exit only, and exit doesn't
+					// re-arm), so a continuous overlap at expiry never fires until the player
+					// leaves and re-enters the collider - accepted trade-off: a stale latch
+					// firing far from the spawn point is the worse failure.
 					_HasHitObstacle = false;
 				}
 		}
@@ -840,11 +842,18 @@ public sealed class DrunkCC : Component
 	}
 
 	/// <summary>
-	/// Owner-side: drop recovery state that a teleport invalidates. Pre-teleport history
-	/// samples would rewind across the map, and a stale last-knockdown position would
-	/// trigger a false double-knockdown pushback at the new location. With the queue
-	/// empty, a knockdown before the next sample accrues stands the player up where they
-	/// fell (GetRecoverySampleHelper's live-transform fallback).
+	/// Owner-side: drop state that a teleport invalidates. Pre-teleport history samples
+	/// would rewind across the map, and a stale last-knockdown position would trigger a
+	/// false double-knockdown pushback at the new location. With the queue empty, a
+	/// knockdown AFTER the teleport stands the player up where they fell
+	/// (GetRecoverySampleHelper's live-transform fallback).
+	/// Also cancels a knockdown still pending at teleport time (e.g. floored right before
+	/// the bar-trigger freeze): its restore position/heading were latched at knockdown
+	/// ENTRY from the now-cleared pre-teleport history, and left standing they would
+	/// rewind the player across the map on a stale heading on the first tick after
+	/// respawn. The pre-teleport obstacle latch is dropped too, so it can't fire an
+	/// instant knockdown on the paths that have no bar-spawn grace (R-key rescue,
+	/// Try Again).
 	/// </summary>
 	public void InvalidateRecoveryStateHelper()
 	{
@@ -853,6 +862,18 @@ public sealed class DrunkCC : Component
 		_history.Clear();
 		_hasLastKnockdownPosition = false;
 		_sinceLastSample = 0f; // fresh post-teleport sampling window
+		_HasHitObstacle = false;
+
+		if ( CurrentState == State.KnockedDown )
+		{
+			RagdollifyHelper( true );
+			CurrentState = State.Running;
+			// A knockdown can interrupt a jump; same gate reset ResetFromKnockdownHelper does.
+			_isJumping = false;
+			_hasLeftGround = false;
+		}
+		_knockdownRestorePosition = default;
+		_knockdownHeading = default;
 	}
 
 	/// <summary>
