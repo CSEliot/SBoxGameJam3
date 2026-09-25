@@ -223,6 +223,11 @@ public sealed class GameManager : Component, Component.INetworkListener
 			 ResetPlayerHelper();
 		}
 
+		if ( _localGameState != LocalGameState.InMainMenu && Input.Keyboard.Down( "V" ) )
+		{
+			_LocalDrunkCC.BeerLevel += 1;
+		}
+
 		// Design.md Screen 4: freeze the local player/camera the moment the run ends
 		// (timeout or cash-in) so they don't keep running under the End-Game overlay.
 		// One-shot via _endGameActive - Try Again re-enables both in HandleEndGameTryAgain.
