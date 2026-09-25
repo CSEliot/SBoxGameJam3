@@ -134,6 +134,14 @@ public sealed class DrunkCC : Component
 	private readonly List<HistorySample> _history = new();
 
 	/// <summary>
+	/// Deepest recovery slot override: the latest bar spawn, seeded by GameManager on every
+	/// bar-exit respawn (see SeedRecoverySpawnBackupHelper). Kept OUTSIDE _history so queue
+	/// trimming and teleport clears can never evict it; GetRecoverySampleHelper consults it
+	/// whenever the pick would land on the oldest entry (index 0) or the queue is empty.
+	/// </summary>
+	private HistorySample? _recoverySpawnBackup;
+
+	/// <summary>
 	/// Where the player last entered KnockedDown, for the double-knockdown check in
 	/// OwnerEnterKnockedDownHelper. Only meaningful once _hasLastKnockdownPosition is true
 	/// (the first knockdown of a run has nothing to compare against).
@@ -352,6 +360,19 @@ public sealed class DrunkCC : Component
 	/// </summary>
 	[Property] private ShrimpleRagdoll _Ragdoll { get; set; }
 	[Property] private float _BarSpawnNoKnockdownSeconds { get; set; } = 2;
+	[Property] private float _RunningPlaybackSpeed { get; set; } = 2;
+	[Property] private float _WalkingPlaybackSpeed { get; set; } = 2;
+	[Property] private float _FallingPlaybackSpeed { get; set; } = 1;
+	private string _runningSequenceName = "Drunk_Run_Forward";
+	private string _walkingSequenceName = "Old_Man_Walk";
+	private string _fallingSequenceName = "Falling";
+	/// <summary>
+	/// Last sequence name actually assigned to _SkinnedModelRenderer.Sequence.Name. The engine's
+	/// Name setter forwards unconditionally to the native AnimationSequence, so assigning the
+	/// SAME name that is already playing still restarts the loop from the beginning. Every write
+	/// must therefore go through SetSequenceHelper, which skips the assignment when unchanged.
+	/// </summary>
+	private string _currentSequenceName;
 	
 	private CCCamera _ccCamera;
 	private GameManager _gameManager;
@@ -407,6 +428,54 @@ public sealed class DrunkCC : Component
 		Log.Info( $"DrunkCC: pants state -> {state}" );
 	}
 
+	/// <summary>
+	/// Assigns an animation sequence to the body ONLY when it differs from the one already
+	/// playing. CRITICAL: SkinnedModelRenderer.Sequence.Name forwards every assignment to the
+	/// native AnimationSequence unconditionally — reassigning the same name restarts the loop,
+	/// so a naive per-frame write would stutter the animation forever. _currentSequenceName
+	/// tracks the last-assigned name so identical writes are skipped. Blending/Looping are
+	/// one-time setup (done in OnStart); they don't restart playback and are safe to leave set.
+	/// </summary>
+	private void SetSequenceHelper( string name, float playbackRate )
+	{
+		if ( _SkinnedModelRenderer == null || !_SkinnedModelRenderer.IsValid )
+			return;
+
+		if ( name == _currentSequenceName )
+			return;
+
+		_SkinnedModelRenderer.Sequence.Name = name;
+		_SkinnedModelRenderer.Sequence.PlaybackRate = playbackRate;
+		_currentSequenceName = name;
+	}
+
+	/// <summary>
+	/// Lightweight animation state machine: falling wins over the pants-based walk/run choice
+	/// (not grounded -> fall clip; pants Up (Shift held) -> run clip; pants Down -> walk clip).
+	/// Runs on EVERY client for EVERY body (own AND remote proxies) from OnUpdate: pants state
+	/// arrives via the replicated [Sync] CurrentPantsState and _isGrounded is computed locally
+	/// per client (OnFixedUpdate sets it before the IsProxy early-out), so no extra RPCs are
+	/// needed to network the animation — each client just picks the sequence from state it
+	/// already has. Actual writes go through SetSequenceHelper, which refuses same-name
+	/// reassignment (every Sequence.Name write restarts the loop, even when unchanged).
+	/// </summary>
+	private void UpdateAnimationHelper()
+	{
+		if ( !_isGrounded )
+		{
+			SetSequenceHelper( _fallingSequenceName, _FallingPlaybackSpeed );
+			return;
+		}
+
+		if ( CurrentPantsState == PantsState.Up )
+		{
+			SetSequenceHelper( _runningSequenceName, _RunningPlaybackSpeed );
+			return;
+		}
+
+		SetSequenceHelper( _walkingSequenceName, _WalkingPlaybackSpeed );
+	}
+
 	protected override void OnStart()
 	{
 		WallHitColliderReporter.OnTriggerStayCallback += OnWallHitColliderStayHelper;
@@ -426,10 +495,23 @@ public sealed class DrunkCC : Component
 		if ( !IsProxy )
 			OnSpawnHelper( Connection.Local );
 		Log.Info( "~~~I AM ALIVE~~~~DrunkCC: OnStart" );
+		// One-time sequence setup. Blending/Looping don't restart playback, so they are safe to
+		// set directly; the Name write goes through SetSequenceHelper so _currentSequenceName
+		// starts consistent (it is null here, so the initial walk assignment goes through).
+		if ( _SkinnedModelRenderer != null && _SkinnedModelRenderer.IsValid )
+		{
+			_SkinnedModelRenderer.Sequence.Blending = true;
+			_SkinnedModelRenderer.Sequence.Looping = true;
+		}
+		SetSequenceHelper( _walkingSequenceName, _WalkingPlaybackSpeed );
 	}
 	
 	protected override void OnUpdate()
 	{
+		// Animation state machine runs UNCONDITIONALLY — every client, every body (own + proxies),
+		// independent of the camera gate and state switch below (proxies need it and must not be
+		// blocked by driveCamera/InMainMenu). See UpdateAnimationHelper for the networking story.
+		UpdateAnimationHelper();
 		// Animgraph writes run on EVERY client (proxies need them to blend the remote body's
 		// run/land poses). The camera writes are owner-only: _ccCamera is the one scene-wide
 		// camera shared by all, so letting every proxy DrunkCC drive it means any remote
@@ -443,9 +525,13 @@ public sealed class DrunkCC : Component
 		switch ( CurrentState )
 		{
 			case State.Running:
-				_CitizenAnimationHelper.MoveStyle = CitizenAnimationHelper.MoveStyles.Run;
-				_SkinnedModelRenderer.Set( "move_style", 2 );
-				_SkinnedModelRenderer.Set( "move_x", 10000 );
+				// _CitizenAnimationHelper.MoveStyle = CitizenAnimationHelper.MoveStyles.Auto;
+				// _SkinnedModelRenderer.Set( "move_style", 2 );
+				// _SkinnedModelRenderer.Set( "move_x", 10000 );
+				// foreach ( var sequenceName in _SkinnedModelRenderer.Sequence.SequenceNames )
+				// {
+				// 	Log.Info( sequenceName );
+				// }
 				if ( driveCamera )
 				{
 					_ccCamera.UseAltTargets = false;
@@ -744,19 +830,42 @@ public sealed class DrunkCC : Component
 
 	/// <summary>
 	/// The sample indexFromNewest back from the top of the queue. Short queue clamps to the
-	/// oldest available; empty queue falls back to the live transform (stand up where you fell).
+	/// oldest available; empty queue falls back to the spawn backup if seeded, else the live
+	/// transform (stand up where you fell). The deepest slot (index 0) is ALWAYS the latest
+	/// bar spawn backup when one is seeded, so a max-beer knockdown rewinds to the bar door.
 	/// </summary>
 	private HistorySample GetRecoverySampleHelper( int indexFromNewest )
 	{
 		if ( _history.Count == 0 )
 		{
+			if ( _recoverySpawnBackup.HasValue )
+				return _recoverySpawnBackup.Value;
+
 			var heading = _Rigidbody.WorldRotation.Forward.WithZ( 0f );
 			return new HistorySample { Time = Time.Now, Position = _Rigidbody.WorldPosition, Heading = heading };
 		}
 
 		int idx = _history.Count - 1 - indexFromNewest;
 		if ( idx < 0 ) idx = 0;
+		// Deepest slot: the seeded bar spawn outranks the oldest recorded sample.
+		if ( idx == 0 && _recoverySpawnBackup.HasValue )
+			return _recoverySpawnBackup.Value;
 		return _history[idx];
+	}
+
+	/// <summary>
+	/// Records the latest bar spawn as the deepest recovery backup (the slot a max-beer
+	/// knockdown rewinds to). Called by GameManager right after a bar-exit respawn. Kept in
+	/// its own field, not in _history, so queue trimming and InvalidateRecoveryStateHelper
+	/// (which runs BEFORE the next seed on every respawn) can never evict it.
+	/// </summary>
+	/// <param name="position">World position of the bar spawn point.</param>
+	/// <param name="heading">Flat yaw heading to stand the player up along when rewinding here.</param>
+	public void SeedRecoverySpawnBackupHelper( Vector3 position, Vector3 heading )
+	{
+		// Same defensive flat-heading guard as _knockdownHeading in OwnerEnterKnockedDownHelper.
+		if ( heading.IsNearlyZero() ) heading = Vector3.Forward;
+		_recoverySpawnBackup = new HistorySample { Time = Time.Now, Position = position, Heading = heading };
 	}
 
 	/// <summary>
@@ -947,8 +1056,11 @@ public sealed class DrunkCC : Component
 	/// Owner-side: drop state that a teleport invalidates. Pre-teleport history samples
 	/// would rewind across the map, and a stale last-knockdown position would trigger a
 	/// false double-knockdown pushback at the new location. With the queue empty, a
-	/// knockdown AFTER the teleport stands the player up where they fell
-	/// (GetRecoverySampleHelper's live-transform fallback).
+	/// knockdown AFTER the teleport stands the player up where they fell, unless a bar
+	/// spawn backup is seeded, in which case GetRecoverySampleHelper's empty-queue path
+	/// returns it. The backup itself deliberately SURVIVES this clear - GameManager
+	/// re-seeds it right after a bar-exit respawn, and an R-key rescue (no seed) must
+	/// not lose the latest bar spawn.
 	/// Also cancels a knockdown still pending at teleport time (e.g. floored right before
 	/// the bar-trigger freeze): its restore position/heading were latched at knockdown
 	/// ENTRY from the now-cleared pre-teleport history, and left standing they would
@@ -1040,8 +1152,8 @@ public sealed class DrunkCC : Component
 		// sample AT the recovery position right after ResetFromKnockdownHelper cleared it,
 		// so a second knockdown before the next gate recovered to that same spot. The queue
 		// now starts a full MinTimePerPosition after recovery (timer reset there); while
-		// it's empty, GetRecoverySampleHelper falls back to the live transform, i.e.
-		// stand up where you fell.
+		// it's empty, GetRecoverySampleHelper falls back to the spawn backup, or the live
+		// transform if none is seeded, i.e. stand up where you fell.
 		if ( _sinceLastSample < MinTimePerPosition )
 			return;
 
