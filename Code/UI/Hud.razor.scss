@@ -178,14 +178,19 @@ Hud
 		}
 
 		// Caption straddling the bottom border: centered on the line, no background so the
-		// border shows through the glyph gaps (the crossing look). Negative bottom = half the
-		// 18px line height so the text's vertical middle sits on the border.
+		// border shows through the glyph gaps (the crossing look). Negative bottom ≈ half a
+		// line so the text band overlaps the border strip (absolute children position against
+		// the PADDING box, so -9px hangs past the border); exact centering eyeballed in-editor.
+		// Flex centering (project-proven idiom) rather than relying on text-align reaching the
+		// auto-generated inner Label.
 		.preview-caption
 		{
 			position: absolute;
 			left: 0px;
 			right: 0px;
 			bottom: -9px;
+			justify-content: center;
+			align-items: center;
 			font-family: $body;
 			font-size: 18px;
 			color: #d42020;
