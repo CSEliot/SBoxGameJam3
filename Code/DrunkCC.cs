@@ -984,7 +984,7 @@ public sealed class DrunkCC : Component
 		if ( IsProxy )
 			return;
 
-		// DressPlayerHelper(GameObject, connection);
+		DressPlayerHelper( GameObject, connection );
 
 		_gameManager = Scene.Scene.FindAllWithTagOrigin( "gamemanager" ).FirstOrDefault()?.GetComponent<GameManager>();
 		if ( _gameManager != null )
@@ -998,16 +998,59 @@ public sealed class DrunkCC : Component
 	}
 	
 	/// <summary>
+	/// Every slot at/below the groin: account garments claiming any of these (on EITHER
+	/// layer) are stripped before dressing, because the pants mechanic (DrunkCC pants
+	/// states + PantsDropController's shader visual + Legs bodygroup) is built around the
+	/// forced heart boxers (SlotsUnder Groin..Knee) and trackie bottoms (SlotsOver
+	/// Groin..Shin) being the only lower-body wear. Deliberately does NOT include Waist
+	/// (a beltline slot ABOVE the groin - only 2 shipped costume outfits claim it, and
+	/// they cover leg slots too so they're banned anyway) or Skin (zero shipped garments
+	/// use the bit; human skins are handled via HasHumanSkin, not slots, and are never
+	/// in account clothing lists).
+	/// </summary>
+	private const Clothing.Slots BannedLowerBodySlots =
+		Clothing.Slots.Groin |
+		Clothing.Slots.LeftThigh | Clothing.Slots.RightThigh |
+		Clothing.Slots.LeftKnee | Clothing.Slots.RightKnee |
+		Clothing.Slots.LeftShin | Clothing.Slots.RightShin |
+		Clothing.Slots.LeftFoot | Clothing.Slots.RightFoot;
+
+	/// <summary>
+	/// The two forced garments the mechanics depend on (project-authored .clothing
+	/// assets, matching the player prefab's Manual Dresser preset). Re-added to every
+	/// filtered account outfit; see DressPlayerHelper.
+	/// </summary>
+	private static readonly string[] ForcedGarmentPaths =
+	[
+		"clothing/heart_pattern_boxers.clothing",
+		"clothing/trackie_bottoms_black.clothing",
+	];
+
+	/// <summary>
 	/// Applies the owning player's account clothing (Steam avatar) to their own player body's
-	/// Dresser. [Rpc.Broadcast] so every currently-connected client sees the same outfit on that
-	/// player, mirroring the drinker-dressing pattern in Bar.cs's DressDrinkerHelper. Only the
-	/// Clothing list comes from the account - Height/Age/Tint stay whatever the player prefab's
-	/// Dresser was preset to (see Extensions.ApplyClothingOnlyAsync), so every player keeps the
-	/// same body proportions regardless of their account avatar.
+	/// Dresser, MINUS anything that slots at/below the groin: the pants-down mechanic and its
+	/// shader visual (PantsDropController) depend on the two forced garments (heart boxers +
+	/// black trackie bottoms) being the only lower-body wear. The forced pair is re-added
+	/// after filtering, because ClothingContainer.ApplyAsync REPLACES the whole worn set.
+	/// [Rpc.Broadcast] so every currently-connected client sees the same outfit on that
+	/// player, mirroring the drinker-dressing pattern in Bar.cs's DressDrinkerHelper. Nested
+	/// inside OnSpawnHelper (also Broadcast) this is loop-safe: OnSpawnHelper's body
+	/// early-returns on proxies, so this nested broadcast is only ever SENT by the owner
+	/// (a broadcast body re-sends on every receiver - only the owner-initiated path avoids
+	/// the storm). Only the Clothing list comes from the account - Height/Age/Tint stay
+	/// whatever the player prefab's Dresser was preset to (see
+	/// Extensions.ApplyClothingOnlyAsync), so every player keeps the same body proportions
+	/// regardless of their account avatar.
 	/// </summary>
 	[Rpc.Broadcast]
 	private async void DressPlayerHelper( GameObject player, Connection playerConnection )
 	{
+		// The Connection arg deserializes to null when its id is unknown here (e.g. the
+		// owner disconnected between broadcast and delivery); CreateFromConnection would
+		// throw inside this async void body.
+		if ( player is null || !player.IsValid() || playerConnection is null )
+			return;
+
 		var dresser = player.GetComponentInChildren<Dresser>( true );
 		if ( dresser is null || !dresser.BodyTarget.IsValid() )
 		{
@@ -1016,10 +1059,57 @@ public sealed class DrunkCC : Component
 		}
 
 		var clothing = ClothingContainer.CreateFromConnection( playerConnection );
-		foreach ( var item in clothing.Clothing )
+
+		// Strip every garment slotting at/below the groin (either layer). Entries whose
+		// asset hasn't resolved yet (Clothing == null, workshop download pending) can't
+		// be slot-tested and are dropped too: keeping them would let ApplyAsync's
+		// download phase resolve - and smuggle past this filter - banned items like
+		// shoes after the fact. Standard (non-workshop) account garments resolve
+		// locally and are unaffected.
+		clothing.Clothing.RemoveAll( e =>
+			e.Clothing is null ||
+			((e.Clothing.SlotsOver | e.Clothing.SlotsUnder) & BannedLowerBodySlots) != 0 );
+
+		// Re-add the forced garments LAST, resolved from the Dresser's own Manual preset
+		// when present (keeps authored tints). ClothingContainer.Add evicts same-layer
+		// slot conflicts in favor of the newcomer, so anything that survived the filter
+		// and conflicts with the boxers/trackies loses to them; cross-layer pairs (boxers
+		// Under vs trackies Over) never conflict by design. Without this step the body
+		// would lose both garments - PantsDropController matches them by model-path
+		// substring ("trackiebottoms"/"boxers") and idles out when they're absent.
+		foreach ( var path in ForcedGarmentPaths )
 		{
-			// if ( item.Clothing.SlotsOver.
+			var presetEntry = dresser.Clothing?.FirstOrDefault( e =>
+				e.Clothing is not null &&
+				string.Equals( e.Clothing.ResourcePath, path, StringComparison.OrdinalIgnoreCase ) );
+
+			if ( presetEntry is not null )
+			{
+				// Copy the entry rather than sharing the Dresser's own object: the
+				// account container is mutated downstream (Add-time eviction,
+				// ApplyAsync resolving null assets) and must never write through
+				// into the serialized Manual preset list.
+				clothing.Add( new ClothingContainer.ClothingEntry
+				{
+					Clothing = presetEntry.Clothing,
+					ItemDefinitionId = presetEntry.ItemDefinitionId,
+					Tint = presetEntry.Tint,
+					Bone = presetEntry.Bone,
+					Transform = presetEntry.Transform,
+				} );
+				continue;
+			}
+
+			var asset = ResourceLibrary.Get<Clothing>( path );
+			if ( asset is null )
+			{
+				Log.Error( $"Forced garment '{path}' missing from the Dresser preset AND resources - pants mechanic will break on this body." );
+				continue;
+			}
+
+			clothing.Add( asset );
 		}
+
 		await dresser.ApplyClothingOnlyAsync( clothing );
 	}
 }
