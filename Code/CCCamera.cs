@@ -163,6 +163,23 @@ public sealed class CCCamera : Component
 	[Property] private float _BehindCapSqueezeSpeed { get; set; } = 0.15f;
 
 	/// <summary>
+	/// Angular deadzone (radians) around dead-behind inside which the camera counts as centered:
+	/// the squeeze timer resets and the cap relaxes back to _MaxDefaultBehindCap. The old
+	/// hardcoded 0.001 rad (0.06 deg) was below the body's natural heading wobble at slow speed,
+	/// so the cap squeezed to 0 and locked the camera onto a noisy per-tick heading. ~0.04 rad
+	/// (2.3 deg) treats ordinary wobble as centered. 0 restores the old hair-trigger.
+	/// </summary>
+	[Property] private float _BehindCenterDeadzone { get; set; } = 0.04f;
+
+	/// <summary>
+	/// Exponential smoothing rate for the behind-cap position correction, per second. The
+	/// correction used to teleport the camera the full angular excess in one frame, which put
+	/// raw heading noise 1:1 into lateral camera motion (at a ~360u arm, 1 deg of heading wobble
+	/// = ~6u of jerk). Higher = snappier re-lock; 0 restores the old hard snap.
+	/// </summary>
+	[Property] private float _BehindCapSmoothSpeed { get; set; } = 4f;
+
+	/// <summary>
 	/// Closest the camera is allowed to get to the target, in units.
 	/// If the camera ends up nearer than this it is pushed straight back out along
 	/// its current direction from the target. 0 disables the check.
@@ -731,8 +748,10 @@ public sealed class CCCamera : Component
 			: Vector3.Dot( currentOffset.Normal, -forwardDir ).Clamp( -1f, 1f );
 		var angle = MathF.Acos( dot );
 
-		// Dead-center (or degenerate zero-offset case): relax back to the default cap.
-		if ( angle <= 0.001f )
+		// Dead-center within the deadzone (or degenerate zero-offset case): relax back to the
+		// default cap. The deadzone keeps ordinary heading wobble (slow speeds especially) from
+		// counting as "off-center" and squeezing the cap to a hair-line; see _BehindCenterDeadzone.
+		if ( angle <= _BehindCenterDeadzone )
 		{
 			_timeOffCenter = 0f;
 			_currentBehindCap = _MaxDefaultBehindCap;
@@ -770,9 +789,15 @@ public sealed class CCCamera : Component
 
 		if ( angle <= maxAngle ) return;
 
-		// Use spherical interpolation for correct angular correction
-		var correctionFactor = (angle - maxAngle) / angle;
-		var correctedDir = Vector3.Slerp( currentOffset.Normal, idealOffset.Normal, correctionFactor );
+		// Use spherical interpolation for correct angular correction. The full correction is
+		// applied through an exponential-smoothing fraction instead of a hard teleport, so the
+		// re-lock is a glide: per-tick heading noise from the body no longer lands 1:1 on the
+		// camera at ~360u of arm leverage. _BehindCapSmoothSpeed = 0 restores the old snap.
+		var excess = ( angle - maxAngle ) / angle;
+		var smoothing = _BehindCapSmoothSpeed > 0f
+			? 1f - MathF.Exp( -_BehindCapSmoothSpeed * Time.Delta )
+			: 1f;
+		var correctedDir = Vector3.Slerp( currentOffset.Normal, idealOffset.Normal, excess * smoothing );
 		var correctedOffset = correctedDir * distance;
 
 		WorldPosition = target.WorldPosition + correctedOffset;
