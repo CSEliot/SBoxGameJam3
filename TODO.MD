@@ -1,5 +1,9 @@
-feedbakc:
+TRODO/feedbakc:
 
+the anims overrride the scaling, no short dude possible!
+lkook at tariqs critiqweu of hot to play.
+ask for feedback in main menu and end game sequence.
+client players are not getting put into the minigame.
 Make pub interiors more unique
 Make the bottom left pub shower more obvious as to its purpose.
 remove the glass dome? or make it VERY transparent?
