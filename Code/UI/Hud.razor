@@ -27,7 +27,8 @@
 // screens, or the End-Game overlay. Scene setup/spin lives in Hud.razor.cs
 // (UpdateTargetBarPreviewHelper). Because ScenePanel composites into the UI layer
 // (ScreenPanel, AfterPostProcess), the preview always draws ON TOP of in-world
-// models.
+// models. A red border-only frame wraps the preview with a caption crossing its
+// bottom border line (added 09-25).
 //
 // Not implemented here: the PANTS METER (Design Screen 1, bottom-left) - instead an
 // AUTOMATIC right-edge warning blinks once DrunkCC.CurrentPantsState has been
@@ -106,6 +107,9 @@
 
 	@if ( Visible )
 	{
-		<scene @ref="_previewHost" class="target-bar-preview" />
+		<div class="bar-preview-frame">
+			<scene @ref="_previewHost" class="target-bar-preview" />
+			<div class="preview-caption">YOUR NEXT BAR IS</div>
+		</div>
 	}
 </root>
