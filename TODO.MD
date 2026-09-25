@@ -1,5 +1,6 @@
 TRODO/feedbakc:
 
+eaderboard name truncation
 the anims overrride the scaling, no short dude possible!
 lkook at tariqs critiqweu of hot to play.
 ask for feedback in main menu and end game sequence.
