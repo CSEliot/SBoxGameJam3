@@ -141,35 +141,29 @@ Hud
 		color: $hot;
 	}
 
-	.controls-hint
-	{
-		position: absolute;
-		left: 60px;
-		bottom: 60px;
-		flex-direction: column;
-		gap: 4px;
-		font-family: $body;
-		font-size: 18px;
-		color: rgba( #fff, 0.6 );
-	}
-
 	// Target-bar preview FRAME: red border-only box (no background) around the ScenePanel,
 	// with the caption crossing the bottom border line. Frame owns the absolute position;
 	// the scene fills it (TickTargetBarPreviewHelper matches the camera render size to
 	// host.Box.RectInner.Size, so the border inset is handled automatically).
 	// The ScenePanel renders the target bar's -JustModel prefab on a slow turntable with
-	// a slight kilter. Bottom-left, ABOVE the controls hint (which owns the very corner).
+	// a slight kilter. Bottom-left corner (the advice-text block was removed 09-25, so
+	// the frame owns the corner). Keep `bottom` >= ~5px: the caption's bottom edge hangs
+	// ~3px below the frame's outer border (absolute children position against the padding
+	// box) and would be cut off at the screen edge by a smaller value.
+	// Halved 09-25 at the user's request (box 150x150, caption 9px); the ScenePanel camera
+	// size adapts at runtime from the box, so no C# change was needed.
 	// ScenePanel composites in the UI layer (ScreenPanel AfterPostProcess, ZIndex 100),
 	// so the preview always draws on top of in-world models. Never eats clicks.
 	.bar-preview-frame
 	{
 		position: absolute;
-		left: 48px;
-		bottom: 148px;
-		width: 300px;
-		height: 300px;
+		left: 24px;
+		bottom: 12px;
+		width: 150px;
+		height: 150px;
 		pointer-events: none;
-		border: 3px solid #d42020; // the project's existing red (pants-down warning)
+		// 2px, not the exact half of 3px (1.5px): sub-pixel borders can render unevenly.
+		border: 2px solid #d42020; // the project's existing red (pants-down warning)
 
 		.target-bar-preview
 		{
@@ -179,8 +173,9 @@ Hud
 
 		// Caption straddling the bottom border: centered on the line, no background so the
 		// border shows through the glyph gaps (the crossing look). Negative bottom ≈ half a
-		// line so the text band overlaps the border strip (absolute children position against
-		// the PADDING box, so -9px hangs past the border); exact centering eyeballed in-editor.
+		// line (font 9px) so the text band overlaps the border strip (absolute children position
+		// against the PADDING box, so -5px hangs ~3px past the 2px border); exact centering
+		// eyeballed in-editor.
 		// Flex centering (project-proven idiom) rather than relying on text-align reaching the
 		// auto-generated inner Label.
 		.preview-caption
@@ -188,17 +183,17 @@ Hud
 			position: absolute;
 			left: 0px;
 			right: 0px;
-			bottom: -9px;
+			bottom: -5px;
 			justify-content: center;
 			align-items: center;
 			font-family: $body;
-			font-size: 18px;
+			font-size: 9px;
 			color: #d42020;
 			text-align: center;
 		}
 	}
 
-	// Build watermark - small, dim, bottom-right (mirrors controls-hint bottom-left).
+	// Build watermark - small, dim, bottom-right.
 	// Deliberately OUTSIDE the run-Visible gate in Hud.razor so it shows on the menu too.
 	.version-label
 	{
