@@ -249,6 +249,25 @@ public sealed class DrunkCC : Component
 	[Property] private float _YawGain { get; set; } = 1f;
 
 	/// <summary>
+	/// Forward speed (u/s) at which the yaw gate latches ON; it latches OFF below half this.
+	/// Hysteresis so the gate can't flicker per tick on the sign of the noisy forward-speed dot
+	/// at crawl speeds (the flicker bang-bangs the yaw torque and shakes the heading, which the
+	/// chase camera amplifies into visible jitter). Sized against the pants-down cap (50 u/s at
+	/// _SpeedPantsDownDisabler=90): 10/5 keeps the never-steer band narrow while still filtering
+	/// tick noise. 0 restores the old raw >0 gate.
+	/// </summary>
+	[Property] private float _YawGateSpeed { get; set; } = 10f;
+
+	/// <summary>
+	/// Latched yaw-gate state (see _YawGateSpeed). Persists between ticks so the gate holds
+	/// its previous state inside the hysteresis band. Tracks the effective gate output in every
+	/// mode (including the legacy raw-dot path), so flipping _YawGateSpeed at runtime resumes
+	/// from the current truth. Explicitly cleared on knockdown recovery and teleport
+	/// invalidation so a stale ON latch can't survive an event that didn't zero velocity.
+	/// </summary>
+	private bool _wasMovingForward;
+
+	/// <summary>
 	/// While pants are Down, top forward speed is cut by this percentage (0-100). Scales the
 	/// velocity ceiling and actively holds forward speed at the reduced cap (the movement sphere
 	/// is frictionless, so cutting thrust alone would never slow a coasting body); 100 pins
@@ -377,6 +396,16 @@ public sealed class DrunkCC : Component
 	private CCCamera _ccCamera;
 	private GameManager _gameManager;
 	private bool _isGrounded;
+
+	/// <summary>
+	/// True once OnFixedUpdate has sampled the ground at least once. Until then _isGrounded holds
+	/// its default (false), and reading that as "airborne" would flash the Falling clip on the
+	/// first update(s) after spawn — two hard sequence restarts plus a visible pose flicker on
+	/// every body — and would pin Falling forever on a body whose Rigidbody reference is missing
+	/// (OnFixedUpdate early-outs before the sample). The animation picker only takes the falling
+	/// branch when this is set; physics readers keep using raw _isGrounded as before.
+	/// </summary>
+	private bool _hasGroundedSample;
 	public float TimeSinceBarSpawn;
 
 	/// <summary>
@@ -461,7 +490,10 @@ public sealed class DrunkCC : Component
 	/// </summary>
 	private void UpdateAnimationHelper()
 	{
-		if ( !_isGrounded )
+		// Falling only once a ground sample actually exists: _isGrounded defaults false, and
+		// before the first OnFixedUpdate sample (or forever if the body has no Rigidbody wired)
+		// reading that as "airborne" would flash/pin the Falling clip — see _hasGroundedSample.
+		if ( _hasGroundedSample && !_isGrounded )
 		{
 			SetSequenceHelper( _fallingSequenceName, _FallingPlaybackSpeed );
 			return;
@@ -562,6 +594,7 @@ public sealed class DrunkCC : Component
 		// we touch down again clears the jump gate so the next Jump press is allowed. Feeding
 		// IsGroundedHelper here also lets the animgraph blend out of the jump/fall pose on landing.
 		_isGrounded = IsGroundedHelper();
+		_hasGroundedSample = true;
 		_CitizenAnimationHelper.IsGrounded = _isGrounded;
 
 		
@@ -724,7 +757,22 @@ public sealed class DrunkCC : Component
 		// the gate below flicker the yaw torque on/off nondeterministically. This CC's steering
 		// model needs forward motion to turn at all, so a full stop deterministically means "not
 		// moving forward" instead of reading the noisy dot.
-		bool movingForward = pantsSpeedScale > 0f && forwardSpeed > 0f;
+		// Slow-but-not-zero speeds have the same problem (lateral noise, grip forces and the
+		// pants-down strip/re-add sawtooth cross the dot through zero between ticks), so the gate
+		// LATCHES with hysteresis: ON at _YawGateSpeed, OFF below half of it, holding its previous
+		// state inside the band. _YawGateSpeed = 0 restores the old raw >0 comparison.
+		bool movingForward;
+		if ( pantsSpeedScale <= 0f )
+			movingForward = false;
+		else if ( _YawGateSpeed <= 0f )
+			movingForward = forwardSpeed > 0f;
+		else if ( forwardSpeed >= _YawGateSpeed )
+			movingForward = true;
+		else if ( forwardSpeed <= _YawGateSpeed * 0.5f )
+			movingForward = false;
+		else
+			movingForward = _wasMovingForward;
+		_wasMovingForward = movingForward;
 		float targetYawRateDeg = movingForward ? _rollDeg * _RollTurnRate * pantsTurnScale : 0f;
 		_Rigidbody.ApplyTorque( _Rigidbody.WorldRotation.Up * ( targetYawRateDeg - yawRateDeg ) * _YawGain );
 
@@ -1047,6 +1095,9 @@ public sealed class DrunkCC : Component
 		// A knockdown can interrupt a jump; clear the gate so recovery doesn't leave jumping stuck off.
 		_isJumping = false;
 		_hasLeftGround = false;
+		// Recovery zeroes velocity, so the yaw gate deterministically latches OFF on the first
+		// tick anyway; clear it explicitly so that doesn't depend on the velocity-zeroing above.
+		_wasMovingForward = false;
 		
 		// reset timer to give player travel time.
 		_sinceLastSample = 0f;
@@ -1086,6 +1137,9 @@ public sealed class DrunkCC : Component
 			_isJumping = false;
 			_hasLeftGround = false;
 		}
+		// Same yaw-gate latch reset as ResetFromKnockdownHelper: a teleport path that ever
+		// preserves momentum must not carry a stale ON latch into the new location.
+		_wasMovingForward = false;
 		_knockdownRestorePosition = default;
 		_knockdownHeading = default;
 	}

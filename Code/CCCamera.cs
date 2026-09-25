@@ -163,11 +163,13 @@ public sealed class CCCamera : Component
 	[Property] private float _BehindCapSqueezeSpeed { get; set; } = 0.15f;
 
 	/// <summary>
-	/// Angular deadzone (radians) around dead-behind inside which the camera counts as centered:
-	/// the squeeze timer resets and the cap relaxes back to _MaxDefaultBehindCap. The old
-	/// hardcoded 0.001 rad (0.06 deg) was below the body's natural heading wobble at slow speed,
-	/// so the cap squeezed to 0 and locked the camera onto a noisy per-tick heading. ~0.04 rad
-	/// (2.3 deg) treats ordinary wobble as centered. 0 restores the old hair-trigger.
+	/// Yaw-plane angular deadzone (radians) around dead-behind inside which the camera counts as
+	/// centered: the squeeze timer resets and the cap relaxes back to _MaxDefaultBehindCap.
+	/// Measured in the horizontal plane ONLY (see YawAngleOffBehindHelper): the authored follow
+	/// arm carries a constant elevation (~16 deg of 3D angle at the shipped _Offset), so a 3D
+	/// measurement floors well above any sane deadzone and the reset could never fire. ~0.04 rad
+	/// (2.3 deg) absorbs the body's heading wobble at slow speed, which used to squeeze the cap
+	/// to a hair-line and lock the camera onto per-tick heading noise. 0 disables the deadzone.
 	/// </summary>
 	[Property] private float _BehindCenterDeadzone { get; set; } = 0.04f;
 
@@ -175,7 +177,8 @@ public sealed class CCCamera : Component
 	/// Exponential smoothing rate for the behind-cap position correction, per second. The
 	/// correction used to teleport the camera the full angular excess in one frame, which put
 	/// raw heading noise 1:1 into lateral camera motion (at a ~360u arm, 1 deg of heading wobble
-	/// = ~6u of jerk). Higher = snappier re-lock; 0 restores the old hard snap.
+	/// = ~6u of jerk). Higher = snappier re-lock; 0 restores the old hard snap. The frame delta
+	/// feeding this is clamped to 0.25s so a long hitch can't reproduce the one-frame snap.
 	/// </summary>
 	[Property] private float _BehindCapSmoothSpeed { get; set; } = 4f;
 
@@ -731,26 +734,45 @@ public sealed class CCCamera : Component
 	}
 
 	/// <summary>
+	/// Signed yaw-plane angle (radians, -PI..PI) from the camera's horizontal offset direction to
+	/// dead-behind the target. Positive = dead-behind lies counter-clockwise from the current
+	/// offset. Measured with the elevation projected out: the follow arm carries a constant authored
+	/// height (+Z of _Offset) that never reaches zero 3D angle against the horizontal dead-behind
+	/// reference, so any 3D measurement (the old acos of the full offset) has a ~16 deg floor at the
+	/// shipped offset and deadzone/cone tests against it are meaningless. Degenerate inputs (no
+	/// horizontal offset, or a vertical body forward) read as centered (0).
+	/// </summary>
+	private static float YawAngleOffBehindHelper( Vector3 currentOffset, Vector3 forwardDir )
+	{
+		var flat = currentOffset.WithZ( 0f );
+		var fwd = forwardDir.WithZ( 0f );
+		if ( flat.LengthSquared < 0.0001f || fwd.LengthSquared < 0.0001f ) return 0f;
+
+		flat = flat.Normal;
+		var behind = -fwd.Normal;
+		float dot = Vector3.Dot( flat, behind ).Clamp( -1f, 1f );
+		// Sign of cross(flat, behind).z: which way to rotate flat to reach dead-behind.
+		float crossZ = flat.x * behind.y - flat.y * behind.x;
+		return MathF.Sign( crossZ ) * MathF.Acos( dot );
+	}
+
+	/// <summary>
 	/// Tracks how long the camera has sat off dead-center behind the target and, once that
 	/// exceeds _ReturnToCenterSpeed seconds, starts squeezing _currentBehindCap down toward 0 at
 	/// _BehindCapSqueezeSpeed. EnforceBehindCap then has less and less room to work with, which is
 	/// what actually forces the camera back to dead-center over time regardless of _MaxDefaultBehindCap
-	/// or continued jerk input. Reaching dead-center resets both the timer and the cap back to
-	/// _MaxDefaultBehindCap.
+	/// or continued jerk input. Reaching dead-center (within the yaw-plane _BehindCenterDeadzone)
+	/// resets both the timer and the cap back to _MaxDefaultBehindCap.
 	/// </summary>
 	private void UpdateBehindCapSqueezeHelper( GameObject target )
 	{
 		var currentOffset = WorldPosition - target.WorldPosition;
-		var forwardDir = target.WorldRotation.Forward;
+		var angle = MathF.Abs( YawAngleOffBehindHelper( currentOffset, target.WorldRotation.Forward ) );
 
-		var dot = currentOffset.LengthSquared < 0.0001f
-			? 1f
-			: Vector3.Dot( currentOffset.Normal, -forwardDir ).Clamp( -1f, 1f );
-		var angle = MathF.Acos( dot );
-
-		// Dead-center within the deadzone (or degenerate zero-offset case): relax back to the
-		// default cap. The deadzone keeps ordinary heading wobble (slow speeds especially) from
-		// counting as "off-center" and squeezing the cap to a hair-line; see _BehindCenterDeadzone.
+		// Dead-center within the yaw-plane deadzone (or a degenerate offset): relax back to the
+		// default cap. The deadzone absorbs the body's heading wobble - at slow speed especially -
+		// so it doesn't count as "off-center" and squeeze the cap to a hair-line; see
+		// _BehindCenterDeadzone for why this test must be yaw-plane, not 3D.
 		if ( angle <= _BehindCenterDeadzone )
 		{
 			_timeOffCenter = 0f;
@@ -766,9 +788,13 @@ public sealed class CCCamera : Component
 	}
 
 	/// <summary>
-	/// Constrains the camera to stay within an angular cone behind the target.
-	/// _currentBehindCap is 0-1 where 0 = locked perfectly behind, 1 = no constraint; it starts
-	/// at _MaxDefaultBehindCap and is squeezed down over time by UpdateBehindCapSqueezeHelper.
+	/// Constrains the camera to stay within an angular cone behind the target, measured in the yaw
+	/// plane (see YawAngleOffBehindHelper). _currentBehindCap is 0-1 where 0 = locked perfectly
+	/// behind, 1 = no constraint; it starts at _MaxDefaultBehindCap and is squeezed down over time
+	/// by UpdateBehindCapSqueezeHelper. The correction rotates the horizontal offset toward
+	/// dead-behind, preserving the arm's horizontal radius and authored elevation - the old 3D
+	/// Slerp pulled the camera down toward the target's height, fighting the follow lerp's +Z
+	/// offset every frame.
 	/// </summary>
 	private void EnforceBehindCap( GameObject target )
 	{
@@ -777,30 +803,28 @@ public sealed class CCCamera : Component
 		var currentOffset = WorldPosition - target.WorldPosition;
 		if ( currentOffset.LengthSquared < 0.0001f ) return;
 
-		var distance = currentOffset.Length;
-		var forwardDir = target.WorldRotation.Forward;
-		var idealBehindPos = target.WorldPosition - forwardDir * distance;
-		var idealOffset = idealBehindPos - target.WorldPosition;
-
-		// Check angle between current position and ideal behind
-		var dot = Vector3.Dot( currentOffset.Normal, idealOffset.Normal ).Clamp( -1f, 1f );
-		var angle = MathF.Acos( dot );
+		var signed = YawAngleOffBehindHelper( currentOffset, target.WorldRotation.Forward );
+		var angle = MathF.Abs( signed );
 		var maxAngle = _currentBehindCap * MathF.PI;
 
 		if ( angle <= maxAngle ) return;
 
-		// Use spherical interpolation for correct angular correction. The full correction is
-		// applied through an exponential-smoothing fraction instead of a hard teleport, so the
-		// re-lock is a glide: per-tick heading noise from the body no longer lands 1:1 on the
-		// camera at ~360u of arm leverage. _BehindCapSmoothSpeed = 0 restores the old snap.
-		var excess = ( angle - maxAngle ) / angle;
+		// Rotate the horizontal offset toward dead-behind by the angular excess, through an
+		// exponential-smoothing fraction instead of a hard teleport, so the re-lock is a glide:
+		// per-tick heading noise from the body no longer lands 1:1 on the camera at ~360u of arm
+		// leverage. The frame delta is clamped so a long hitch can't reproduce the one-frame snap.
+		// _BehindCapSmoothSpeed = 0 restores the old full-excess correction.
+		var excessFraction = ( angle - maxAngle ) / angle;
 		var smoothing = _BehindCapSmoothSpeed > 0f
-			? 1f - MathF.Exp( -_BehindCapSmoothSpeed * Time.Delta )
+			? 1f - MathF.Exp( -_BehindCapSmoothSpeed * MathF.Min( Time.Delta, 0.25f ) )
 			: 1f;
-		var correctedDir = Vector3.Slerp( currentOffset.Normal, idealOffset.Normal, excess * smoothing );
-		var correctedOffset = correctedDir * distance;
+		var rotateDeg = ( signed * excessFraction * smoothing ).RadianToDegree();
 
-		WorldPosition = target.WorldPosition + correctedOffset;
+		var flat = currentOffset.WithZ( 0f );
+		if ( flat.LengthSquared < 0.0001f ) return; // camera directly above/below the target: no yaw to correct
+		var rotatedFlat = Rotation.FromAxis( Vector3.Up, rotateDeg ) * flat;
+
+		WorldPosition = target.WorldPosition + rotatedFlat + Vector3.Up * currentOffset.z;
 	}
 
 	/// <summary>
