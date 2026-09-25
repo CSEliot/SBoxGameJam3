@@ -120,7 +120,7 @@
           "component_type": "Rigidbody"
         },
         "_RollResponseFloor": 0,
-        "_RollTurnRate": 4,
+        "_RollTurnRate": 3,
         "_RotationPantsDownIncreaser": 1,
         "_RunningForce": 100,
         "_RunningPlaybackSpeed": 2,
@@ -133,8 +133,8 @@
         "_SpeedPantsDownDisabler": 90,
         "_VelocityCeiling": 500,
         "_WalkingPlaybackSpeed": 2,
-        "_YawGain": 10,
-        "_YawGateSpeed": 10,
+        "_YawGain": 8,
+        "_YawGateSpeed": 8,
         "BarArrow": {
           "_type": "gameobject",
           "go": "6427f8ba-2767-470e-a98f-3640f003daa2"
@@ -2473,7 +2473,7 @@
                     "MaterialOverride": null,
                     "Materials": null,
                     "Model": {
-                      "Id": "7c58c822-c55d-4eef-9d3e-a4e6a5c4fd6c",
+                      "Id": "e6729557-765c-4136-a82c-8cd4b5e6486c",
                       "Path": "itch/board-game-pieces/models/event-arrow.vmdl"
                     },
                     "OnComponentDestroy": null,
@@ -2501,7 +2501,7 @@
                     "Friction": null,
                     "IsTrigger": false,
                     "Model": {
-                      "Id": "7c58c822-c55d-4eef-9d3e-a4e6a5c4fd6c",
+                      "Id": "e6729557-765c-4136-a82c-8cd4b5e6486c",
                       "Path": "itch/board-game-pieces/models/event-arrow.vmdl"
                     },
                     "OnComponentDestroy": null,
