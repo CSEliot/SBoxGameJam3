@@ -5,7 +5,7 @@
   "Ident": "bottoms_up__one_more_round",
   "Schema": 1,
   "IncludeSourceFiles": false,
-  "Resources": "materials/coolimagehere.png",
+  "Resources": "materials/coolimagehere.png\nmaterials/howto/*",
   "PackageReferences": [],
   "EditorReferences": null,
   "Mounts": null,

@@ -80,7 +80,10 @@
 				<div class="htp-title">HOW TO PLAY</div>
 
 				<div class="htp-page">
-					<div class="htp-image"></div>
+					@* Per-page art: materials/howto/page0..13.png, named by zero-based
+					   page index (CurrentPage 0..13). Inline url() overrides the SCSS
+					   placeholder; BuildHash keys on CurrentPage so this repaints on flip. *@
+					<div class="htp-image" style="background-image: url( materials/howto/page@( CurrentPage ).png );"></div>
 					@if ( CurrentPage == 0 )
 					{
 						<div class="htp-heading">How to Win</div>
