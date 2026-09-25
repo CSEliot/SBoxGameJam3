@@ -506,6 +506,13 @@ public sealed class GameManager : Component, Component.INetworkListener
 		_LocalPlayerRigidbody.Sleeping = true;
 		_LocalPlayerRigidbody.Sleeping = false;
 		_LocalPlayer.Enabled = true;
+
+		// Bar exits reseed the deepest recovery slot with the bar spawn we just landed on
+		// (see SeedRecoverySpawnBackupHelper). Runs AFTER InvalidateRecoveryStateHelper
+		// above so the new seed can't be cleared by it. Deliberately gated on isBarExit:
+		// R-key rescues to the default spawn must not overwrite the latest bar spawn.
+		if ( isBarExit )
+			_LocalDrunkCC?.SeedRecoverySpawnBackupHelper( spawnLocation.WorldPosition, spawnRotation.Forward.WithZ( 0f ) );
 	}
 
 	/// <summary>

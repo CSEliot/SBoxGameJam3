@@ -134,8 +134,18 @@ tighter rotation). Obstacles do NOT drop pants - they only trip (see below).
 
 ### Configure Animator / Blend Trees
 
+- [x] Drunk run forward plays at runtime. NOT via the animgraph (blend-space surgery on
+  `graphs/citizen.vanmgrph` kept failing to take). WORKING SOLUTION: animgraph bypassed entirely —
+  `player.prefab` body renderer has `UseAnimGraph: false`, and `DrunkCC.OnStart` sets
+  `_SkinnedModelRenderer.Sequence.Name = "Drunk_Run_Forward"; Sequence.Looping = true;`, with
+  `Sequence.PlaybackRate = _PlaybackSpeed` in the Running branch of `OnUpdate` (speed-scaled
+  playback). Sequence names resolve against the `.vmdl` animation list, so the clip only needs to
+  be a vmdl source — no graph wiring. CONSEQUENCE: with the graph off, all CitizenAnimationHelper
+  locomotion (move_style/move_x/IK/jump/land poses) is dead — those DrunkCC lines are commented
+  out. Revisit if multi-state body animation (pants-state variants, trip/getup) is needed: either
+  re-enable the graph and wire states properly, or swap `Sequence.Name` per state.
 - [ ] Add the "Tripping over" and "Getting up" animation sequences.
-- [ ] Create separate movement animations for the two pants states (e.g. a normal run when Up, a waddle/stumble when Down).
+- [ ] Create separate movement animations for the two pants states (e.g. a normal run when Up, a waddle/stumble when Down). NOTE: with the animgraph off, these will likely be Sequence.Name swaps, not blend trees.
 
 ### Dynamic Pants Visuals
 
