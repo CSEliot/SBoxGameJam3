@@ -192,6 +192,15 @@ public sealed class DrunkCC : Component
 	/// How much height to add to the recovery point when snapping it onto the navmesh.
 	/// </summary>
 	[Property] private float _RecoveryAdditionalHeight { get; set; } = 100f;
+
+	/// <summary>
+	/// How far (units) recovery traces UP and DOWN from the navmesh-snapped point looking
+	/// for the real collision floor. The navmesh is not 1:1 with the floor geometry (it can
+	/// sit above or below it), so the snapped Z is only a starting guess: the nearest solid
+	/// surface found by these traces is what the body actually stands on. 0 or below skips
+	/// the traces and trusts the navmesh Z.
+	/// </summary>
+	[Property] private float _RecoveryFloorTraceDistance { get; set; } = 128f;
 	
 	/// <summary>
 	/// Upright spring stiffness: corrective torque per degree of roll beyond _RollResponseFloor.
@@ -751,13 +760,19 @@ public sealed class DrunkCC : Component
 	}
 
 	/// <summary>
-	/// Snaps a recovery position onto the navmesh so recovery always lands on walkable ground.
-	/// If the rewound point is beyond _RecoveryNavSearchRadius (e.g. an off-map sample), it falls
-	/// back to snapping the body's current resting position, and only if that also misses the mesh
-	/// does it stand up in place - it never teleports to the raw off-mesh point. Returns the point
-	/// unchanged only when there is no navmesh or it is disabled. Navmesh points sit on the walkable
-	/// surface while the rigidbody origin sits above the sphere's contact point, so the point is
-	/// lifted by that standing offset to land resting on the ground rather than buried in it.
+	/// Snaps a recovery position onto the navmesh so recovery lands on walkable ground.
+	/// If the rewound point is beyond _RecoveryNavSearchRadius (e.g. an off-map sample), it
+	/// falls back to the LAST GROUNDED history sample instead of the body's live position:
+	/// during knockdown the movement sphere is never frozen, so "where I am now" can be
+	/// mid-air or in a pit, and standing up there is a guaranteed freefall. History samples
+	/// are recorded only while grounded, so the newest one was on real floor when taken.
+	/// An empty queue (nothing ever recorded) returns the incoming point - the knockdown
+	/// entry position - never the live body position, which can be mid-air or in a pit.
+	/// Returns the point unchanged only when there is no navmesh or it is disabled. Navmesh
+	/// points sit on the walkable surface while the rigidbody origin sits above the sphere's
+	/// contact point, so the point is lifted by that standing offset to land resting on the
+	/// ground rather than buried in it. Z is still only as good as the navmesh here -
+	/// SnapRecoveryToFloorHelper corrects it against real collision geometry after.
 	/// </summary>
 	private Vector3 SnapRecoveryToNavMeshHelper( Vector3 pos )
 	{
@@ -766,18 +781,24 @@ public sealed class DrunkCC : Component
 			return pos;
 
 		var snapped = nav.GetClosestPoint( pos, _RecoveryNavSearchRadius );
-		if ( !snapped.HasValue )
-		{
-			// Rewound point is off-mesh. Never teleport to it - snap the body's current resting
-			// position instead, and if even that misses the mesh, stand up in place.
-			var here = _Rigidbody.WorldPosition;
-			var snappedHere = nav.GetClosestPoint( here, _RecoveryNavSearchRadius );
-			return snappedHere.HasValue
-				? snappedHere.Value + Vector3.Up * RecoveryStandOffsetHelper()
-				: here;
-		}
+		if ( snapped.HasValue )
+			return snapped.Value + Vector3.Up * RecoveryStandOffsetHelper();
 
-		return snapped.Value + Vector3.Up * RecoveryStandOffsetHelper();
+		// Empty queue: the input IS the knockdown-entry position (plus the entry lift) - the
+		// best stand-in available, and the floor snap will ground it. Never fall back to the
+		// LIVE body position here: during knockdown the movement sphere is never frozen, so
+		// by recovery time it can be mid-air or at the bottom of a pit.
+		if ( _history.Count == 0 )
+			return pos;
+
+		// Rewound point is off-mesh: back up to the newest grounded history sample. Snap it
+		// too; if even that misses the mesh, use it raw - it was on real floor when recorded,
+		// and the floor trace refines its Z anyway.
+		var backup = _history[^1].Position;
+		var snappedBackup = nav.GetClosestPoint( backup, _RecoveryNavSearchRadius );
+		return snappedBackup.HasValue
+			? snappedBackup.Value + Vector3.Up * RecoveryStandOffsetHelper()
+			: backup;
 	}
 
 	/// <summary>
@@ -790,6 +811,86 @@ public sealed class DrunkCC : Component
 		var collider = _Rigidbody.GameObject.Components.Get<SphereCollider>();
 		if ( collider is null ) return 0f;
 		return collider.Radius - collider.Center.z;
+	}
+
+	/// <summary>
+	/// Corrects a recovery position's Z against REAL collision geometry: the navmesh is not
+	/// 1:1 with the floor model (it can sit above or below it), so the navmesh-snapped point
+	/// is only an estimate. Sweeps the whole window from _RecoveryFloorTraceDistance above the
+	/// point to the same distance below it, and stands the body on the upward-facing surface
+	/// nearest the estimate - that covers both navmesh-below-floor (surface above the point;
+	/// an upward ray would only find slab undersides, which you cannot stand on) and
+	/// navmesh-above-floor (surface below the point). If nothing walkable is in the window the
+	/// sweep retries once at double distance (estimate buried deeper than expected) before
+	/// falling back to the incoming point.
+	/// </summary>
+	private Vector3 SnapRecoveryToFloorHelper( Vector3 pos )
+	{
+		if ( _RecoveryFloorTraceDistance <= 0f )
+			return pos;
+
+		var floor = TraceRecoveryFloorHelper( pos, _RecoveryFloorTraceDistance );
+		if ( floor is null )
+			floor = TraceRecoveryFloorHelper( pos, _RecoveryFloorTraceDistance * 2f );
+
+		// No walkable surface found at all: trust the incoming (navmesh) estimate.
+		return floor ?? pos;
+	}
+
+	/// <summary>
+	/// One window sweep for SnapRecoveryToFloorHelper: returns the stand position on the
+	/// walkable surface nearest pos.z, or null when the window holds none.
+	/// </summary>
+	private Vector3? TraceRecoveryFloorHelper( Vector3 pos, float distance )
+	{
+		var top = pos + Vector3.Up * distance;
+		var bottom = pos - Vector3.Up * distance;
+
+		var hits = Scene.Trace.Ray( top, bottom )
+			.IgnoreGameObjectHierarchy( GameObject )
+			.UseHitPosition()
+			.RunAll();
+
+		// Walkable-surface cutoff: normal within ~60 degrees of straight up, the slope range
+		// navmesh bakes as walkable. Walls and slab undersides are not floors.
+		const float walkableDot = 0.5f;
+
+		Vector3? bestStatic = null;
+		float bestStaticDist = float.MaxValue;
+		Vector3? bestAny = null;
+		float bestAnyDist = float.MaxValue;
+
+		foreach ( var hit in hits )
+		{
+			// A trace that starts inside geometry reports the START point with Fraction 0 -
+			// not a real surface. Skip it rather than standing on a phantom a window-height up.
+			if ( !hit.Hit || hit.StartedSolid ) continue;
+			if ( Vector3.Dot( hit.Normal, Vector3.Up ) < walkableDot ) continue;
+
+			var dist = MathF.Abs( hit.HitPosition.z - pos.z );
+
+			if ( dist < bestAnyDist )
+			{
+				bestAnyDist = dist;
+				bestAny = hit.HitPosition;
+			}
+
+			// Prefer static/keyframed world geometry: a physics mug or another player's
+			// ragdoll torso can pass the normal check but is not the floor to stand on.
+			if ( hit.Body is null || hit.Body.BodyType != PhysicsBodyType.Dynamic )
+			{
+				if ( dist < bestStaticDist )
+				{
+					bestStaticDist = dist;
+					bestStatic = hit.HitPosition;
+				}
+			}
+		}
+
+		var surface = bestStatic ?? bestAny;
+		return surface.HasValue
+			? surface.Value + Vector3.Up * RecoveryStandOffsetHelper()
+			: null;
 	}
 
 	/// <summary>
@@ -825,9 +926,10 @@ public sealed class DrunkCC : Component
 		
 		var rb = _Rigidbody;
 
-		// Snap the rewound point onto the navmesh if one exists. Quietly falls back to the raw
-		// position when there's no mesh, it's disabled, or the point is beyond the search radius.
-		rb.WorldPosition = SnapRecoveryToNavMeshHelper( _knockdownRestorePosition );
+		// Snap the rewound point onto the navmesh if one exists (quietly falls back to the
+		// last grounded history sample when the point is off-mesh), then correct its Z
+		// against real collision geometry - the navmesh can sit above or below the floor.
+		rb.WorldPosition = SnapRecoveryToFloorHelper( SnapRecoveryToNavMeshHelper( _knockdownRestorePosition ) );
 		rb.WorldRotation = Rotation.LookAt( _knockdownHeading.Normal, Vector3.Up );
 		rb.Velocity = Vector3.Zero;
 		rb.AngularVelocity = Vector3.Zero;
