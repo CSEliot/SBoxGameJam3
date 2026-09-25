@@ -96,12 +96,14 @@
 
 	private void PlayMiniGameClicked()
 	{
+		AudioController.Instance?.PlayUIInteract();
 		Close();
 		OnPlayMiniGame?.Invoke();
 	}
 
 	private void CashOutClicked()
 	{
+		AudioController.Instance?.PlayUIInteract();
 		Close();
 		OnCashOut?.Invoke();
 	}

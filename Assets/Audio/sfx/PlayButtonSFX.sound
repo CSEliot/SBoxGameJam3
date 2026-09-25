@@ -4,7 +4,9 @@
   "Pitch": "1",
   "Decibels": 70,
   "SelectionMode": "Random",
-  "Sounds": null,
+  "Sounds": [
+    "audio/sfx/playbuttonsfx.vsnd"
+  ],
   "OcclusionEnabled": true,
   "Occlusion": true,
   "ReverbEnabled": true,

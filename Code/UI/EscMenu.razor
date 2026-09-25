@@ -93,17 +93,20 @@
 
 	void CloseMenu()
 	{
+		AudioController.Instance?.PlayUIInteract();
 		IsOpen = false;
 	}
 
 	void LeaveToMainMenu()
 	{
+		AudioController.Instance?.PlayUIInteract();
 		// In editor: exits playmode. In retail: closes the game back to the platform main menu.
 		Game.Close();
 	}
 
 	void OpenSettings()
 	{
+		AudioController.Instance?.PlayUIInteract();
 		Game.Overlay.ShowSettingsModal();
 	}
 

@@ -160,6 +160,7 @@
 
 	private void TryAgainClicked()
 	{
+		AudioController.Instance?.PlayUIInteract();
 		OnTryAgain?.Invoke();
 	}
 	protected override void OnUpdate()
@@ -312,6 +313,7 @@
 
 	private void QuitClicked()
 	{
+		AudioController.Instance?.PlayUIInteract();
 		// Mirrors EscMenu.LeaveToMainMenu: exits playmode in editor, closes to platform main
 		// menu in retail.
 		Game.Close();

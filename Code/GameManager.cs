@@ -100,11 +100,13 @@ public sealed class GameManager : Component, Component.INetworkListener
 	[Property] private Clothing _HeartUnderwear { get; set; }
 	[Property] private Clothing _LongPants { get; set; }
 	[Property] private GameObject _PlayerPrefab { get; set; }
+	[Property] private GameObject _CameraRotator { get; set; }
 	[Property] private GameObject _DefaultSpawnLocation { get; set; }
 	[Property] private GameObject _CityMesh { get; set; }
 	[Property] private GameObject _Dome { get; set; }
 	
 	[Property, ReadOnly] private GameObject _CCCamera { get; set; } = null;
+	[Property, ReadOnly] private AudioController _AudioController { get; set; }
 	[Property] private GameObject _MiniGamePanel { get; set; }
 	/// <summary>
 	/// [Property] GameObject pointing at the scene's BarMenu UI panel object, mirroring
@@ -184,7 +186,7 @@ public sealed class GameManager : Component, Component.INetworkListener
 			_barMenuController.OnPlayMiniGame += HandleBarMenuPlayMiniGame;
 			_barMenuController.OnCashOut += HandleBarMenuCashOut;
 		}
-		_endGameController = _EndGamePanel != null ? _EndGamePanel.GetComponent<EndGame>() : null;
+		_endGameController = _EndGamePanel?.GetComponent<EndGame>();
 		if ( _endGameController is null )
 		{
 			Log.Error( "_EndGamePanel is unset or has no EndGame component; End-Game screen disabled." );
@@ -203,6 +205,7 @@ public sealed class GameManager : Component, Component.INetworkListener
 				_Bars[i].NotifyGameManagerOfPlayerTriggerExit += HandlePlayerBarTriggerExit;
 			}
 		}
+		_AudioController.State = AudioController.MusicState.MainMenu;
 	}
 
 	protected override void OnUpdate()
@@ -232,6 +235,7 @@ public sealed class GameManager : Component, Component.INetworkListener
 				// _CCCamera.Enabled = false;
 				if ( _LocalPlayer != null )
 					_LocalPlayer.Enabled = false;
+				_AudioController.State = AudioController.MusicState.Outro;
 			}
 			else if ( !ended && _endGameActive )
 			{
@@ -372,6 +376,7 @@ public sealed class GameManager : Component, Component.INetworkListener
 		_minigameController.Begin();
 		_CCCamera.Enabled = false;
 		_LocalPlayer.Enabled = false; //todo: is this networked? -ecs
+		_AudioController.State = AudioController.MusicState.PubNoise;
 		return true;
 	}
 
@@ -413,6 +418,7 @@ public sealed class GameManager : Component, Component.INetworkListener
 		else
 			Log.Error( "NextBar is null or not in _Bars; _targetBarWaiting unchanged (check UpdateNextBarData / sparse _Bars)." );
 		// _minigameController.End(); - mingame ends itself, itself. -ecs
+		_AudioController.State = AudioController.MusicState.Loop;
 		return true;
 	}
 
@@ -636,7 +642,7 @@ public sealed class GameManager : Component, Component.INetworkListener
 			return;
 
 		_startGameCalled = true;
-
+		_CameraRotator.Enabled = false;
 		_Dome.Enabled = true;
 		_CityMesh.Enabled = true;
 		
@@ -703,7 +709,12 @@ public sealed class GameManager : Component, Component.INetworkListener
 
 		_localGameState = LocalGameState.AtBarMenu;
 		_barMenuController?.Open( _LocalPlayerProgress.Score );
-		// _CCCamera.Enabled = false;
+		// NOTE: the body freeze deliberately does NOT disable _CCCamera the way
+		// StartMiniGameHelper does - there is no barcam to take over here (the sit-down
+		// flow swaps to one), so a disabled camera node would leave nothing rendered
+		// under the modal. CCCamera.OnUpdate freezes its own steering while the local
+		// player body is disabled instead (covers the End-Game screen too), so the view
+		// holds still without killing the camera.
 		_LocalPlayer.Enabled = false; 
 	}
 

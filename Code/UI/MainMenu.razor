@@ -44,7 +44,7 @@
 <root>
 	@if ( Visible )
 	{
-		<div class="backdrop"></div>
+		@* <div class="backdrop"></div> *@
 
 		<div class="content">
 			<div class="leaderboard">
@@ -282,33 +282,41 @@
 		if ( !Visible )
 			return;
 
+		AudioController.Instance?.PlayPressPlay();
 		_GameManager.StartGame();
 	}
 
 	private void SettingsClicked()
 	{
+		AudioController.Instance?.PlayUIInteract();
 		Game.Overlay.ShowSettingsModal();
 	}
 
 	private void HowToPlayClicked()
 	{
+		AudioController.Instance?.PlayUIInteract();
 		CurrentPage = 0;
 		ShowHowToPlay = true;
 	}
 
 	private void CloseHowToPlay()
 	{
+		AudioController.Instance?.PlayUIInteract();
 		ShowHowToPlay = false;
 	}
 
 	private void PrevPage()
 	{
 		if ( CurrentPage > 0 )
+		{
+			AudioController.Instance?.PlayUIInteract();
 			CurrentPage--;
+		}
 	}
 
 	private void NextPage()
 	{
+		AudioController.Instance?.PlayUIInteract();
 		if ( CurrentPage < PageCount - 1 )
 			CurrentPage++;
 		else if ( CurrentPage == PageCount - 1 )
@@ -317,16 +325,19 @@
 
 	private void CreditsClicked()
 	{
+		AudioController.Instance?.PlayUIInteract();
 		ShowCredits = true;
 	}
 
 	private void CloseCredits()
 	{
+		AudioController.Instance?.PlayUIInteract();
 		ShowCredits = false;
 	}
 
 	private void QuitClicked()
 	{
+		AudioController.Instance?.PlayUIInteract();
 		Game.Close();
 	}
 

@@ -60,9 +60,16 @@ public partial class Minigame
 	/// <summary>Fill lost per second while the round is running.</summary>
 	[Property] private float _DecayPerSecond { get; set; } = 0.25f;
 
+	/// <summary>Pitch multiplier for the per-press drink sfx at 0% bar fill.</summary>
+	[Property] private float _DrinkPitchMin { get; set; } = 1f;
+
+	/// <summary>Pitch multiplier at 100% bar fill - the drink sfx pitch rises linearly with the fill.</summary>
+	[Property] private float _DrinkPitchMax { get; set; } = 2f;
+
 	/// <summary>Start a round as soon as the scene plays. Editor testing only.</summary>
 	[Property] private bool _StartOnPlay { get; set; } = false;
-	[Property] private GameObject _Mug { get; set; }
+	[Property] private GameObject _MugSmall { get; set; }
+	[Property] private GameObject _MugLarge { get; set; }
 	[Property] private GameManager _GameManager { get; set; }
 
 
@@ -98,7 +105,13 @@ public partial class Minigame
 		
 		if ( Input.Keyboard.Pressed( "space" ) )
 		{
-			SpawnABeerHelper( BeerSpawnLocation );
+			// The fill the bar reaches with this press: it drives the drink sfx
+			// pitch (rises with the minigame %) and, when it hits 100%, the LARGE
+			// mug spawn - its own SoundPointComponent has PlayOnStart=true, so
+			// drinkfull plays from the beer itself.
+			float fillAfterPress = Math.Min( 1f, Progress + _FillPerPress );
+			bool completedBeer = fillAfterPress >= 1f;
+			SpawnABeerHelper( BeerSpawnLocation, fillAfterPress, completedBeer );
 
 			Progress += _FillPerPress;
 			Beers += _FillPerPress;
@@ -124,10 +137,31 @@ public partial class Minigame
 	// Bar.ApplySitDownPlayer), so an argument-less broadcast made every client
 	// clone the mug at its OWN BeerSpawnLocation - remote players' beers showed
 	// up at the wrong drinker seat. Passing it replicates the presser's
-	// authoritative position to everyone.
+	// authoritative position to everyone. fillPercent and large ride the same
+	// argument list: this runs on every client, so per-play values must arrive
+	// as arguments rather than being read from viewer-local Progress.
 	[Rpc.Broadcast(NetFlags.Unreliable)]
-	public void SpawnABeerHelper( Vector3 spawnLocation )
+	public void SpawnABeerHelper( Vector3 spawnLocation, float fillPercent, bool large )
 	{
-		_Mug.Clone( spawnLocation );
+		var prefab = large ? _MugLarge : _MugSmall;
+		if ( prefab is null )
+			return;
+
+		var mug = prefab.Clone( spawnLocation );
+
+		// The large mug plays its drinkfull sfx itself (PlayOnStart=true on its
+		// SoundPointComponent). The small mug ships PlayOnStart=false: its drink-once
+		// sfx is started manually here, AFTER the pitch is set, so the pitch rises
+		// with the minigame fill percentage. fillPercent arrives as an RPC argument
+		// because Progress is viewer-local state.
+		if ( large )
+			return;
+
+		var soundPoint = mug?.GetComponent<SoundPointComponent>();
+		if ( soundPoint is null )
+			return;
+
+		soundPoint.Pitch = _DrinkPitchMin + ( _DrinkPitchMax - _DrinkPitchMin ) * fillPercent.Clamp( 0f, 1f );
+		soundPoint.StartSound();
 	}
 }
