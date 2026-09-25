@@ -2,7 +2,7 @@
   "Title": "Bottoms Up: One More Round",
   "Type": "game",
   "Org": "cseliot",
-  "Ident": "bottoms_up__one_more_round",
+  "Ident": "bottomsup",
   "Schema": 1,
   "IncludeSourceFiles": false,
   "Resources": "materials/coolimagehere.png\nmaterials/howto/*",
