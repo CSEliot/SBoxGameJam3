@@ -299,7 +299,9 @@ public sealed class GameManager : Component, Component.INetworkListener
 	/// this helper finds nothing to toggle. Snapshot children ship once in the create msg and
 	/// have no per-child Enabled delta sync (only the network root's Enabled is snapshotted),
 	/// so the local toggle here sticks and per-client targets don't clobber each other.
-	/// Host handoff / Network.Refresh() can re-send the tree, hence the gate re-arm in OnActive.
+	/// Host handoff leaves existing Snapshot children alone (SceneNetworkSystem.MergeLocalObjects
+	/// only re-deserializes Never nodes). A Network.Refresh() on a bar WOULD re-deserialize its
+	/// subtree and reset the ring; nothing calls that today.
 	/// </summary>
 	private void UpdateEnterRingVisibilityHelper()
 	{
@@ -598,10 +600,10 @@ public sealed class GameManager : Component, Component.INetworkListener
 			_serverActive = true;
 			_localRandom =  new Random(_StartingSeed);
 			_targetBarWaiting = _StartingBar;
-			// Re-arm the ring gate: becoming (or (re)starting as) host can re-apply the
-			// bars' serialized state (ring Enabled included), silently wiping whatever ring
-			// visibility this client had applied locally. Forcing the next OnUpdate pass
-			// to re-apply fixes it.
+			// Re-arm the ring gate so the next OnUpdate pass re-applies every bar's ring
+			// against the target reset above, even when the target value didn't change.
+			// Belt-and-braces only: host changes arrive via OnBecameHost/OnHostChanged, not
+			// here, and handoff doesn't touch the Snapshot-mode ring nodes anyway.
 			_ringsSyncedForTarget = -1;
 		}
 	}
