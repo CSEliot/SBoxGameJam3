@@ -64,7 +64,7 @@
 				<div class="title">One More Round</div>
 
 				<div class="buttons">
-					<div class="button play" onclick=@PlayClicked>PLAY</div>
+					<div class="button play" onmousedown=@( ( PanelEvent e ) => PlayPressed( e ) ) onclick=@PlayClicked>PLAY</div>
 					<div class="button settings" onclick=@SettingsClicked>SETTINGS</div>
 					<div class="button howtoplay" onclick=@HowToPlayClicked>HOW TO PLAY</div>
 					<div class="button credits" onclick=@CreditsClicked>CREDITS</div>
@@ -277,12 +277,25 @@
 		}
 	}
 
+	/// <summary>Fires on mouse-down (the earliest razor-reachable moment, before onclick on
+	/// release) so the PLAY sfx starts the instant the button is pressed. Left-button only -
+	/// onmousedown fires for every button, unlike onclick which is left-release-only.</summary>
+	private void PlayPressed( PanelEvent e )
+	{
+		if ( e is not MousePanelEvent mpe || mpe.MouseButton != MouseButtons.Left )
+			return;
+
+		if ( !Visible )
+			return;
+
+		AudioController.Instance?.PlayPressPlay();
+	}
+
 	private void PlayClicked()
 	{
 		if ( !Visible )
 			return;
 
-		AudioController.Instance?.PlayPressPlay();
 		_GameManager.StartGame();
 	}
 
