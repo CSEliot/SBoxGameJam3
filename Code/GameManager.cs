@@ -292,10 +292,14 @@ public sealed class GameManager : Component, Component.INetworkListener
 	/// an entirely empty pass (no occupied slot toggled yet = _Bars not replicated at all),
 	/// which would otherwise latch the gate at the initial target and strand the target
 	/// bar's ring hidden (rings are authored Enabled=false) until the next target change.
-	/// Runs on every client against its OWN target: the ring nodes are NetworkMode.Never in
-	/// bar.prefab, so GameObject.Enabled here is never replicated and per-client targets
-	/// can't clobber each other. A host handoff's local-object refresh can still reset the
-	/// Never-mode nodes to serialized state, hence the gate re-arm in OnActive.
+	/// Runs on every client against its OWN target. The ring nodes are NetworkMode.Snapshot
+	/// children of the bar network object, NOT Never: a joining client builds the bars from
+	/// the host's network serialization, which drops Never-mode nodes entirely (engine
+	/// GameObject.SerializeOptions.ShouldSave), so Never rings never exist on clients and
+	/// this helper finds nothing to toggle. Snapshot children ship once in the create msg and
+	/// have no per-child Enabled delta sync (only the network root's Enabled is snapshotted),
+	/// so the local toggle here sticks and per-client targets don't clobber each other.
+	/// Host handoff / Network.Refresh() can re-send the tree, hence the gate re-arm in OnActive.
 	/// </summary>
 	private void UpdateEnterRingVisibilityHelper()
 	{
@@ -594,10 +598,10 @@ public sealed class GameManager : Component, Component.INetworkListener
 			_serverActive = true;
 			_localRandom =  new Random(_StartingSeed);
 			_targetBarWaiting = _StartingBar;
-			// Re-arm the ring gate: becoming (or (re)starting as) host triggers a scene
-			// handoff refresh that re-Deserializes NetworkMode.Never objects back to their
-			// authored Enabled=false, silently wiping whatever ring visibility this client
-			// had applied locally. Forcing the next OnUpdate pass to re-apply fixes it.
+			// Re-arm the ring gate: becoming (or (re)starting as) host can re-apply the
+			// bars' serialized state (ring Enabled included), silently wiping whatever ring
+			// visibility this client had applied locally. Forcing the next OnUpdate pass
+			// to re-apply fixes it.
 			_ringsSyncedForTarget = -1;
 		}
 	}
