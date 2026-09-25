@@ -23,6 +23,7 @@
 // other dealings in the software.
 
 using System;
+using System.Reflection.Metadata.Ecma335;
 
 namespace Sandbox;
 
@@ -55,7 +56,8 @@ public sealed class CollisionReporter : Component, Component.ITriggerListener
 	{
 		foreach ( var collider in TriggeredColliders )
 		{
-			OnTriggerStayCallback?.Invoke(collider);
+			if(collider.GameObject.Name.Contains("floor") == false)
+				OnTriggerStayCallback?.Invoke(collider);
 		}
 	}
 	
