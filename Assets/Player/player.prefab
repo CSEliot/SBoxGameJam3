@@ -96,6 +96,7 @@
         "_CorrectionStrength": 1000,
         "_DoubleKnockdownDistance": 100,
         "_DrunkLeanScale": 0.09,
+        "_FallingPlaybackSpeed": 1,
         "_GroundCheckDistance": 4,
         "_JumpForce": 20000,
         "_JumpPantsDownDisabler": 75,
@@ -122,6 +123,7 @@
         "_RollTurnRate": 4,
         "_RotationPantsDownIncreaser": 1,
         "_RunningForce": 100,
+        "_RunningPlaybackSpeed": 2,
         "_SkinnedModelRenderer": {
           "_type": "component",
           "component_id": "1782aee1-8527-881d-9d38-816387542f8d",
@@ -130,7 +132,9 @@
         },
         "_SpeedPantsDownDisabler": 90,
         "_VelocityCeiling": 500,
+        "_WalkingPlaybackSpeed": 2,
         "_YawGain": 10,
+        "_YawGateSpeed": 10,
         "BarArrow": {
           "_type": "gameobject",
           "go": "6427f8ba-2767-470e-a98f-3640f003daa2"
@@ -316,7 +320,10 @@
             "__guid": "1782aee1-8527-881d-9d38-816387542f8d",
             "__enabled": true,
             "Flags": 0,
-            "AnimationGraph": null,
+            "AnimationGraph": {
+              "Id": "62b31f57-54da-4533-876b-05b59094d4dc",
+              "Path": "player/graphs/citizen.vanmgrph"
+            },
             "BodyGroups": 341,
             "BoneMergeTarget": null,
             "CreateAttachments": false,
@@ -354,10 +361,10 @@
             "Sequence": {
               "Name": null,
               "Looping": true,
-              "Blending": false
+              "Blending": true
             },
             "Tint": "1,1,1,1",
-            "UseAnimGraph": true
+            "UseAnimGraph": false
           },
           {
             "__type": "ShrimpleRagdolls.ShrimpleRagdoll",
@@ -2271,7 +2278,7 @@
         "__version": 2,
         "Flags": 0,
         "Name": "FOLLOW_ME",
-        "Position": "-68.4869766,0,91.8788986",
+        "Position": "-118.246429,0,91.8788986",
         "Rotation": "0,0,0,1",
         "Scale": "0.276001751,0.276001751,0.276001751",
         "Tags": "follow-target",
@@ -2333,7 +2340,7 @@
         "__version": 2,
         "Flags": 0,
         "Name": "LOOKAT_ME",
-        "Position": "0,0,36.2922134",
+        "Position": "0,0,79.1952438",
         "Rotation": "0,0,0,1",
         "Scale": "0.276001751,0.276001751,0.276001751",
         "Tags": "lookat-target",
@@ -2466,7 +2473,7 @@
                     "MaterialOverride": null,
                     "Materials": null,
                     "Model": {
-                      "Id": "df21c670-fa35-4782-a045-7b43fda9c7d5",
+                      "Id": "7c58c822-c55d-4eef-9d3e-a4e6a5c4fd6c",
                       "Path": "itch/board-game-pieces/models/event-arrow.vmdl"
                     },
                     "OnComponentDestroy": null,
@@ -2494,7 +2501,7 @@
                     "Friction": null,
                     "IsTrigger": false,
                     "Model": {
-                      "Id": "df21c670-fa35-4782-a045-7b43fda9c7d5",
+                      "Id": "7c58c822-c55d-4eef-9d3e-a4e6a5c4fd6c",
                       "Path": "itch/board-game-pieces/models/event-arrow.vmdl"
                     },
                     "OnComponentDestroy": null,
