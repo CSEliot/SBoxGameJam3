@@ -258,7 +258,7 @@
           "_StartingBar": 2,
           "_StartingSeed": 0,
           "_targetBarWaiting": 1,
-          "BeerDifficultyCap": 60,
+          "BeerDifficultyCap": 100,
           "OnComponentDestroy": null,
           "OnComponentDisabled": null,
           "OnComponentEnabled": null,
@@ -72954,7 +72954,7 @@
               "IdValue": "893a7950-107d-40e8-a560-565a917bbecb"
             },
             "Property": "Position",
-            "Value": "-2271.40332,5648.49463,8.09000683"
+            "Value": "-2557.11499,5813.4502,8.09000683"
           },
           {
             "Target": {
@@ -72962,7 +72962,7 @@
               "IdValue": "893a7950-107d-40e8-a560-565a917bbecb"
             },
             "Property": "Rotation",
-            "Value": "0,0,-0.707106769,0.707106769"
+            "Value": "0,0,-0.258818984,0.965925813"
           },
           {
             "Target": {
@@ -72986,7 +72986,15 @@
               "IdValue": "b3001872-2690-48eb-8796-7f1a7cd4ae46"
             },
             "Property": "Position",
-            "Value": "-19.7932377,218.662537,0"
+            "Value": "-19.7931557,233.408401,0"
+          },
+          {
+            "Target": {
+              "Type": "GameObject",
+              "IdValue": "b3001872-2690-48eb-8796-7f1a7cd4ae46"
+            },
+            "Property": "Enabled",
+            "Value": true
           },
           {
             "Target": {
@@ -78871,7 +78879,7 @@
         {
           "__type": "Sandbox.ModelRenderer",
           "__guid": "6bdd1424-2276-41bf-bd22-d63ba58adfee",
-          "__enabled": true,
+          "__enabled": false,
           "Flags": 0,
           "BodyGroups": 18446744073709551615,
           "CreateAttachments": false,

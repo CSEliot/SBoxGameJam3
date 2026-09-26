@@ -20,11 +20,11 @@
         "__guid": "af3415a6-def0-4d23-8322-c759d20cf135",
         "__enabled": true,
         "Flags": 0,
-        "_EnterRadius": 2000,
-        "_ExitRadius": 2400,
+        "_EnterRadius": 6434,
+        "_ExitRadius": 7720,
         "_MouthHeight": 64,
         "_SendMargin": 200,
-        "Distance": 2000,
+        "Distance": 6434,
         "Falloff": [
           {
             "x": 0,
@@ -54,11 +54,37 @@
         "OnComponentUpdate": null,
         "PushToTalkInput": "voice",
         "Renderer": null,
+        "VoiceMixer": {
+          "Name": "voice",
+          "Id": "cab1b603-d341-4858-9822-c87d74c21933"
+        },
         "Volume": 1,
         "WorldspacePlayback": true
       }
     ],
-    "Children": []
+    "Children": [],
+    "__properties": {
+      "NetworkInterpolation": true,
+      "PhysicsMode": "Physics3D",
+      "TimeScale": 1,
+      "WantsSystemScene": true,
+      "Metadata": {},
+      "NavMesh": {
+        "Enabled": false,
+        "IncludeStaticBodies": true,
+        "IncludeKeyframedBodies": true,
+        "EditorAutoUpdate": false,
+        "AgentHeight": 64,
+        "AgentRadius": 16,
+        "AgentStepSize": 18,
+        "AgentMaxSlope": 40,
+        "ExcludedBodies": "",
+        "IncludedBodies": "",
+        "DeferGeneration": false,
+        "CustomBounds": false
+      }
+    },
+    "__variables": []
   },
   "ResourceVersion": 2,
   "ShowInMenu": false,
