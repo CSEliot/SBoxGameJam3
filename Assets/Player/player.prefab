@@ -220,6 +220,22 @@
         "OnComponentFixedUpdate": null,
         "OnComponentStart": null,
         "OnComponentUpdate": null
+      },
+      {
+        "__type": "Sandbox.ProximityVoiceSpawner",
+        "__guid": "89ed7e65-686e-4d25-9a54-51ba415ade6d",
+        "__enabled": true,
+        "Flags": 0,
+        "_VoiceCarrierPrefab": {
+          "_type": "gameobject",
+          "prefab": "prefabs/voicecarrier.prefab"
+        },
+        "OnComponentDestroy": null,
+        "OnComponentDisabled": null,
+        "OnComponentEnabled": null,
+        "OnComponentFixedUpdate": null,
+        "OnComponentStart": null,
+        "OnComponentUpdate": null
       }
     ],
     "Children": [

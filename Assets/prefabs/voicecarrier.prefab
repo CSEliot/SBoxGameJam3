@@ -1,0 +1,70 @@
+{
+  "RootObject": {
+    "__guid": "cf4b8170-aa97-4c63-954e-dff51da727c2",
+    "__version": 2,
+    "Flags": 0,
+    "Name": "voicecarrier",
+    "Position": "0,0,0",
+    "Rotation": "0,0,0,1",
+    "Scale": "1,1,1",
+    "Tags": "voicecarrier",
+    "Enabled": true,
+    "NetworkMode": 1,
+    "NetworkFlags": 0,
+    "NetworkOrphaned": 0,
+    "NetworkTransmit": true,
+    "OwnerTransfer": 1,
+    "Components": [
+      {
+        "__type": "Sandbox.ProximityVoice",
+        "__guid": "af3415a6-def0-4d23-8322-c759d20cf135",
+        "__enabled": true,
+        "Flags": 0,
+        "_EnterRadius": 2000,
+        "_ExitRadius": 2400,
+        "_MouthHeight": 64,
+        "_SendMargin": 200,
+        "Distance": 2000,
+        "Falloff": [
+          {
+            "x": 0,
+            "y": 1,
+            "in": 0,
+            "out": 0,
+            "mode": "Linear"
+          },
+          {
+            "x": 1,
+            "y": 0,
+            "in": 0,
+            "out": 0,
+            "mode": "Linear"
+          }
+        ],
+        "LipSync": true,
+        "Loopback": false,
+        "Mode": "AlwaysOn",
+        "MorphScale": 3,
+        "MorphSmoothTime": 0.1,
+        "OnComponentDestroy": null,
+        "OnComponentDisabled": null,
+        "OnComponentEnabled": null,
+        "OnComponentFixedUpdate": null,
+        "OnComponentStart": null,
+        "OnComponentUpdate": null,
+        "PushToTalkInput": "voice",
+        "Renderer": null,
+        "Volume": 1,
+        "WorldspacePlayback": true
+      }
+    ],
+    "Children": []
+  },
+  "ResourceVersion": 2,
+  "ShowInMenu": false,
+  "MenuPath": null,
+  "MenuIcon": null,
+  "DontBreakAsTemplate": false,
+  "__references": [],
+  "__version": 2
+}
