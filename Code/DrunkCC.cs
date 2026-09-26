@@ -160,7 +160,6 @@ public sealed class DrunkCC : Component
 	/// Timer gating how often a HistorySample is appended.
 	/// </summary>
 	private TimeSince _sinceLastSample;
-	private bool _hasCheckedHistObstacle;
 	private float _rollSin;
 	private float _rollCos;
 	private float _rollDeg;
@@ -1131,6 +1130,10 @@ public sealed class DrunkCC : Component
 		// Recovery zeroes velocity, so the yaw gate deterministically latches OFF on the first
 		// tick anyway; clear it explicitly so that doesn't depend on the velocity-zeroing above.
 		_wasMovingForward = false;
+		// Drop an obstacle latch that was set before or during the knockdown (e.g. the stay
+		// callback latched on the same tick a roll knockdown won). Left standing, it would
+		// knock the player down again on the first Running tick at the recovery point.
+		_HasHitObstacle = false;
 		
 		// reset timer to give player travel time.
 		_sinceLastSample = 0f;
@@ -1221,7 +1224,6 @@ public sealed class DrunkCC : Component
 			return;
 		
 		_HasHitObstacle = true;
-		_hasCheckedHistObstacle = false;
 	}
 	
 	private void OnWallHitColliderExitHelper( Collider other )
