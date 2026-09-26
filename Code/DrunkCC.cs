@@ -106,6 +106,13 @@ public sealed class DrunkCC : Component
 	private TimeUntil _knockdownEnds;
 
 	/// <summary>
+	/// Cooldown on the obstacle (wall-hit trigger) knockdown path only. Armed to
+	/// _ObstacleKnockdownCooldown every time that path fires. Default-constructed it reads as
+	/// already elapsed, so the first obstacle hit of a session is never blocked.
+	/// </summary>
+	private TimeUntil _obstacleKnockdownReady;
+
+	/// <summary>
 	/// At knockdown, get heading direction.
 	/// </summary>
 	private Vector3 _knockdownHeading;
@@ -347,6 +354,15 @@ public sealed class DrunkCC : Component
 	/// angle gate passes). Driven every tick by CheckWallHit — not [Sync], local-only.
 	/// </summary>
 	private bool _HasHitObstacle { get; set; }
+
+	/// <summary>
+	/// Seconds after an obstacle (wall-hit trigger) knockdown before that trigger can knock the
+	/// player down again. Counted from the moment the last obstacle knockdown fired, so it
+	/// overlaps the ragdoll time (_KnockdownRecoveryTime). Obstacle contacts during the
+	/// cooldown are discarded, not deferred. Does not affect the roll (_MaxHitRoll) knockdown.
+	/// 0 or negative disables the cooldown.
+	/// </summary>
+	[Property] private float _ObstacleKnockdownCooldown { get; set; } = 4f;
 
 	// /// <summary>
 	// /// Forward offset (units) from the body origin at which to start the wall-trace.
@@ -626,12 +642,23 @@ public sealed class DrunkCC : Component
 				{
 					if ( _MaxHitRoll > 0f && MathF.Abs( _rollDeg ) > _MaxHitRoll )
 					{
+						LOGMEALL( "~~~WE FELL!!!!" );
 						OwnerEnterKnockedDownHelper();
 					}
 					else if ( _HasHitObstacle )
 					{
 						_HasHitObstacle = false;
-						OwnerEnterKnockedDownHelper();
+						// The stay callback re-latches _HasHitObstacle every fixed tick while
+						// the reporter overlaps a solid collider, so without this gate a player
+						// who recovers still touching (or rewinds next to) the same obstacle is
+						// knocked down again on the first Running tick.
+						if ( _obstacleKnockdownReady )
+						{
+							LOGMEALL( "$$$$##$$WE HIT AN OBSTACLE" );
+							if ( _ObstacleKnockdownCooldown > 0f )
+								_obstacleKnockdownReady = _ObstacleKnockdownCooldown;
+							OwnerEnterKnockedDownHelper();
+						}
 					}
 				}
 				else
@@ -901,6 +928,12 @@ public sealed class DrunkCC : Component
 		return _history[idx];
 	}
 
+	[Rpc.Broadcast]
+	private void LOGMEALL( string message )
+	{
+		Log.Info(message);
+	}
+	
 	/// <summary>
 	/// Records the latest bar spawn as the deepest recovery backup (the slot a max-beer
 	/// knockdown rewinds to). Called by GameManager right after a bar-exit respawn. Kept in
@@ -1181,7 +1214,8 @@ public sealed class DrunkCC : Component
 
 	private void OnWallHitColliderStayHelper( Collider other )
 	{
-		Log.Info("Istrigger: " + other.IsTrigger + "---OnWallHitColliderStayHelper + " + other);
+		Log.Info("Istrigger: " + other.IsTrigger + "---OnWallHitColliderStayHelper + " + other.GameObject.Name);
+		Log.Info("Istrigger: " + other.IsTrigger + "---OnWallHitColliderStayHelper + " + other.GameObject.Name);
 
 		if ( other.IsTrigger || CurrentState == State.KnockedDown)
 			return;
