@@ -223,7 +223,7 @@ public sealed class GameManager : Component, Component.INetworkListener
 			 ResetPlayerHelper();
 		}
 
-		if ( _localGameState != LocalGameState.InMainMenu && Input.Keyboard.Down( "V" ) )
+		if ( _localGameState != LocalGameState.InMainMenu && Input.Keyboard.Down( "L" ) )
 		{
 			_LocalDrunkCC.BeerLevel += 1;
 		}
