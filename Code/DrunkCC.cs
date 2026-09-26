@@ -107,7 +107,8 @@ public sealed class DrunkCC : Component
 
 	/// <summary>
 	/// Cooldown on the obstacle (wall-hit trigger) knockdown path only. Armed to
-	/// _ObstacleKnockdownCooldown every time that path fires. Default-constructed it reads as
+	/// _ObstacleKnockdownCooldown every time that path fires while
+	/// _ObstacleKnockdownCooldownEnabled is on. Default-constructed it reads as
 	/// already elapsed, so the first obstacle hit of a session is never blocked.
 	/// </summary>
 	private TimeUntil _obstacleKnockdownReady;
@@ -331,6 +332,9 @@ public sealed class DrunkCC : Component
 	
 	/// <summary>
 	/// Seconds spent ragdolling after a knockdown before reset.
+	/// The obstacle knockdown cooldown (_ObstacleKnockdownCooldown) runs from the moment of
+	/// knockdown, so a cooldown at or below this value gives no wall immunity after standing
+	/// up. OnStart raises such a cooldown to this value + 1.
 	/// </summary>
 	[Property] private float _KnockdownRecoveryTime { get; set; } = 1;
 
@@ -355,11 +359,22 @@ public sealed class DrunkCC : Component
 	private bool _HasHitObstacle { get; set; }
 
 	/// <summary>
+	/// Turns the obstacle knockdown cooldown on or off. Off = obstacle (wall-hit trigger)
+	/// knockdowns have no cooldown; the bar-spawn grace window and the roll knockdown still
+	/// take precedence. A player who stands up still touching a wall is knocked down again
+	/// on the first Running tick.
+	/// </summary>
+	[Property] private bool _ObstacleKnockdownCooldownEnabled { get; set; } = true;
+
+	/// <summary>
 	/// Seconds after an obstacle (wall-hit trigger) knockdown before that trigger can knock the
 	/// player down again. Counted from the moment the last obstacle knockdown fired, so it
-	/// overlaps the ragdoll time (_KnockdownRecoveryTime). Obstacle contacts during the
-	/// cooldown are discarded, not deferred. Does not affect the roll (_MaxHitRoll) knockdown.
-	/// 0 or negative disables the cooldown.
+	/// overlaps the ragdoll time (_KnockdownRecoveryTime): a cooldown at or below
+	/// _KnockdownRecoveryTime gives no wall immunity after standing up. OnStart therefore
+	/// raises any such value to _KnockdownRecoveryTime + 1 (checked once; runtime inspector
+	/// edits are not re-checked). Obstacle contacts during the cooldown are discarded, not
+	/// deferred. Does not affect the roll (_MaxHitRoll) knockdown. Use
+	/// _ObstacleKnockdownCooldownEnabled to turn the cooldown off; this value cannot.
 	/// </summary>
 	[Property] private float _ObstacleKnockdownCooldown { get; set; } = 4f;
 
@@ -525,6 +540,11 @@ public sealed class DrunkCC : Component
 
 	protected override void OnStart()
 	{
+		// A cooldown that ends before the ragdoll does gives no wall immunity after standing
+		// up (see _ObstacleKnockdownCooldown), so raise it past the recovery time.
+		if ( _ObstacleKnockdownCooldown <= _KnockdownRecoveryTime )
+			_ObstacleKnockdownCooldown = _KnockdownRecoveryTime + 1f;
+
 		WallHitColliderReporter.OnTriggerStayCallback += OnWallHitColliderStayHelper;
 		WallHitColliderReporter.OnTriggerExitCallback += OnWallHitColliderExitHelper;
 		_ccCamera = Scene.Scene.FindAllWithTagOrigin( "cccamera" ).FirstOrDefault()?.GetComponent<CCCamera>(); //SceneNetworkSystem Get<CCCamera>();
@@ -651,10 +671,10 @@ public sealed class DrunkCC : Component
 						// the reporter overlaps a solid collider, so without this gate a player
 						// who recovers still touching (or rewinds next to) the same obstacle is
 						// knocked down again on the first Running tick.
-						if ( _obstacleKnockdownReady )
+						if ( !_ObstacleKnockdownCooldownEnabled || _obstacleKnockdownReady )
 						{
 							LOGMEALL( "$$$$##$$WE HIT AN OBSTACLE" );
-							if ( _ObstacleKnockdownCooldown > 0f )
+							if ( _ObstacleKnockdownCooldownEnabled )
 								_obstacleKnockdownReady = _ObstacleKnockdownCooldown;
 							OwnerEnterKnockedDownHelper();
 						}
