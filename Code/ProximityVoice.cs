@@ -319,8 +319,10 @@ public sealed class ProximityVoice : Voice
 	/// therefore degrades to extra packets that the receiver simply drops - never to
 	/// voice being wrongly gated off.
 	///
-	/// Allocation-light by design: one reused exclusion list returned, one static scratch
-	/// list filled by the Scene.GetAll type index (no hierarchy walk, no LINQ here).
+	/// Allocation-light: one reused exclusion list returned, one static scratch list
+	/// filled by the Scene.GetAll type index (no hierarchy walk, no LINQ here). The one
+	/// per-call allocation is the Connection.All getter itself, which builds a new list on
+	/// every access; the engine's own client-side Broadcast pays the same cost per packet.
 	/// </summary>
 	protected override IEnumerable<Connection> ExcludeFilter()
 	{

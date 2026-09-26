@@ -98,12 +98,14 @@ public sealed class ProximityVoiceSpawner : Component
 
 		// NetworkSpawn claims ownership for Connection.Local and replicates the carrier
 		// (transform included, so proxies get the mouth position interpolated, never
-		// simulated). Solo editor play has no session - NetworkSpawn returns false there
-		// - so keep the plain local clone, mirroring GameManager.StartGame's solo
-		// fallback that clones the player itself without NetworkSpawn. IsMine() stays
-		// true on an un-netspawned object, so the carrier still follows and self-gates.
-		if ( Networking.IsActive )
-			_carrier.NetworkSpawn();
+		// simulated). Solo play has no session and nobody to replicate to, so keep the
+		// plain local clone, mirroring GameManager.StartGame's solo fallback that clones
+		// the player itself without NetworkSpawn. IsMine() stays true on an
+		// un-netspawned object, so the carrier still follows and self-gates.
+		// A false return in a session (e.g. the host revoked CanSpawnObjects) leaves a
+		// local-only carrier that nobody else hears - say so instead of failing silently.
+		if ( Networking.IsActive && !_carrier.NetworkSpawn() )
+			Log.Error( $"ProximityVoiceSpawner: NetworkSpawn of '{_carrier.Name}' failed - this player's voice will not reach anyone." );
 	}
 
 	/// <summary>
