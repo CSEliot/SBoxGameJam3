@@ -11,7 +11,7 @@
     "Enabled": true,
     "NetworkMode": 1,
     "NetworkFlags": 0,
-    "NetworkOrphaned": 1,
+    "NetworkOrphaned": 0,
     "NetworkTransmit": true,
     "OwnerTransfer": 1,
     "Components": [
@@ -2489,7 +2489,7 @@
                     "MaterialOverride": null,
                     "Materials": null,
                     "Model": {
-                      "Id": "e6729557-765c-4136-a82c-8cd4b5e6486c",
+                      "Id": "eebda347-cb19-4862-8dda-900477d74687",
                       "Path": "itch/board-game-pieces/models/event-arrow.vmdl"
                     },
                     "OnComponentDestroy": null,
@@ -2517,7 +2517,7 @@
                     "Friction": null,
                     "IsTrigger": false,
                     "Model": {
-                      "Id": "e6729557-765c-4136-a82c-8cd4b5e6486c",
+                      "Id": "eebda347-cb19-4862-8dda-900477d74687",
                       "Path": "itch/board-game-pieces/models/event-arrow.vmdl"
                     },
                     "OnComponentDestroy": null,
