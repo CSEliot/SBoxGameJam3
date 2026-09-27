@@ -80,6 +80,9 @@ shader-authoring single-source-of-truth doc; re-verified accurate against this c
   children AND from `PostProcessVolume`s, groups by type, calls `Render()` per group — so a
   loose event node must be parented under the camera or carry an infinite volume to have any
   effect (`PostProcessSystem.cs:26-129`).
+- Live result (user playtest 2026-09-27): the Shader Graph export (`MODES { Forward(); Depth(); }`,
+  no `Default()` mode) blits fullscreen through this path. A review claim that it could not was
+  wrong.
 - `Stage` enum (`Systems/Render/Stage.cs`): AfterDepthPrepass 1000 → AfterOpaque 2000 →
   AfterSkybox 3000 → AfterTransparent 4000 → AfterViewmodel 5000 → EarlyUI 5500 →
   BeforePostProcess 6000 → Tonemapping 6500 → AfterPostProcess 7000 → UI 7500 → AfterUI 8000.
