@@ -623,7 +623,7 @@ public partial class Hud : PanelComponent
 	/// can't be mistaken for a real sync value.
 	/// </summary>
 	private string PantsDebugText => _drunk is null ? "NO PLAYER"
-		: _drunk.CurrentPantsState == DrunkCC.PantsState.Down ? "PANTS: DOWN"
+		: _drunk.CurrentPantsState == DrunkCC.PantsState.Down ? "PULL YOUR PANTS UP"
 		: "PANTS: UP";
 
 	/// <summary>DEBUG: true colour so a stuck state is obvious at a glance (Up=green, Down=red).</summary>
