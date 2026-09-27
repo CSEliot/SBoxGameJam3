@@ -104,6 +104,8 @@
         "_LateralGrip": 5,
         "_LeanImpulse": 10000,
         "_MaxHitRoll": 70,
+        "_ObstacleKnockdownCooldown": 4,
+        "_ObstacleKnockdownCooldownEnabled": true,
         "_Ragdoll": {
           "_type": "component",
           "component_id": "bddbad9c-4a38-424d-b8da-d85066fc72a8",
@@ -130,7 +132,7 @@
           "go": "1bf8ec84-d543-8336-a244-e5c5e743ff85",
           "component_type": "SkinnedModelRenderer"
         },
-        "_SpeedPantsDownDisabler": 90,
+        "_SpeedPantsDownDisabler": 97,
         "_VelocityCeiling": 500,
         "_WalkingPlaybackSpeed": 2,
         "_YawGain": 8,
@@ -2489,7 +2491,7 @@
                     "MaterialOverride": null,
                     "Materials": null,
                     "Model": {
-                      "Id": "eebda347-cb19-4862-8dda-900477d74687",
+                      "Id": "0757ebfd-e008-4388-b29f-a50504359eec",
                       "Path": "itch/board-game-pieces/models/event-arrow.vmdl"
                     },
                     "OnComponentDestroy": null,
@@ -2517,7 +2519,7 @@
                     "Friction": null,
                     "IsTrigger": false,
                     "Model": {
-                      "Id": "eebda347-cb19-4862-8dda-900477d74687",
+                      "Id": "0757ebfd-e008-4388-b29f-a50504359eec",
                       "Path": "itch/board-game-pieces/models/event-arrow.vmdl"
                     },
                     "OnComponentDestroy": null,
