@@ -871,7 +871,7 @@
 							},
 							{
 								from = "billboard_mat.vmat"
-								to = "fbx/world/city01/textures/billboardads.vmat"
+								to = "billboard_mat.vmat"
 							},
 							{
 								from = "polygoncity_glass_mat.vmat"
@@ -900,6 +900,18 @@
 							{
 								from = "polygoncity_mat_road_03.vmat"
 								to = "fbx/world/city01/textures/polygoncity_texture_road_01.vmat"
+							},
+							{
+								from = "cylinder.001.vmat"
+								to = "materials/glass.vmat"
+							},
+							{
+								from = "cylinder.002.vmat"
+								to = "materials/glass.vmat"
+							},
+							{
+								from = "cylinder.vmat"
+								to = "materials/glass.vmat"
 							},
 						]
 						use_global_default = false
