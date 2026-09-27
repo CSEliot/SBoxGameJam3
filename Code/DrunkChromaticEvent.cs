@@ -62,24 +62,35 @@ public sealed class DrunkChromaticEvent : GameEvent
 
 	private float _elapsedSinceStart;
 
-	public override void StartEvent()
+	public override bool StartEvent()
 	{
 		_PostProcess ??= GameObject.GetComponent<ChromaticPostProcess>( true );
 
 		if ( _PostProcess is null )
 		{
 			Log.Warning( $"DrunkChromaticEvent on {GameObject?.Name} has no ChromaticPostProcess to enable - add one to the same GameObject." );
-			return;
+			return false;
 		}
 
 		_elapsedSinceStart = 0f;
 		_PostProcess.Enabled = true;
+		return true;
+	}
+
+	/// <summary>
+	/// Run reset (Try Again): GameManager re-arms every event, and this switches the
+	/// payload back off so a previous run's post-process doesn't bleed into the fresh run.
+	/// </summary>
+	public override void StopEvent()
+	{
+		if ( _PostProcess.IsValid() )
+			_PostProcess.Enabled = false;
 	}
 
 	protected override void OnUpdate()
 	{
-		// GameManager latches IsStarted before calling StartEvent, so the duration timer
-		// only ticks once the event has actually fired. DurationSeconds 0 = forever.
+		// GameManager only ticks this after a successful StartEvent (IsStarted latch),
+		// so the duration timer starts with the event. DurationSeconds 0 = forever.
 		if ( !IsStarted || DurationSeconds <= 0f || _PostProcess is null )
 			return;
 

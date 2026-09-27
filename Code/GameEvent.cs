@@ -30,8 +30,8 @@ namespace Sandbox;
 /// <summary>
 /// Base class for bar-exit events. By design these fire ONLY when the local player exits
 /// a bar after a mini-game round - GameManager.RollBarExitEventHelper is the sole trigger
-/// path; do not add others. GameManager discovers every ENABLED GameEvent component in the
-/// scene at startup. An event is an eligible candidate on bar exit when:
+/// path; do not add others. GameManager queries every ENABLED GameEvent component in the
+/// scene live at roll time. An event is an eligible candidate on bar exit when:
 /// 1. the LOCAL player's DrunkCC.BeerLevel >= MinBeerLevel (unlock gate),
 /// 2. IsStarted is still false (one-shot latch - events have no Stop, see StartEvent),
 /// 3. TriggerChancePercent > 0, after which GameManager rolls its per-client RNG once.
@@ -61,14 +61,29 @@ public abstract class GameEvent : Component
 	[Property, Range( 0, 100 )] public float TriggerChancePercent { get; set; } = 0f;
 
 	/// <summary>
-	/// One-shot latch maintained by GameManager.RollBarExitEventHelper: once an event has
-	/// started it is skipped by every later bar-exit roll. No Stop path exists by design.
+	/// One-shot latch maintained by GameManager.RollBarExitEventHelper (set on
+	/// StartEvent SUCCESS): once an event has started it is skipped by every later
+	/// bar-exit roll THIS run. Try Again re-arms it (and calls StopEvent) for the next
+	/// run; there is still no mid-run stop path by design.
 	/// </summary>
 	public bool IsStarted { get; internal set; }
 
 	/// <summary>
-	/// Begin the event. Called by GameManager's bar-exit roll at most once per event.
-	/// Implementations switch on their (authored-disabled) payload; see DrunkChromaticEvent.
+	/// Begin the event. Called by GameManager's bar-exit roll at most once per run.
+	/// Return true if the event actually started; returning false (e.g. payload
+	/// component missing from the node - the implementation logs the problem itself)
+	/// leaves the event NOT latched, so a later bar exit can roll it again once the
+	/// wiring is fixed. Implementations switch on their (authored-disabled) payload;
+	/// see DrunkChromaticEvent.
 	/// </summary>
-	public abstract void StartEvent();
+	public abstract bool StartEvent();
+
+	/// <summary>
+	/// Tear the event down for a new run (GameManager's Try Again resets the run, which
+	/// also re-arms IsStarted - without this the payload of the previous run would keep
+	/// running into the fresh one). No-op by design for events that self-terminate
+	/// (finite DurationSeconds) or have no state to clear; payload-owning events
+	/// override (see DrunkChromaticEvent). Never called mid-run.
+	/// </summary>
+	public virtual void StopEvent() { }
 }
