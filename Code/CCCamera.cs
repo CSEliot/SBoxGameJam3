@@ -297,14 +297,21 @@ public sealed class CCCamera : Component
 			DoJerkHelper( true );
 		}
 		
+		// Follow/look smoothing uses 1 - exp(-speed * dt) rather than speed * dt: the linear
+		// form converges faster per second at low framerates (and snaps fully once
+		// speed * dt >= 1), so camera stiffness varied with FPS. The effect is small at the
+		// shipped speeds (8-10: ~16-22% stiffer at 30 fps, ~3% at 144) and larger at the
+		// knockdown look speed (20: ~65% stiffer at 30 fps). The exponential form covers the
+		// same fraction per second at any framerate. A speed of 0 still yields 0 (freeze),
+		// which _AltFollowSpeed = 0 relies on during knockdown.
 		if ( _LookAt )
 		{
 			var lookRotation = Rotation.LookAt( _LookAtTarget.WorldPosition - WorldPosition );
-			WorldRotation = Rotation.Lerp( WorldRotation, lookRotation, _LookAtSpeed * Time.Delta );
+			WorldRotation = Rotation.Lerp( WorldRotation, lookRotation, 1f - MathF.Exp( -_LookAtSpeed * Time.Delta ) );
 		}
 		
 		var targetPosition = _FollowTarget.WorldPosition + _Offset;
-		WorldPosition = Vector3.Lerp( WorldPosition, targetPosition, _FollowSpeed * Time.Delta );
+		WorldPosition = Vector3.Lerp( WorldPosition, targetPosition, 1f - MathF.Exp( -_FollowSpeed * Time.Delta ) );
 
 		if ( StayBehind )
 		{
@@ -839,7 +846,7 @@ public sealed class CCCamera : Component
 		
 		float progress = Math.Clamp( ((Time.Now - _startJerkTime) * jerkSpeedBeerified) / _JerkTime, 0, 1); // Todo: var vs type declaration ... ?
 		
-		float distance = _JerkMaxDistance * 2 * MathF.Pow(progress, 3) - 3 * MathF.Pow(progress, 2) + 1;
+		float distance = (_JerkMaxDistance * (2 * MathF.Pow(progress, 3) - 3 * MathF.Pow(progress, 2))) + 1;
 		
 		if (_JerkDirection == false)
 			direction = !direction;
