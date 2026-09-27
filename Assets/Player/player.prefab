@@ -368,7 +368,7 @@
               "vectors": {},
               "rotations": {}
             },
-            "PlaybackRate": 1,
+            "PlaybackRate": 1.0063425,
             "RenderOptions": {
               "GameLayer": true,
               "OverlayLayer": false,
@@ -382,7 +382,7 @@
               "Blending": true
             },
             "Tint": "1,1,1,1",
-            "UseAnimGraph": false
+            "UseAnimGraph": true
           },
           {
             "__type": "ShrimpleRagdolls.ShrimpleRagdoll",
@@ -488,7 +488,7 @@
             "Clothing": [],
             "ManualAge": 0,
             "ManualHeight": 0,
-            "ManualTint": 0.38209608,
+            "ManualTint": 0.30515465,
             "OnComponentDestroy": null,
             "OnComponentDisabled": null,
             "OnComponentEnabled": null,
@@ -508,7 +508,7 @@
             "EyeSource": null,
             "EyesWeight": 1,
             "HeadWeight": 1,
-            "Height": null,
+            "Height": 0.5,
             "IkLeftFoot": null,
             "IkLeftHand": null,
             "IkRightFoot": null,
@@ -2491,7 +2491,7 @@
                     "MaterialOverride": null,
                     "Materials": null,
                     "Model": {
-                      "Id": "0757ebfd-e008-4388-b29f-a50504359eec",
+                      "Id": "b266a521-42ab-4937-a80c-ba3e762e7b52",
                       "Path": "itch/board-game-pieces/models/event-arrow.vmdl"
                     },
                     "OnComponentDestroy": null,
@@ -2519,7 +2519,7 @@
                     "Friction": null,
                     "IsTrigger": false,
                     "Model": {
-                      "Id": "0757ebfd-e008-4388-b29f-a50504359eec",
+                      "Id": "b266a521-42ab-4937-a80c-ba3e762e7b52",
                       "Path": "itch/board-game-pieces/models/event-arrow.vmdl"
                     },
                     "OnComponentDestroy": null,
