@@ -166,6 +166,14 @@ public sealed class GameManager : Component, Component.INetworkListener
 	/// TEMP diagnostic latch (enter-ring bug hunt) - remove with the diag block.
 	/// </summary>
 	private bool _ringDiagLogged;
+	/// <summary>
+	/// All bar-exit events authored in the scene (see GameEvent.cs). Collected ONCE in
+	/// OnStart via Scene.GetAllComponents - which only sees ENABLED components, matching the
+	/// authoring contract (event nodes are authored enabled; only their visual payload, e.g.
+	/// ChromaticPostProcess, is authored disabled). Rolled by RollBarExitEventHelper every
+	/// time the local player exits a bar after a mini-game.
+	/// </summary>
+	private readonly List<GameEvent> _gameEvents = new();
 
 	// every time a player joins, they join the latest group within 30 seconds (group has a timecreated) and if there isn't a group w 
 	// timecreated within 30 seconds, make a new one.
@@ -205,6 +213,9 @@ public sealed class GameManager : Component, Component.INetworkListener
 				_Bars[i].NotifyGameManagerOfPlayerTriggerExit += HandlePlayerBarTriggerExit;
 			}
 		}
+		// Bar-exit events (GameEvent.cs): collect once at startup; zero events is a valid
+		// state (feature simply never fires), so no warning here.
+		_gameEvents.AddRange( Scene.GetAllComponents<GameEvent>() );
 		_AudioController.State = AudioController.MusicState.MainMenu;
 	}
 
@@ -259,6 +270,9 @@ public sealed class GameManager : Component, Component.INetworkListener
 				// finished bar's trigger no longer matches and won't re-loop; the
 				// player must travel to the next bar to start again.
 				ResetPlayerHelper(_Bars[finishedBar].ActiveBarModule.SpawnPoint, true);
+				// THIS is "exiting a bar": respawn at the bar exit IS the moment the walk-out
+				// happens, so bar-exit events roll here and only here (see GameEvent.cs).
+				RollBarExitEventHelper( _LocalDrunkCC.IsValid() ? _LocalDrunkCC.BeerLevel : 0f );
 			}
 			else
 			{
@@ -485,6 +499,40 @@ public sealed class GameManager : Component, Component.INetworkListener
 		if ( occupied.Count == 0 )
 			return excludeBarID;
 		return occupied[_localRandom.Next( 0, occupied.Count )];
+	}
+
+	/// <summary>
+	/// THE single bar-exit event trigger (called once from OnUpdate right after the
+	/// bar-exit respawn; see GameEvent.cs - events exist only here by definition).
+	/// Candidates = enabled events whose MinBeerLevel the local player has reached, not
+	/// already started, with TriggerChancePercent > 0. Tried in DESCENDING MinBeerLevel
+	/// order so a high-gate event authored to always fire (e.g. the 20-beer drunk-chromatic
+	/// event at 100%) can't be starved by low-gate events rolling first; stops at the
+	/// first successful roll = at most ONE event per bar exit. Rolls use _localRandom so
+	/// the sequence stays deterministic per client (each client only ever rolls against
+	/// its OWN, un-synced BeerLevel - events are a per-client experience).
+	/// </summary>
+	private void RollBarExitEventHelper( float beerLevel )
+	{
+		if ( _gameEvents.Count == 0 )
+			return;
+
+		var candidates = _gameEvents
+			.Where( e => e.IsValid() && !e.IsStarted && e.TriggerChancePercent > 0f && beerLevel >= e.MinBeerLevel )
+			.OrderByDescending( e => e.MinBeerLevel );
+
+		foreach ( var ev in candidates )
+		{
+			if ( _localRandom.Float() * 100f >= ev.TriggerChancePercent )
+				continue;
+
+			// Latch BEFORE StartEvent so an event that self-disables or throws still
+			// counts as used (one-shot semantics live on GameEvent.IsStarted).
+			ev.IsStarted = true;
+			ev.StartEvent();
+			Log.Info( $"Bar-exit event fired: {ev.GetType().Name} (beer level {beerLevel}, chance {ev.TriggerChancePercent}%)" );
+			return;
+		}
 	}
 
 	/// <summary>
