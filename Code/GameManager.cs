@@ -386,6 +386,7 @@ public sealed class GameManager : Component, Component.INetworkListener
 			return false;
 		}
 		Log.Info("Starting mini game");
+		_LocalDrunkCC.CanBeKnockedDown = true;
 		_Bars[targetBar].SitDownPlayer( Connection.Local, _minigameController );
 		_minigameController.Begin();
 		_CCCamera.Enabled = false;

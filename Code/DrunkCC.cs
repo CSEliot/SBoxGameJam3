@@ -412,6 +412,7 @@ public sealed class DrunkCC : Component
 	[Property] private float _RunningPlaybackSpeed { get; set; } = 2;
 	[Property] private float _WalkingPlaybackSpeed { get; set; } = 2;
 	[Property] private float _FallingPlaybackSpeed { get; set; } = 1;
+	public bool CanBeKnockedDown { get; set; } = false;
 	private string _runningSequenceName = "Drunk_Run_Forward";
 	private string _walkingSequenceName = "Old_Man_Walk";
 	private string _fallingSequenceName = "Falling";
@@ -671,7 +672,7 @@ public sealed class DrunkCC : Component
 		if ( CurrentState == State.Running)
 		{
 				OwnerHandleRunningHelper();
-				if ( Time.Now - TimeSinceBarSpawn > _BarSpawnNoKnockdownSeconds )
+				if ( Time.Now - TimeSinceBarSpawn > _BarSpawnNoKnockdownSeconds && CanBeKnockedDown)
 				{
 					if ( _MaxHitRoll > 0f && MathF.Abs( _rollDeg ) > _MaxHitRoll )
 					{
