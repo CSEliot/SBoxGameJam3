@@ -42,6 +42,9 @@ namespace Sandbox;
 ///    (engine Scene/Components/PostProcessing/PostProcessSystem.cs).
 /// 5. Set MinBeerLevel=20 and TriggerChancePercent=100 on DrunkChromaticEvent for the
 ///    designed "always fires past 20 beers" behaviour.
+/// 6. Optional ramp: set MaxBeerLevel above MinBeerLevel and the Starting/Ending
+///    ScalingFactor and Wobble values; the effect then scales linearly with the run's
+///    total BeerLevel between the two levels.
 /// LOCAL-only, like all GameEvents: each client rolls against its own (un-synced)
 /// BeerLevel and the post-process rides its own camera.
 /// </summary>
@@ -55,12 +58,46 @@ public sealed class DrunkChromaticEvent : GameEvent
 	[Property] private ChromaticPostProcess _PostProcess { get; set; }
 
 	/// <summary>
-	/// Seconds the effect stays on before auto-disabling. 0 = forever (stays until the
-	/// run/session ends - there is no Stop path).
+	/// Seconds the effect stays on before auto-disabling. 0 = forever (stays on until
+	/// Try Again resets the run, which calls StopEvent).
 	/// </summary>
 	[Property] public float DurationSeconds { get; set; } = 0f;
 
+	/// <summary>
+	/// Run-total beer level (DrunkCC.BeerLevel, the same count MinBeerLevel gates on) at
+	/// which the effect reaches its Ending values. From MinBeerLevel up to this level the
+	/// scaling factor and wobble move linearly from their Starting to their Ending values;
+	/// past it they hold at Ending. If this is left at or below MinBeerLevel (e.g. 0),
+	/// there is no ramp and the effect uses its Ending values from the start.
+	/// </summary>
+	[Property] public int MaxBeerLevel { get; set; } = 0;
+
+	/// <summary>
+	/// Warp strength (ChromaticPostProcess.ScalingFactor) at MinBeerLevel.
+	/// Shader default 0.1.
+	/// </summary>
+	[Property, Range( 0, 1 )] public float StartingScalingFactor { get; set; } = 0.1f;
+
+	/// <summary>
+	/// Warp strength (ChromaticPostProcess.ScalingFactor) at MaxBeerLevel and beyond.
+	/// Shader default 0.1.
+	/// </summary>
+	[Property, Range( 0, 1 )] public float EndingScalingFactor { get; set; } = 0.1f;
+
+	/// <summary>
+	/// Vertical wobble (ChromaticPostProcess.Wobble) at MinBeerLevel.
+	/// Shader default 0.23481488.
+	/// </summary>
+	[Property, Range( 0, 1 )] public float StartingWobble { get; set; } = 0.23481488f;
+
+	/// <summary>
+	/// Vertical wobble (ChromaticPostProcess.Wobble) at MaxBeerLevel and beyond.
+	/// Shader default 0.23481488.
+	/// </summary>
+	[Property, Range( 0, 1 )] public float EndingWobble { get; set; } = 0.23481488f;
+
 	private float _elapsedSinceStart;
+	private DrunkCC _drunkCC;
 
 	public override bool StartEvent()
 	{
@@ -73,6 +110,9 @@ public sealed class DrunkChromaticEvent : GameEvent
 		}
 
 		_elapsedSinceStart = 0f;
+		// Ramp + material push before enabling, so the first rendered frame already
+		// shows the ramped values (ApplyProgressionHelper pushes to the shader directly).
+		ApplyProgressionHelper();
 		_PostProcess.Enabled = true;
 		return true;
 	}
@@ -89,15 +129,51 @@ public sealed class DrunkChromaticEvent : GameEvent
 
 	protected override void OnUpdate()
 	{
-		// GameManager only ticks this after a successful StartEvent (IsStarted latch),
-		// so the duration timer starts with the event. DurationSeconds 0 = forever.
-		if ( !IsStarted || DurationSeconds <= 0f || _PostProcess is null )
+		// Only runs the ramp/timer while this event's effect is actually on: IsStarted is
+		// set by GameManager after StartEvent succeeds, and the post-process is switched
+		// off again by DurationSeconds or StopEvent.
+		if ( !IsStarted || !_PostProcess.IsValid() || !_PostProcess.Enabled )
+			return;
+
+		// Every frame, not just at start: BeerLevel keeps rising at later bars, and the
+		// ramp should follow it up to MaxBeerLevel.
+		ApplyProgressionHelper();
+
+		// DurationSeconds 0 = forever.
+		if ( DurationSeconds <= 0f )
 			return;
 
 		_elapsedSinceStart += Time.Delta;
 
 		if ( _elapsedSinceStart >= DurationSeconds )
 			_PostProcess.Enabled = false;
+	}
+
+	/// <summary>
+	/// Writes the ramped ScalingFactor/Wobble onto the post-process for the local player's
+	/// CURRENT run-total BeerLevel and pushes them to the shader immediately. With
+	/// MaxBeerLevel > MinBeerLevel: BeerLevel at or below MinBeerLevel -> Starting values,
+	/// at or above MaxBeerLevel -> Ending values, linear in between. With MaxBeerLevel at
+	/// or below MinBeerLevel (e.g. left at 0) there is no ramp and the Ending values apply.
+	/// Leaves the values untouched while no local DrunkCC resolves.
+	/// </summary>
+	private void ApplyProgressionHelper()
+	{
+		// Cached: GameManager.GetLocalDrunkCC rescans the scene on every call, so only
+		// re-resolve when the cached player is gone (e.g. respawned/replaced).
+		if ( !_drunkCC.IsValid() )
+			_drunkCC = Scene.GetAllComponents<GameManager>().FirstOrDefault()?.GetLocalDrunkCC();
+
+		if ( !_drunkCC.IsValid() )
+			return;
+
+		float t = MaxBeerLevel > MinBeerLevel
+			? _drunkCC.BeerLevel.LerpInverse( MinBeerLevel, MaxBeerLevel )
+			: 1f;
+
+		_PostProcess.ScalingFactor = MathX.Lerp( StartingScalingFactor, EndingScalingFactor, t );
+		_PostProcess.Wobble = MathX.Lerp( StartingWobble, EndingWobble, t );
+		_PostProcess.PushToMaterial();
 	}
 }
 
@@ -117,12 +193,16 @@ public sealed class ChromaticPostProcess : BasePostProcess<ChromaticPostProcess>
 	/// <summary>
 	/// Warp strength -> g_flScalingFactor (shader default 0.1, range 0-1).
 	/// Drives the horizontal UV stretch/offset of the drunken smear.
+	/// Overwritten by DrunkChromaticEvent's Starting/Ending ramp while that event runs,
+	/// and keeps the last ramped value afterwards (until play mode restarts).
 	/// </summary>
 	[Property, Range( 0, 1 )] public float ScalingFactor { get; set; } = 0.1f;
 
 	/// <summary>
 	/// Vertical wobble amount -> g_flDontTouch (shader default 0.23481488, range 0-1).
 	/// The shader-side name is legacy; it scales a sin(g_flTime) vertical offset.
+	/// Overwritten by DrunkChromaticEvent's Starting/Ending ramp while that event runs,
+	/// and keeps the last ramped value afterwards (until play mode restarts).
 	/// </summary>
 	[Property, Range( 0, 1 )] public float Wobble { get; set; } = 0.23481488f;
 
@@ -147,6 +227,19 @@ public sealed class ChromaticPostProcess : BasePostProcess<ChromaticPostProcess>
 		// an active draw is what the engine's Graphics.IsActive guard warns about
 		// (Material.Create reentrancy check, Material.Static.cs). Setting every frame is
 		// cheap (native attr override) and picks up live editor tweaks for free.
+		PushToMaterial();
+	}
+
+	/// <summary>
+	/// Copies ScalingFactor/Wobble/Opacity onto the shared shader material. Called from
+	/// OnUpdate, and directly by DrunkChromaticEvent right after it writes ramped values:
+	/// same-GameObject components update in no guaranteed order (Scene.Tick.cs iterates a
+	/// HashSet-backed list), and a component enabled this frame is not updated until the
+	/// next one (HashSetEx.Add during enumeration), so relying on this OnUpdate alone
+	/// would render one frame with stale values.
+	/// </summary>
+	public void PushToMaterial()
+	{
 		if ( !_shader.IsValid() )
 			return;
 
