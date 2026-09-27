@@ -552,6 +552,20 @@ public sealed class DrunkCC : Component
 		{
 			Log.Warning( "DrunkCC: CCCamera not found!" );
 		}
+		// Player-vs-player collision. Collision.config ignores cc_body vs cc_body so one body's
+		// own colliders (root sphere, capsule, ragdoll bones, wall-hit trigger) never hit each
+		// other; child colliders inherit the root's tags. Every copy used to carry cc_body, so
+		// other players' copies were ignored too. Copies of OTHER players swap it for cc_proxy:
+		// the local body (cc_body) now collides with them, and cc_proxy vs cc_proxy (also
+		// Ignore in Collision.config) keeps each copy's own colliders, and any two remote
+		// copies, apart. Tags are not in network snapshots, so this stays local to this client.
+		// Only a full Network.Refresh() of the player would resend them; nothing calls one.
+		if ( IsProxy )
+		{
+			GameObject.Tags.Remove( "cc_body" );
+			GameObject.Tags.Add( "cc_proxy" );
+		}
+
 		// Owner-only spawn wiring. OnStart runs on EVERY client for EVERY DrunkCC (incl. remote
 		// proxies), but OnSpawnHelper is [Rpc.Broadcast] and a broadcast SENDS on any local call
 		// before any permission check (Rpc.InstanceRpc.cs:283-286 -> SendInstanceRpc:331-335). So
