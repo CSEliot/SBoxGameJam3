@@ -26,6 +26,7 @@
 
 using System;
 using System.Linq;
+using Sandbox.Network;
 using Sandbox.Services;
 using Sandbox.UI;
 
@@ -167,13 +168,70 @@ public sealed class GameManager : Component, Component.INetworkListener
 	/// </summary>
 	private bool _ringDiagLogged;
 
+	/// <summary>
+	/// How many times the engine re-tries a lobby that reports "doesn't exist" (2s apart) before
+	/// giving up. Engine default is 30 (~60s hang); a lobby straight out of QueryLobbies should
+	/// already exist, so a stale one fails fast instead.
+	/// </summary>
+	private const int LobbyJoinRetries = 3;
+	/// <summary>
+	/// How long a PLAY / TRY AGAIN lobby join may take (connect + host scene load) and still
+	/// auto-start the game in the joined scene. See _sinceLobbyJoinRequested.
+	/// </summary>
+	private const float LobbyJoinAutoStartWindowSeconds = 120f;
+	/// <summary>
+	/// Stamped just before PLAY / TRY AGAIN leaves this session for another lobby. Joining swaps
+	/// in the host's scene - a fresh GameManager that boots InMainMenu - so the click has to
+	/// survive the scene change: the next GameManager consumes it in OnStart and starts the game
+	/// once its local player replicates. Static because it must outlive this scene; a timestamp
+	/// rather than a bool so a request orphaned by a failed join can't skip a later menu.
+	/// </summary>
+	private static RealTimeSince? _sinceLobbyJoinRequested;
+	/// <summary>
+	/// This scene was entered via a PLAY / TRY AGAIN lobby join: call StartGame as soon as the
+	/// local player resolves instead of waiting on the menu.
+	/// </summary>
+	private bool _startGameWhenPlayerResolves;
+	/// <summary>
+	/// A PLAY / TRY AGAIN lobby search or join is in flight - swallows repeat clicks.
+	/// </summary>
+	private bool _isSearchingForLobby;
+
+	/// <summary>
+	/// True while PLAY / TRY AGAIN is busy finding or joining a lobby. Read by MainMenu/EndGame
+	/// to swap their button label and ignore clicks.
+	/// </summary>
+	public bool IsSearchingForLobby => _isSearchingForLobby || _startGameWhenPlayerResolves;
+
 	// every time a player joins, they join the latest group within 30 seconds (group has a timecreated) and if there isn't a group w 
 	// timecreated within 30 seconds, make a new one.
 	// also if they join as party, they get the same startingBar (targetBarWaiting).
 	
+	/// <summary>
+	/// Boot-time lobby: creates this client's own PUBLIC lobby unless it arrived by joining one.
+	/// Replaces the scene NetworkHelper's StartServer (switched off in minimal.scene) so the
+	/// privacy is set explicitly here; otherwise mirrors NetworkHelper.OnLoad. The NetworkHelper
+	/// still spawns every connection's player in OnActive.
+	/// </summary>
+	protected override async System.Threading.Tasks.Task OnLoad()
+	{
+		if ( Scene.IsEditor || Networking.IsActive )
+			return;
+
+		LoadingScreen.Title = "Creating Lobby";
+		await Task.DelayRealtimeSeconds( 0.1f );
+		CreatePublicLobbyHelper();
+	}
+
 	protected override void OnStart()
 	{
 		Log.Info( "!!GameManager.OnStart() ID: " + Network.OwnerId );
+		// Consume a PLAY / TRY AGAIN lobby join from the previous scene (see _sinceLobbyJoinRequested).
+		// Only honoured when we really arrived as someone else's client, and cleared either way.
+		_startGameWhenPlayerResolves = _sinceLobbyJoinRequested is { } sinceJoin
+			&& sinceJoin < LobbyJoinAutoStartWindowSeconds
+			&& Networking.IsClient;
+		_sinceLobbyJoinRequested = null;
 		_targetBarWaiting = _StartingBar;
 		_minigameController = _MiniGamePanel.GetComponent<Minigame>();
 		_barMenuController = _BarMenuPanel != null ? _BarMenuPanel.GetComponent<BarMenu>() : null;
@@ -217,6 +275,14 @@ public sealed class GameManager : Component, Component.INetworkListener
 
 		if (ResolveLocalPlayerHelper() == false)
 			return;
+
+		// Arrived via a PLAY / TRY AGAIN lobby join: the host has spawned and replicated our
+		// player, so carry on into the game without a second PLAY click.
+		if ( _startGameWhenPlayerResolves && _localGameState == LocalGameState.InMainMenu )
+		{
+			_startGameWhenPlayerResolves = false;
+			StartGameHelper();
+		}
 
 		if ( _localGameState != LocalGameState.InMainMenu && Input.Keyboard.Down( "R" ) )
 		{
@@ -677,13 +743,32 @@ public sealed class GameManager : Component, Component.INetworkListener
 
 
 	/// <summary>
-	/// EndGame.OnTryAgain: player chose "TRY AGAIN" on the End-Game screen. Resets the local
-	/// player's run state and respawns at the original default spawn (mirrors SpawnPlayerHelper's
-	/// own initial ResetPlayerHelper() call, not the just-finished bar used mid-run), clears
-	/// drunkenness back to sober, and un-freezes the camera/player that HandlePlayerBarTriggerEnter's
-	/// End-Game freeze block disabled.
+	/// EndGame.OnTryAgain: player chose "TRY AGAIN" on the End-Game screen. Alone in the session,
+	/// it first looks for another lobby to join (JoinFirstAvailableLobbyAsync - joining starts a
+	/// fresh run in the host's scene); otherwise, or when none is found, ResetRunHelper restarts
+	/// the run right here.
 	/// </summary>
 	private void HandleEndGameTryAgain()
+	{
+		if ( _isSearchingForLobby )
+			return;
+
+		if ( ShouldSearchForLobbyHelper() )
+		{
+			_ = JoinFirstAvailableLobbyAsync( ResetRunHelper );
+			return;
+		}
+
+		ResetRunHelper();
+	}
+
+	/// <summary>
+	/// Resets the local player's run state and respawns at the original default spawn (mirrors
+	/// SpawnPlayerHelper's own initial ResetPlayerHelper() call, not the just-finished bar used
+	/// mid-run), clears drunkenness back to sober, and un-freezes the camera/player that
+	/// HandlePlayerBarTriggerEnter's End-Game freeze block disabled.
+	/// </summary>
+	private void ResetRunHelper()
 	{
 		_LocalPlayerProgress?.ResetRun();
 		// New run = re-arm the bar-exit events (IsStarted is per-run; the "always fires
@@ -704,7 +789,107 @@ public sealed class GameManager : Component, Component.INetworkListener
 	}
 
 	/// <summary>
-	/// MainMenu PLAY click. Per-client only (D-B): no RPC of any kind - it just flips THIS
+	/// MainMenu PLAY click. Alone in the session, it first looks for another lobby to join
+	/// (JoinFirstAvailableLobbyAsync - the joined scene then auto-starts); otherwise, or when
+	/// none is found, StartGameHelper starts the game right here.
+	/// </summary>
+	public void StartGame()
+	{
+		if ( _localGameState != LocalGameState.InMainMenu || _startGameCalled || IsSearchingForLobby )
+			return;
+
+		if ( ShouldSearchForLobbyHelper() )
+		{
+			_ = JoinFirstAvailableLobbyAsync( StartGameHelper );
+			return;
+		}
+
+		StartGameHelper();
+	}
+
+	/// <summary>
+	/// PLAY / TRY AGAIN only go looking for another lobby while this client has nobody to play
+	/// with: alone in its own lobby, or offline. Already sharing a session = stay put, since
+	/// hopping lobbies would reload the scene for no gain.
+	/// </summary>
+	private bool ShouldSearchForLobbyHelper()
+	{
+		return !Networking.IsConnecting && Connection.All.Count <= 1;
+	}
+
+	/// <summary>
+	/// PLAY / TRY AGAIN matchmaking: queries this game's lobbies and joins the first available
+	/// one, in QueryLobbies order. A successful join hands off to the host's scene, whose
+	/// GameManager auto-starts (see _sinceLobbyJoinRequested). No lobby found runs
+	/// <paramref name="fallback"/> - the normal start/reset, in the lobby this client already
+	/// hosts. A failed join has already left that lobby, and the engine usually closes the game
+	/// over it; if it doesn't, the fallback still runs, offline.
+	/// Skipped: full or empty lobbies, our own, and - while we host our own - another lone host's
+	/// lobby when their SteamId is higher than ours. That last rule stops two lone players who
+	/// click at the same moment from both leaving their own lobby for the other's (both joins
+	/// would fail, and the engine closes the game on a failed join); only the higher id moves.
+	/// </summary>
+	private async System.Threading.Tasks.Task JoinFirstAvailableLobbyAsync( Action fallback )
+	{
+		_isSearchingForLobby = true;
+
+		List<LobbyInformation> lobbies = null;
+		try
+		{
+			lobbies = await Networking.QueryLobbies();
+		}
+		catch ( Exception e )
+		{
+			Log.Warning( $"Lobby search failed, staying in our own lobby: {e.Message}" );
+		}
+
+		// Re-checked after the query: if someone joined us while it ran, we have company - stay.
+		if ( !ShouldSearchForLobbyHelper() )
+			lobbies = null;
+
+		ulong localSteamId = Sandbox.Utility.Steam.SteamId.ValueUnsigned;
+		var candidates = ( lobbies ?? new List<LobbyInformation>() ).Where( l =>
+			!l.IsFull
+			&& l.Members > 0
+			&& l.OwnerId != localSteamId
+			&& ( l.Members > 1 || !Networking.IsActive || l.OwnerId < localSteamId ) );
+
+		foreach ( var lobby in candidates )
+		{
+			if ( !this.IsValid() )
+				return;
+
+			Log.Info( $"Joining lobby {lobby.LobbyId} ({lobby.Name}, {lobby.Members}/{lobby.MaxMembers})" );
+			_sinceLobbyJoinRequested = (RealTimeSince)0f;
+			if ( await Networking.TryConnectSteamId( lobby.LobbyId, LobbyJoinRetries ) )
+				return; // The host's scene replaces this one and picks the start back up.
+
+			_sinceLobbyJoinRequested = null;
+			Log.Warning( $"Couldn't join lobby {lobby.LobbyId}." );
+		}
+
+		if ( !this.IsValid() )
+			return;
+
+		_isSearchingForLobby = false;
+		fallback();
+	}
+
+	/// <summary>
+	/// Creates this client's own lobby, explicitly PUBLIC so other players' PLAY / TRY AGAIN
+	/// lobby search can find and join it. Note: in the editor the engine replaces the privacy
+	/// with the editor's own lobby-privacy setting; game code can't override that.
+	/// </summary>
+	private static void CreatePublicLobbyHelper()
+	{
+		if ( Networking.IsActive )
+			return;
+
+		Networking.CreateLobby( new LobbyConfig { Privacy = LobbyPrivacy.Public } );
+	}
+
+	/// <summary>
+	/// The actual PLAY start. Per-client only (D-B): no RPC of any kind - it just flips THIS
 	/// client from InMainMenu to WaitingToStartMinigame, and the existing OnUpdate
 	/// WaitingToStartMinigame block drives the rest of the flow unchanged.
 	/// Solo/editor fallback: when no local player can be resolved AND no network session is
@@ -717,7 +902,7 @@ public sealed class GameManager : Component, Component.INetworkListener
 	/// otherwise it stays InMainMenu (menu visible, pollers silent) and PLAY is retryable -
 	/// e.g. a late joiner clicking before the host's spawn has replicated just tries again.
 	/// </summary>
-	public void StartGame()
+	private void StartGameHelper()
 	{
 		if ( _localGameState != LocalGameState.InMainMenu || _startGameCalled)
 			return;
