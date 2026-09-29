@@ -2,7 +2,6 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using HumanoidRetargeterVrf.Utils;
 /*
  * KeyValues3 class.
  * This class reads in Valve KV3 files and stores them in its datastructure.
@@ -21,7 +20,6 @@ using HumanoidRetargeterVrf.Utils;
  */
 using System.Globalization;
 using System.IO;
-using System.Linq;
 using System.Text;
 using KVValueType = HumanoidRetargeterKeyValue.KVValueType;
 

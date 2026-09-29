@@ -1,8 +1,5 @@
 #nullable enable
 using System;
-using System.Collections.Generic;
-using System.Linq;
-using HumanoidRetargeterVrf.Utils;
 using HumanoidRetargeterDmx.Format;
 using DMElement = HumanoidRetargeterDmx.Element;
 

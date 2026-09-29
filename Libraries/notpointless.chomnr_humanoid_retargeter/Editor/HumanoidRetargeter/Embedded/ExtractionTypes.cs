@@ -2,7 +2,6 @@
 #nullable enable
 using System;
 using System.Collections.Generic;
-using HumanoidRetargeterVrf.ResourceTypes;
 
 namespace HumanoidRetargeterVrf.IO
 {

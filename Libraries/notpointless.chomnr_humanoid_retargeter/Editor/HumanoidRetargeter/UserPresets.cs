@@ -13,7 +13,6 @@
 
 using System;
 using System.IO;
-using Editor;
 using HumanoidRetargeter.Mapping;
 using SkeletonModel = HumanoidRetargeter.Skeleton.Skeleton;
 

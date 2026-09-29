@@ -17,6 +17,6 @@
       "Gamepad": false
     },
     "StartupScene": "scenes/minimal.scene",
-    "LaunchMode": "Normal"
+    "LaunchMode": "QuickPlay"
   }
 }

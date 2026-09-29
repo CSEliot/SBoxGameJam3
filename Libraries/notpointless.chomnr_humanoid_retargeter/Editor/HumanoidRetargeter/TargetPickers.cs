@@ -3,7 +3,6 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
-using System.Numerics;
 using Editor;
 using HumanoidRetargeter.Formats.Fbx;
 using HumanoidRetargeter.Formats.Gltf;

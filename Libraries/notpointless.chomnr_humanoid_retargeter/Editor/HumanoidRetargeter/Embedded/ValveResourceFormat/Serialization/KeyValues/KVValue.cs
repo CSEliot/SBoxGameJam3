@@ -1,8 +1,6 @@
 #nullable enable
 using System;
 using System.Collections.Generic;
-using System.Linq;
-using HumanoidRetargeterVrf.Utils;
 using KVValueType = HumanoidRetargeterKeyValue.KVValueType;
 
 namespace HumanoidRetargeterVrf.Serialization.KeyValues

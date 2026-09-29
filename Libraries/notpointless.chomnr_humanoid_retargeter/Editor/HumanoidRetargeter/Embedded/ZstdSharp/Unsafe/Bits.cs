@@ -1,10 +1,6 @@
 #nullable enable
-using System;
-using System.Collections.Generic;
-using System.Linq;
 using System.Runtime.CompilerServices;
 using static HumanoidRetargeterZstd.UnsafeHelper;
-using System;
 using System.Numerics;
 
 namespace HumanoidRetargeterZstd.Unsafe

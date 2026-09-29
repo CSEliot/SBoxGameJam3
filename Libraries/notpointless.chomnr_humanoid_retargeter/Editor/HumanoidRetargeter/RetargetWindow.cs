@@ -7,7 +7,6 @@ using System.Linq;
 using System.Threading.Tasks;
 using Editor;
 using HumanoidRetargeter.Cleanup;
-using HumanoidRetargeter.Mapping;
 using HumanoidRetargeter.Target;
 using Sandbox;
 

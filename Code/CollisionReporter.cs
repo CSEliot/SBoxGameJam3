@@ -31,31 +31,61 @@ public sealed class CollisionReporter : Component, Component.ITriggerListener
 	public Action<Collider> OnTriggerEnterCallback;
 	public Action<Collider> OnTriggerStayCallback;
 	public Action<Collider> OnTriggerExitCallback;
-
+	
+	[Property] private TagSet _TagsWhiteList { get; set; }
+	[Property] private float _OnStayExpiration { get; set; }
+	
 	public List<Collider> TriggeredColliders { get; private set; } = new();
+	public List<float> TriggeredCollidersLifetime { get; private set; } = new();
 
 	public void OnTriggerExit( Collider other )
 	{
 		OnTriggerExitCallback?.Invoke(other);
-		TriggeredColliders.Remove(other);
+		int indexOf = TriggeredColliders.IndexOf(other);
+		if ( indexOf >= 0 )
+		{
+			TriggeredColliders.RemoveAt( indexOf );
+			TriggeredCollidersLifetime.RemoveAt( indexOf );
+		}
 	}
 	
 	public void OnTriggerEnter( Collider other )
 	{
 		TriggeredColliders.Add(other);
+		TriggeredCollidersLifetime.Add(0);
 		OnTriggerEnterCallback?.Invoke(other);
 	}
 
 	protected override void OnFixedUpdate()
 	{
 		OnTriggerStay();
+		for ( int x = 0; x < TriggeredColliders.Count; x++ )
+		{
+			TriggeredCollidersLifetime[x] += Time.Delta;
+			if ( TriggeredCollidersLifetime[x] > _OnStayExpiration )
+			{
+				TriggeredCollidersLifetime.RemoveAt( x );
+				TriggeredColliders.RemoveAt( x );
+				x--;
+			}
+		}
 	}
 	public void OnTriggerStay( )
 	{
 		foreach ( var collider in TriggeredColliders )
 		{
-			if(collider.GameObject.Name.Contains("floor") == false)
+			if ( _TagsWhiteList.GetTokens().Count == 0 )
+			{
 				OnTriggerStayCallback?.Invoke(collider);
+			}
+			else
+			{
+				foreach ( string tag in collider.GameObject.Tags )
+				{
+					if(_TagsWhiteList.Contains(tag))
+						OnTriggerStayCallback?.Invoke(collider);
+				}
+			}
 		}
 	}
 	

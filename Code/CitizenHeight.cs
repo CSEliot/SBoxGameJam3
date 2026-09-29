@@ -155,8 +155,10 @@ public sealed class CitizenHeight : Component
 
 		// While ragdolled, ModelPhysics writes every physics bone from its bodies. Our table covers
 		// almost all of those bones, so writing here would pull the ragdoll off its bodies.
+		// Partial ragdoll bones (RagdollBone) drive their overrides from bodies too, and the
+		// partial overrides are not cleared when Mode goes back to None.
 		bool ragdollOwnsPose = _ragdoll.IsValid() && _ragdoll.Renderer == _Renderer
-			&& (_ragdoll.Mode != RagdollMode.None || _ragdoll.IsLerping);
+			&& (_ragdoll.Mode != RagdollMode.None || _ragdoll.IsLerping || _ragdoll.PartialRagdollOverrides.Count > 0);
 
 		if ( ragdollOwnsPose || (halfWeight <= 0f && twiceWeight <= 0f) || !SkeletonMatches() )
 		{
@@ -171,7 +173,11 @@ public sealed class CitizenHeight : Component
 		for ( int i = 0; i < _table.Length; i++ )
 		{
 			if ( !_Renderer.TryGetBoneTransformAnimation( _modelBones[i], out var world ) || !world.IsValid )
+			{
+				// Don't leave last frame's overrides frozen on the body.
+				StopWritingOverrides();
 				return;
+			}
 
 			_animPose[i] = modelTransform.ToLocal( world );
 		}

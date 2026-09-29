@@ -7,7 +7,7 @@
     "Position": "0,0,0",
     "Rotation": "0,0,0,1",
     "Scale": "1,1,1",
-    "Tags": "cc_body,player",
+    "Tags": "cc_body,player,knockdowner",
     "Enabled": true,
     "NetworkMode": 1,
     "NetworkFlags": 0,
@@ -382,7 +382,7 @@
               "Blending": true
             },
             "Tint": "1,1,1,1",
-            "UseAnimGraph": true
+            "UseAnimGraph": false
           },
           {
             "__type": "ShrimpleRagdolls.ShrimpleRagdoll",
@@ -487,7 +487,7 @@
             },
             "Clothing": [],
             "ManualAge": 0,
-            "ManualHeight": 0,
+            "ManualHeight": 0.0040983604,
             "ManualTint": 0.30515465,
             "OnComponentDestroy": null,
             "OnComponentDisabled": null,
@@ -508,7 +508,7 @@
             "EyeSource": null,
             "EyesWeight": 1,
             "HeadWeight": 1,
-            "Height": 0.5,
+            "Height": null,
             "IkLeftFoot": null,
             "IkLeftHand": null,
             "IkRightFoot": null,
@@ -531,6 +531,24 @@
               "go": "1bf8ec84-d543-8336-a244-e5c5e743ff85",
               "component_type": "SkinnedModelRenderer"
             }
+          },
+          {
+            "__type": "Sandbox.CitizenHeight",
+            "__guid": "77cceb8b-577e-40c8-8d00-711847c35008",
+            "__enabled": true,
+            "Flags": 0,
+            "_Renderer": {
+              "_type": "component",
+              "component_id": "1782aee1-8527-881d-9d38-816387542f8d",
+              "go": "1bf8ec84-d543-8336-a244-e5c5e743ff85",
+              "component_type": "SkinnedModelRenderer"
+            },
+            "OnComponentDestroy": null,
+            "OnComponentDisabled": null,
+            "OnComponentEnabled": null,
+            "OnComponentFixedUpdate": null,
+            "OnComponentStart": null,
+            "OnComponentUpdate": null
           }
         ],
         "Children": [
@@ -2491,7 +2509,7 @@
                     "MaterialOverride": null,
                     "Materials": null,
                     "Model": {
-                      "Id": "b266a521-42ab-4937-a80c-ba3e762e7b52",
+                      "Id": "305ff809-0d17-47b8-81ec-3cd6f2367f39",
                       "Path": "itch/board-game-pieces/models/event-arrow.vmdl"
                     },
                     "OnComponentDestroy": null,
@@ -2519,7 +2537,7 @@
                     "Friction": null,
                     "IsTrigger": false,
                     "Model": {
-                      "Id": "b266a521-42ab-4937-a80c-ba3e762e7b52",
+                      "Id": "305ff809-0d17-47b8-81ec-3cd6f2367f39",
                       "Path": "itch/board-game-pieces/models/event-arrow.vmdl"
                     },
                     "OnComponentDestroy": null,
@@ -2666,6 +2684,8 @@
             "__guid": "2ffcaf70-64d3-4d89-b4b4-812ec722cd5a",
             "__enabled": true,
             "Flags": 0,
+            "_OnStayExpiration": 1,
+            "_TagsWhiteList": "knockdowner",
             "OnComponentDestroy": null,
             "OnComponentDisabled": null,
             "OnComponentEnabled": null,

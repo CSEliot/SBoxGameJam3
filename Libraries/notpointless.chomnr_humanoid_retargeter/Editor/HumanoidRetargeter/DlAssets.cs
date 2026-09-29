@@ -2,7 +2,6 @@
 
 using System;
 using System.IO;
-using Sandbox;
 
 namespace HumanoidRetargeter.Editor;
 

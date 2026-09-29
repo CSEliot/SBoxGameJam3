@@ -1,7 +1,7 @@
 TRODO/feedbakc:
 
-eaderboard name truncation
-the anims overrride the scaling, no short dude possible!
+leaderboard long names ... force single ling
+the anims overrride the scaling, no short dude possible! (FIXED 09-27: Code/CitizenHeight.cs on the body, height via Dresser ManualHeight)
 lkook at tariqs critiqweu of hot to play.
 ask for feedback in main menu and end game sequence.
 client players are not getting put into the minigame.
