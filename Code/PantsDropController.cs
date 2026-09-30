@@ -71,9 +71,10 @@ public sealed class PantsDropController : Component, Component.ExecuteInEditor
 
 	/// <summary>
 	/// Substring identifying the forced pants garment among clothing children
-	/// (asset path: models/citizen_clothes/trousers/trackiebottoms/...).
+	/// (model path: clothing/trackie_bottoms/trackie_bottoms_black.vmdl; also matches
+	/// the stock models/citizen_clothes/trousers/trackiebottoms/models/trackie_bottoms_black.vmdl).
 	/// </summary>
-	[Property] private string _PantsModelMatch { get; set; } = "trackiebottoms";
+	[Property] private string _PantsModelMatch { get; set; } = "trackie_bottoms";
 
 	/// <summary>
 	/// Substring identifying the underwear garment among clothing children
