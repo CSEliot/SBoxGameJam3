@@ -1155,6 +1155,9 @@ public sealed class DrunkCC : Component
 		// against real collision geometry - the navmesh can sit above or below the floor.
 		rb.WorldPosition = SnapRecoveryToFloorHelper( SnapRecoveryToNavMeshHelper( _knockdownRestorePosition ) );
 		rb.WorldRotation = Rotation.LookAt( _knockdownHeading.Normal, Vector3.Up );
+		// The recovery rewind is a teleport: without clearing interpolation, remote clients
+		// smoothly slide the body across the map instead of snapping it to the new point.
+		GameObject.Transform.ClearInterpolation();
 		rb.Velocity = Vector3.Zero;
 		rb.AngularVelocity = Vector3.Zero;
 		CurrentState = State.Running;

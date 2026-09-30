@@ -126,45 +126,110 @@ public sealed class Bar : Component, Component.ITriggerListener
 
 		// Dress the drinker in the sitting player's account clothing. Runs on every client
 		// since this whole method is [Rpc.Broadcast]. Drinkers aren't tied to one player, so
-		// this gets undone again in SitUpPlayer.
+		// this gets undone again in ApplySitUpPlayer.
 		DressDrinkerHelper( availableDrinker, playerConnection );
 		
 		if ( playerConnection == Connection.Local )
 		{
 			drinkerCam.Enabled = true;
+			// Disable the chase camera at the exact moment the bar camera goes live.
+			// GameManager used to switch it off when starting the minigame, but seat
+			// selection is [Rpc.Host], so on a joining client this broadcast (and with
+			// it the bar camera) lands a host round trip later; disabling the chase
+			// camera earlier left that client with no enabled camera in the gap.
+			var chaseCamera = Scene.FindAllWithTagOrigin( "cccamera" ).FirstOrDefault();
+			if ( chaseCamera is not null && chaseCamera.IsValid() )
+				chaseCamera.Enabled = false;
+			else
+				Log.Warning( "ApplySitDownPlayer: chase camera (tag 'cccamera') not found; it stays enabled and shows the frozen body while seated." );
 			minigame.BeerSpawnLocation = drinkerBeerSpawnLocation.WorldPosition;
 		}
 	}
 	
-	[Rpc.Broadcast]
+	/// <summary>
+	/// Local decision half of standing up: resolves the drinker index from THIS client's
+	/// seat table and broadcasts it, mirroring how SitDownPlayer resolves the seat on the
+	/// host and broadcasts ApplySitDownPlayer. A late joiner never received an
+	/// ApplySitDownPlayer for someone else's seat, so a receiver-side lookup of the
+	/// connection (the old [Rpc.Broadcast] SitUpPlayer) would return early on that client
+	/// and leave an enabled ghost drinker; letting the seated player's own client - which
+	/// always has its entry - decide the index fixes that.
+	/// </summary>
 	public void SitUpPlayer( Connection playerConnection )
 	{
-		// Get next available drinker
+		if ( playerConnection is null )
+		{
+			Log.Warning( "SitUpPlayer called with a null connection; ignoring." );
+			return;
+		}
+
 		if ( _connectionToPatronIndex.TryGetValue( playerConnection.Id, out int exitingDrinkerIndex ) == false )
 		{
 			Log.Warning( "SitUpPlayer called for a connection that isn't seated at this bar; ignoring." );
 			return;
 		}
-		var exitingDrinker = _Drinkers[exitingDrinkerIndex];
 
-		if ( exitingDrinker == null )
+		ApplySitUpPlayer( playerConnection.Id, exitingDrinkerIndex );
+	}
+
+	/// <summary>
+	/// Applies a stand-up on every client. Takes the seat index and connection id as plain
+	/// values (a Guid always deserializes, while a Connection argument deserializes to null
+	/// on a receiver that doesn't know that connection). The leaving connection's own seat
+	/// entry is ALWAYS dropped - it is standing up from this bar, so any entry it still has
+	/// here is stale. That is not cosmetic: this broadcast is sent by the standing player's
+	/// own client while ApplySitDownPlayer is broadcast by the host, and the two take
+	/// different routing paths through the host, so a receiver can see the sit-down for the
+	/// freed seat arrive BEFORE this stand-up. Returning early on that ordering would strand
+	/// the leaving connection's stale entry, and every later stand-up for that seat would
+	/// then hit that entry, skip undressing the drinker, and leave a permanently enabled
+	/// ghost. If this receiver maps a DIFFERENT connection to the same seat, someone else
+	/// sits there as far as this client is concerned, so only the DRINKER is left alone
+	/// (undress, barcam, disable are skipped) rather than kicked off.
+	/// </summary>
+	[Rpc.Broadcast]
+	private void ApplySitUpPlayer( Guid playerConnectionId, int drinkerIndex )
+	{
+		if ( _Drinkers is null || drinkerIndex < 0 || drinkerIndex >= _Drinkers.Length )
+		{
+			Log.Warning( $"ApplySitUpPlayer: drinker index {drinkerIndex} is out of range; ignoring." );
+			return;
+		}
+
+		var exitingDrinker = _Drinkers[drinkerIndex];
+		if ( exitingDrinker == null || !exitingDrinker.IsValid() )
 		{
 			Log.Error( "Exiting Drinker not found! Guid issue?" );
 			return;
 		}
 
-		// Only decrement once we know this connection really held a seat here.
-		
-		var drinkerCam = exitingDrinker.GetTagInChildren( "barcam" ).First();
+		// Detect (without mutating) whether another connection is mapped to this seat on
+		// this client; see the summary for why the leaving entry is removed regardless.
+		bool seatTakenByOther = false;
+		foreach ( var (otherConnectionId, otherDrinkerIndex) in _connectionToPatronIndex )
+		{
+			if ( otherDrinkerIndex == drinkerIndex && otherConnectionId != playerConnectionId )
+			{
+				seatTakenByOther = true;
+				break;
+			}
+		}
 
-		_connectionToPatronIndex.Remove( playerConnection.Id );
+		if ( _connectionToPatronIndex.ContainsKey( playerConnectionId ) )
+			_connectionToPatronIndex.Remove( playerConnectionId );
 
-		// Undo the account clothing applied in SitDownPlayer so the drinker goes back to
+		if ( seatTakenByOther )
+			return;
+
+		// Undo the account clothing applied in ApplySitDownPlayer so the drinker goes back to
 		// its own default outfit before it's handed to the next player.
 		UndressDrinkerHelper( exitingDrinker );
-		
-		if ( playerConnection == Connection.Local )
+
+		// Only the standing player's own client needs to switch the seat camera off;
+		// on other clients the barcam is already effectively unused.
+		if ( playerConnectionId == Connection.Local.Id )
 		{
+			var drinkerCam = exitingDrinker.GetTagInChildren( "barcam" ).First();
 			drinkerCam.Enabled = false;
 		}
 		exitingDrinker.Enabled = false;

@@ -389,7 +389,9 @@ public sealed class GameManager : Component, Component.INetworkListener
 		_LocalDrunkCC.CanBeKnockedDown = true;
 		_Bars[targetBar].SitDownPlayer( Connection.Local, _minigameController );
 		_minigameController.Begin();
-		_CCCamera.Enabled = false;
+		// Bar.ApplySitDownPlayer disables the chase camera when the bar camera goes live -
+		// disabling it here left joined clients with no enabled camera during the host
+		// round trip ([Rpc.Host] SitDownPlayer only runs its body on the host).
 		_LocalPlayer.Enabled = false; //todo: is this networked? -ecs
 		_AudioController.State = AudioController.MusicState.PubNoise;
 		return true;
@@ -400,7 +402,8 @@ public sealed class GameManager : Component, Component.INetworkListener
 		_Bars[targetBar].SitUpPlayer( Connection.Local);
 		_LocalDrunkCC.BeerLevel += _minigameController.Beers;
 		_CCCamera.Enabled = true;
-		_CCCamera.WorldPosition = _Bars[targetBar].ActiveBarModule.SpawnPoint.WorldPosition;
+		// No camera placement here: OnUpdate calls ResetPlayerHelper(barSpawn, true) right
+		// after this returns, and that snaps the camera behind the respawned player.
 
 		// Score & Timer Architecture - v0 plan, section 3: AddTime must run BEFORE the
 		// state flips back to PubCrawling/ResumeTimer, or the first tick of the resumed
@@ -557,8 +560,12 @@ public sealed class GameManager : Component, Component.INetworkListener
 		_LocalDrunkCC?.InvalidateRecoveryStateHelper();
 		_LocalPlayer.WorldPosition = spawnLocation.WorldPosition;
 		_LocalPlayer.WorldRotation = spawnRotation; //todo: ASAP is this fix?!
-		_CCCamera.WorldPosition = spawnLocation.WorldPosition;
-		_CCCamera.WorldRotation = spawnRotation;
+		// Snap other clients off interpolation so this teleport lands instantly instead of
+		// the remote body sliding across the map (the flag rides the next network snapshot).
+		_LocalPlayer.Transform.ClearInterpolation();
+		// Respawn puts the camera behind the player's NEW transform, not on the player
+		// origin (that left it inside _MinDistance in front of FOLLOW_ME).
+		_CCCamera.GetComponent<CCCamera>( true )?.SnapBehindTarget();
 		_LocalPlayerRigidbody.Velocity = Vector3.Zero;
 		_LocalPlayerRigidbody.AngularVelocity = Vector3.Zero;
 		_LocalPlayerRigidbody.Sleeping = true;

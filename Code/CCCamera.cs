@@ -284,7 +284,10 @@ public sealed class CCCamera : Component
 
 		HandleAlternatesHelper();
 		
-		if ( Input.Pressed( "Left" ) && Input.Pressed( "Right" ))
+		// Either key alone restarts the jerk ease: with && the timer only reset when the
+		// player pressed Left and Right on the same frame, so the ease saturated and never
+		// re-ran on normal play.
+		if ( Input.Pressed( "Left" ) || Input.Pressed( "Right" ))
 		{
 			_startJerkTime = Time.Now;
 		}
@@ -345,6 +348,64 @@ public sealed class CCCamera : Component
 			UpdateObstructionFadeTriangles( _FollowTarget );
 		else
 			UpdateObstructionFade( _FollowTarget );
+	}
+
+	/// <summary>
+	/// Teleports the camera to a dead-behind rest pose relative to the follow target.
+	/// Why this exists: the respawn paths (GameManager.ResetPlayerHelper / EndMiniGameHelper)
+	/// used to write the camera node's WorldPosition straight onto the player spawn origin.
+	/// The scene overrides _Offset to "0,0,0" (minimal.scene), so the camera landed at the
+	/// body origin, ~150u IN FRONT of FOLLOW_ME (the player prefab's follow-target sits at
+	/// -118,0,+92 local), i.e. inside _MinDistance (150): EnforceMinDistance pushed the
+	/// camera back out along its CURRENT direction (the wrong, front-side one) and
+	/// EnforceBehindCap had to slowly swing it around, so every respawn started with the
+	/// camera facing the player's face. With the scene's zeroed _Offset this snaps the
+	/// camera directly behind the target at MathF.Max( _MinDistance, 1f ), so
+	/// EnforceMinDistance leaves it alone on the first frame (a non-zero _Offset is
+	/// world-space and shifts this rest pose off dead-behind); height is 0 because
+	/// FOLLOW_ME already sits ~92u above the body origin, which
+	/// keeps the view looking down at the player and matches the steady-state chase pose
+	/// (follow lerp toward target+_Offset, min-distance pushout to a horizontal 150 arm).
+	/// Uses the PRIMARY (non-alt) targets: every respawn returns the body to Running and
+	/// DrunkCC.OnUpdate switches the camera back to them on the next frame; the alt target
+	/// is the ragdoll pelvis, whose rotation would give a wrong heading. HandleAlternatesHelper
+	/// parks the primary targets in the backup fields while an alt swap is live, so the
+	/// backups are the ones to use when non-null. Fail-open no-op when the follow target
+	/// cannot be resolved.
+	/// </summary>
+	public void SnapBehindTarget()
+	{
+		if ( TryResolveGetTargetFollowHelper() == false )
+			return;
+
+		var followTarget = _followTargetBackup ?? _FollowTarget;
+		if ( followTarget is null || followTarget.IsValid() == false )
+			return;
+
+		// Flat heading from the target's forward, same yaw-plane convention the behind-cap
+		// uses; a vertical/degenerate forward (or unrotated body mid-setup) falls back to
+		// Vector3.Forward rather than snapping to NaN.
+		var heading = followTarget.WorldRotation.Forward.WithZ( 0f );
+		if ( heading.LengthSquared < 0.0001f )
+			heading = Vector3.Forward;
+		else
+			heading = heading.Normal;
+
+		var dist = MathF.Max( _MinDistance, 1f );
+		const float height = 0f;
+		WorldPosition = followTarget.WorldPosition + _Offset - heading * dist + Vector3.Up * height;
+
+		if ( _LookAt )
+		{
+			var lookTarget = _lookAtTargetBackup ?? _LookAtTarget;
+			if ( lookTarget is not null && lookTarget.IsValid() )
+				WorldRotation = Rotation.LookAt( lookTarget.WorldPosition - WorldPosition );
+		}
+
+		// The snap puts the camera dead-center behind, so restart the squeeze tracker
+		// from rest; a stale shrunken cap would fight the next frames for no reason.
+		_timeOffCenter = 0f;
+		_currentBehindCap = _MaxDefaultBehindCap;
 	}
 
 	/// <summary>
