@@ -64,7 +64,7 @@
 				<div class="title">Speedrun Debauchery</div>
 
 				<div class="buttons">
-					<div class="button play" onmousedown=@( ( PanelEvent e ) => PlayPressed( e ) ) onclick=@PlayClicked>PLAY</div>
+					<div class="button play" onmousedown=@( ( PanelEvent e ) => PlayPressed( e ) ) onclick=@PlayClicked>@( IsSearchingForLobby ? "SEARCHING..." : "PLAY" )</div>
 					<div class="button settings" onclick=@SettingsClicked>SETTINGS</div>
 					<div class="button howtoplay" onclick=@HowToPlayClicked>HOW TO PLAY</div>
 					<div class="button credits" onclick=@CreditsClicked>CREDITS</div>
@@ -211,6 +211,10 @@
 	private bool Visible => _GameManager is not null &&
 		_GameManager.GetLocalGameState() == GameManager.LocalGameState.InMainMenu;
 
+	/// <summary>PLAY is off finding/joining a lobby (GameManager.IsSearchingForLobby): the
+	/// button reads SEARCHING... and ignores clicks until it lands.</summary>
+	private bool IsSearchingForLobby => _GameManager?.IsSearchingForLobby ?? false;
+
 	private Sandbox.Services.Leaderboards.Board2 _leaderboard;
 	private bool _leaderboardLoaded;
 	private int _refreshKey;
@@ -288,7 +292,7 @@
 		if ( e is not MousePanelEvent mpe || mpe.MouseButton != MouseButtons.Left )
 			return;
 
-		if ( !Visible )
+		if ( !Visible || IsSearchingForLobby )
 			return;
 
 		AudioController.Instance?.PlayPressPlay();
@@ -296,7 +300,7 @@
 
 	private void PlayClicked()
 	{
-		if ( !Visible )
+		if ( !Visible || IsSearchingForLobby )
 			return;
 
 		_GameManager.StartGame();
@@ -357,5 +361,5 @@
 		Game.Close();
 	}
 
-	protected override int BuildHash() => HashCode.Combine( Visible, ShowCredits, ShowHowToPlay, CurrentPage, _refreshKey );
+	protected override int BuildHash() => HashCode.Combine( Visible, ShowCredits, ShowHowToPlay, CurrentPage, _refreshKey, IsSearchingForLobby );
 }

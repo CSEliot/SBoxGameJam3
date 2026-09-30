@@ -84,7 +84,7 @@
 					</div>
 
 					<div class="buttons">
-						<div class="button try-again" onclick=@TryAgainClicked>TRY AGAIN</div>
+						<div class="button try-again" onclick=@TryAgainClicked>@( IsSearchingForLobby ? "SEARCHING..." : "TRY AGAIN" )</div>
 						<div class="button quit" onclick=@QuitClicked>QUIT</div>
 					</div>
 				</div>
@@ -160,6 +160,9 @@
 
 	private void TryAgainClicked()
 	{
+		if ( IsSearchingForLobby )
+			return;
+
 		AudioController.Instance?.PlayUIInteract();
 		OnTryAgain?.Invoke();
 	}
@@ -195,6 +198,10 @@
 
 	/// <summary>Shown once the local run has Ended (timeout/score-wipe or cash-in).</summary>
 	private bool Visible => _progress?.RunState == PlayerProgress.RunStateEnum.Ended;
+
+	/// <summary>TRY AGAIN is off finding/joining a lobby (GameManager.IsSearchingForLobby): the
+	/// button reads SEARCHING... and ignores clicks until it lands.</summary>
+	private bool IsSearchingForLobby => _GameManager?.IsSearchingForLobby ?? false;
 
 	/// <summary>Design Screen 4: "GAME OVER" on timeout, "YOU CASHED IN" on voluntary cash-in.</summary>
 	private string TitleText => ( _progress?.EndedByCashOut ?? false ) ? "YOU CASHED IN" : "GAME OVER";
@@ -327,6 +334,6 @@
 	// while this screen is up, without fighting input on every frame. Constant hash while
 	// hidden so the idle panel stays put.
 	protected override int BuildHash() => Visible
-		? HashCode.Combine( Visible, _refreshKey, (int)RealTime.Now )
+		? HashCode.Combine( Visible, _refreshKey, (int)RealTime.Now, IsSearchingForLobby )
 		: HashCode.Combine( Visible );
 }
