@@ -485,10 +485,17 @@
               "go": "1bf8ec84-d543-8336-a244-e5c5e743ff85",
               "component_type": "SkinnedModelRenderer"
             },
+            "ChestSize": 0.5,
+            "ChinSize": 0,
             "Clothing": [],
+            "EyeAlign": 0.5,
+            "EyeColor": 0,
+            "HeadShape": 0.5,
             "ManualAge": 0,
             "ManualHeight": 0.0040983604,
             "ManualTint": 0.30515465,
+            "NeckSize": 0,
+            "NoseSize": 0,
             "OnComponentDestroy": null,
             "OnComponentDisabled": null,
             "OnComponentEnabled": null,
@@ -497,6 +504,7 @@
             "OnComponentUpdate": null,
             "RemoveUnownedItems": true,
             "Source": "Manual",
+            "WaistSize": 0.5,
             "WorkshopItems": []
           },
           {
@@ -2509,7 +2517,7 @@
                     "MaterialOverride": null,
                     "Materials": null,
                     "Model": {
-                      "Id": "305ff809-0d17-47b8-81ec-3cd6f2367f39",
+                      "Id": "31b2af35-7c37-48e8-918a-60135e6b0ea6",
                       "Path": "itch/board-game-pieces/models/event-arrow.vmdl"
                     },
                     "OnComponentDestroy": null,
@@ -2537,7 +2545,7 @@
                     "Friction": null,
                     "IsTrigger": false,
                     "Model": {
-                      "Id": "305ff809-0d17-47b8-81ec-3cd6f2367f39",
+                      "Id": "31b2af35-7c37-48e8-918a-60135e6b0ea6",
                       "Path": "itch/board-game-pieces/models/event-arrow.vmdl"
                     },
                     "OnComponentDestroy": null,
@@ -2615,7 +2623,7 @@
         "__version": 2,
         "Flags": 0,
         "Name": "CollisionForWalls",
-        "Position": "17.7708626,0,45",
+        "Position": "17.7708626,0,9.44430542",
         "Rotation": "0,0,0,1",
         "Scale": "1,1,1",
         "Tags": "",
@@ -2658,7 +2666,7 @@
             "__guid": "50497146-e6e4-4e5a-8a12-3b6ff91da1e3",
             "__enabled": true,
             "Flags": 0,
-            "Center": "-3.06772208,0,0",
+            "Center": "-3.06772208,0,12.5390615",
             "ColliderFlags": 0,
             "Elasticity": null,
             "Friction": null,
@@ -2674,7 +2682,7 @@
             "OnTriggerEnter": null,
             "OnTriggerExit": null,
             "RollingResistance": null,
-            "Scale": "3.86455584,20,20",
+            "Scale": "3.86455584,20,40.2382812",
             "Static": false,
             "Surface": null,
             "SurfaceVelocity": "0,0,0"
