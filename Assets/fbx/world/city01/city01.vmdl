@@ -871,7 +871,7 @@
 							},
 							{
 								from = "billboard_mat.vmat"
-								to = "billboard_mat.vmat"
+								to = "fbx/world/city01/textures/billboardads.vmat"
 							},
 							{
 								from = "polygoncity_glass_mat.vmat"
