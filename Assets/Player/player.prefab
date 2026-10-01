@@ -212,7 +212,7 @@
         "_DropDistance": 37.51445,
         "_DropDownSpeed": 5,
         "_DropUpSpeed": 5,
-        "_PantsModelMatch": "trackiebottoms",
+        "_PantsModelMatch": "trackie_bottoms",
         "_PelvisBoneName": "pelvis",
         "_ShaderInEditor": false,
         "_UnderwearModelMatch": "boxers",

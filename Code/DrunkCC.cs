@@ -1418,7 +1418,7 @@ public sealed class DrunkCC : Component
 		// and conflicts with the boxers/trackies loses to them; cross-layer pairs (boxers
 		// Under vs trackies Over) never conflict by design. Without this step the body
 		// would lose both garments - PantsDropController matches them by model-path
-		// substring ("trackiebottoms"/"boxers") and idles out when they're absent.
+		// substring ("trackie_bottoms"/"boxers") and idles out when they're absent.
 		foreach ( var path in ForcedGarmentPaths )
 		{
 			var presetEntry = dresser.Clothing?.FirstOrDefault( e =>
