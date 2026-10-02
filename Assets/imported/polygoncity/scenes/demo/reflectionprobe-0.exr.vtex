@@ -1,0 +1,10 @@
+{
+  "Images": [
+    "imported/polygoncity/scenes/demo/reflectionprobe-0.exr"
+  ],
+  "InputColorSpace": "Linear",
+  "OutputColorSpace": "Linear",
+  "OutputFormat": "RGBA16161616F",
+  "OutputMipAlgorithm": "Box",
+  "OutputTypeString": "2D"
+}

@@ -1,0 +1,29 @@
+// THIS FILE IS AUTO-GENERATED
+
+Layer0
+{
+	shader "shaders/glass.shader"
+
+	//---- Blending ----
+	F_ADDITIVE_BLEND 1
+
+	//---- Glass ----
+	F_GLASS_QUALITY 1 // Simple Glass ( Faster To Render )
+
+	//---- Fog ----
+	g_bFogEnabled "1"
+
+	//---- Glass ----
+	g_flRefractionStrength "1.005"
+
+	//---- Material ----
+	g_flTintColor "[1.000000 1.000000 1.000000 0.000000]"
+	TextureAmbientOcclusion "[1.000000 1.000000 1.000000 0.000000]"
+	TextureBlendMask "[1.000000 1.000000 1.000000 0.000000]"
+	TextureColor "[0.285075 0.435294 0.391358 0.435294]"
+	TextureMetalness "[0.000000 0.000000 0.000000 0.000000]"
+	TextureNormal "imported/polygoncity/textures/polygoncity_texture_normal.png"
+	TextureRoughness "[0.500000 0.500000 0.500000 0.000000]"
+	TextureTintMask "[1.000000 1.000000 1.000000 0.000000]"
+	TextureTranslucency "[0.435294 0.435294 0.435294 0.000000]"
+}

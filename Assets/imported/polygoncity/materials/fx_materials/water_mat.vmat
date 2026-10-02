@@ -1,0 +1,29 @@
+// THIS FILE IS AUTO-GENERATED
+
+Layer0
+{
+	shader "shaders/glass.shader"
+
+	//---- Blending ----
+	F_ADDITIVE_BLEND 1
+
+	//---- Glass ----
+	F_GLASS_QUALITY 1 // Simple Glass ( Faster To Render )
+
+	//---- Fog ----
+	g_bFogEnabled "1"
+
+	//---- Glass ----
+	g_flRefractionStrength "1.005"
+
+	//---- Material ----
+	g_flTintColor "[1.000000 1.000000 1.000000 0.000000]"
+	TextureAmbientOcclusion "[1.000000 1.000000 1.000000 0.000000]"
+	TextureBlendMask "[1.000000 1.000000 1.000000 0.000000]"
+	TextureColor "[0.339479 0.628197 0.669118 0.207843]"
+	TextureMetalness "[0.390000 0.390000 0.390000 0.000000]"
+	TextureNormal "materials/default/default_normal.tga"
+	TextureRoughness "[0.620000 0.620000 0.620000 0.000000]"
+	TextureTintMask "[1.000000 1.000000 1.000000 0.000000]"
+	TextureTranslucency "[0.207843 0.207843 0.207843 0.000000]"
+}

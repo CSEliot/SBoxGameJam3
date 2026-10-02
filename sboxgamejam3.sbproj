@@ -17,6 +17,12 @@
       "Gamepad": false
     },
     "StartupScene": "scenes/minimal.scene",
-    "LaunchMode": "QuickPlay"
+    "LaunchMode": "QuickPlay",
+    "MinPlayers": 1,
+    "MaxPlayers": 64,
+    "RecommendedMinPlayers": 1,
+    "RecommendedMaxPlayers": 0,
+    "Coop": true,
+    "Versus": true
   }
 }

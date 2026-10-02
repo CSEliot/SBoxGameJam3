@@ -103,7 +103,7 @@ public sealed class GameManager : Component, Component.INetworkListener
 	[Property] private GameObject _PlayerPrefab { get; set; }
 	[Property] private GameObject _CameraRotator { get; set; }
 	[Property] private GameObject _DefaultSpawnLocation { get; set; }
-	[Property] private GameObject _CityMesh { get; set; }
+	// [Property] private GameObject _CityMesh { get; set; }
 	[Property] private GameObject _Dome { get; set; }
 	
 	[Property, ReadOnly] private GameObject _CCCamera { get; set; } = null;
@@ -910,7 +910,7 @@ public sealed class GameManager : Component, Component.INetworkListener
 		_startGameCalled = true;
 		_CameraRotator.Enabled = false;
 		_Dome.Enabled = true;
-		_CityMesh.Enabled = true;
+		// _CityMesh.Enabled = true;
 		
 		if ( ResolveLocalPlayerHelper() == false )
 		{

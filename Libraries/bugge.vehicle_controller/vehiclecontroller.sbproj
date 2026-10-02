@@ -1,0 +1,14 @@
+{
+  "Title": "Vehicle Controller",
+  "Type": "library",
+  "Org": "bugge",
+  "Ident": "vehicle_controller",
+  "Schema": 1,
+  "IncludeSourceFiles": false,
+  "Resources": null,
+  "PackageReferences": [],
+  "EditorReferences": null,
+  "Mounts": null,
+  "IsStandaloneOnly": false,
+  "Metadata": {}
+}
