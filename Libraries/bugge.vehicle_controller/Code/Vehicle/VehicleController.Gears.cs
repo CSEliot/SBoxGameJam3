@@ -52,7 +52,7 @@ partial class VehicleController : Component
 
 	private void SwitchGear()
 	{
-		if ( Gear_AutoSwitchToReverse )
+		if ( Gear_AutoSwitchToReverse || UseExternalInput )
 		{
 			Gear_Current = GetGearFromInput();
 			return;
