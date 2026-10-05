@@ -15,10 +15,11 @@ using System.Collections.Generic;
 namespace Sandbox;
 
 /// <summary>
-/// Hand-off point for <see cref="AICarDriver"/> telemetry files. Every file is written to
-/// FileSystem.Data (always works, even in a published game) and queued in memory for the editor
-/// exporter (Editor/AICarTelemetryExporter.cs), which copies queued files out of the sandbox into
-/// the telemetry git worktree. Paths are relative, forward-slashed, and the latest text wins.
+/// Hand-off point for <see cref="AICarDriver"/> telemetry files and the live tuning channel.
+/// Every file is written to FileSystem.Data (always works, even in a published game) and queued
+/// in memory for the editor exporter (Editor/AICarTelemetryExporter.cs), which copies queued files
+/// out of the sandbox into PROJECT/.aicar-telemetry/. Paths are relative, forward-slashed, and the
+/// latest text wins.
 /// </summary>
 public static class AICarTelemetrySink
 {
@@ -28,10 +29,37 @@ public static class AICarTelemetrySink
 	/// <summary>Increments on every <see cref="Put"/>; lets the exporter notice new data cheaply.</summary>
 	public static int Version { get; private set; }
 
+	/// <summary>
+	/// Tuning JSON text relayed from PROJECT/.aicar-telemetry/tuning.json by the editor exporter
+	/// (null = no tuning file). <see cref="AICarDriver.TuningTickHelper"/> applies it live; see
+	/// AI-Car-Feedback-Loop.md for the file format.
+	/// </summary>
+	public static string TuningJson { get; private set; }
+
+	/// <summary>Increments whenever <see cref="TuningJson"/> text changes (0 = no change seen yet).</summary>
+	public static int TuningVersion { get; private set; }
+
+	/// <summary>
+	/// Editor-only: sets the live tuning JSON from the tuning file, or null when the file is deleted.
+	/// No-op when the text is identical to what is already set (null == null counts as identical).
+	/// </summary>
+	public static void SetTuning( string json )
+	{
+		if ( json == TuningJson ) return;
+		TuningJson = json;
+		TuningVersion++;
+	}
+
 	public static void Put( string relativePath, string text )
 	{
-		_pending[relativePath] = text;
-		Version++;
+		// Only the editor has an exporter draining the queue. Outside it (published game, standalone
+		// client) the queue would keep every closed epoch's full text forever, so write to
+		// FileSystem.Data only.
+		if ( Game.IsEditor )
+		{
+			_pending[relativePath] = text;
+			Version++;
+		}
 
 		try
 		{

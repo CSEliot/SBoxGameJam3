@@ -356,7 +356,9 @@ public sealed partial class AICarDriver : Component
 		// VehicleController off the local keyboard.
 		if ( IsProxy ) return;
 
-		ApplyDevTuningHelper();
+		// First tuning pass: applies code/file tuning over the inspector values and latches the
+		// configuration the first telemetry epoch is keyed to. Must run before TelemetryStartHelper.
+		TuningTickHelper();
 
 		_vehicle.UseExternalInput = true;
 		_stuckAnchor = WorldPosition;
@@ -391,6 +393,11 @@ public sealed partial class AICarDriver : Component
 		// Host (or solo) only: scene-placed cars are unowned, so the host simulates them.
 		if ( IsProxy ) return;
 		if ( !_vehicle.IsValid() || !_body.IsValid() ) return;
+
+		// Live loop: a tuning file or hotloaded DriverVersion change mid-play re-applies tuning and
+		// opens a new telemetry epoch. No duplicate epoch on the first tick after OnStart: the
+		// epoch already carries this exact key, so TelemetryNewEpochHelper no-ops.
+		if ( TuningTickHelper() ) TelemetryNewEpochHelper();
 
 		EnsureEngineRunningHelper();
 

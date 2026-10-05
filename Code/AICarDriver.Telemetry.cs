@@ -18,11 +18,13 @@ using System.Text;
 namespace Sandbox;
 
 /// <summary>
-/// Play-session telemetry for <see cref="AICarDriver"/>: a 2 Hz sample stream, an event log with
-/// world context for every incident (blocks, reverses, collisions, teleports, flips), per-leg
-/// results and run totals. Each car's files are handed to <see cref="AICarTelemetrySink"/>, which
-/// writes them to FileSystem.Data and lets the editor exporter (Editor/AICarTelemetryExporter.cs)
-/// copy them out of the sandbox and push them for offline analysis. See AI-Car-Feedback-Loop.md.
+/// Play-session telemetry for <see cref="AICarDriver"/>: a sample stream, an event log with world
+/// context for every incident (blocks, reverses, collisions, teleports, flips), per-leg results and
+/// run totals, segmented into EPOCHS, one per distinct (DriverVersion, tuning) configuration, so a
+/// local LLM agent can compare before/after inside ONE continuous play session (the live feedback
+/// loop never stops the game). Each car's files are handed to <see cref="AICarTelemetrySink"/>,
+/// which writes them to FileSystem.Data and lets the editor exporter (Editor/AICarTelemetryExporter.cs)
+/// mirror them to PROJECT/.aicar-telemetry/ while play runs. See AI-Car-Feedback-Loop.md.
 /// </summary>
 public sealed partial class AICarDriver : Component.ICollisionListener
 {
@@ -40,8 +42,8 @@ public sealed partial class AICarDriver : Component.ICollisionListener
 	/// <summary>Samples per second written to samples.csv.</summary>
 	[Property, Group( "Telemetry" ), Range( 1f, 20f )] public float TelemetrySampleRate { get; set; } = 2f;
 
-	/// <summary>Seconds between snapshots handed to the sink, so a crash or a missed OnDestroy loses little.</summary>
-	[Property, Group( "Telemetry" )] public float TelemetryFlushInterval { get; set; } = 10f;
+	/// <summary>Seconds between snapshots handed to the sink; the live agent polls these files during play.</summary>
+	[Property, Group( "Telemetry" )] public float TelemetryFlushInterval { get; set; } = 5f;
 
 	/// <summary>
 	/// Extra copies of this car spawned at random navmesh spots when play starts (only the first
@@ -55,7 +57,7 @@ public sealed partial class AICarDriver : Component.ICollisionListener
 	/// </summary>
 	[Property, Group( "Telemetry" )] public bool UseDevTuning { get; set; } = true;
 
-	// ------------------------------------------------------------------ Telemetry internals
+	// ------------------------------------------------------------------ Telemetry internals (session-wide)
 
 	private static Scene _sessionScene;
 	private static string _sessionId = "";
@@ -70,35 +72,9 @@ public sealed partial class AICarDriver : Component.ICollisionListener
 	private TimeSince _sinceTelemetryStart;
 	private TimeSince _sinceSample;
 	private TimeSince _sinceFlush;
-	private readonly StringBuilder _samples = new();
-	private readonly StringBuilder _events = new();
-	private int _sampleCount;
-	private int _eventCount;
-
-	// Totals.
-	private float _distanceDriven;
 	private Vector3 _lastTelemetryPosition;
-	private readonly Dictionary<DriveState, float> _stateTime = new();
-	private readonly Dictionary<string, int> _counters = new();
-	private float _offNavTime;
-	private float _flippedTime;
-	private float _maxImpactSpeed;
-	private int _steerSignFlips;
-	private float _lastSteerSign;
-	private float _speedSum;
-	private int _speedSamples;
 
-	// Current leg (destination).
-	private bool _legActive;
-	private float _legStartTime;
-	private float _legPlannedLength;
-	private float _legDriven;
-	private int _legReverses;
-	private int _legCollisions;
-	private readonly StringBuilder _legs = new();
-	private int _legCount;
-
-	// Episodes.
+	// Episode continuity (not totals): these latch across epoch splits on purpose.
 	private bool _flipped;
 	private TimeSince _sinceUpright;
 	private bool _offNav;
@@ -106,7 +82,60 @@ public sealed partial class AICarDriver : Component.ICollisionListener
 	private TimeSince _sinceNavCheck = 10f;
 	private TimeSince _sinceCollisionEvent = 10f;
 
+	// Epoch accumulator. All counters/buffers below are scoped to the OPEN epoch; closed epochs
+	// keep only their compact epochs.csv row, so memory stays bounded over multi-hour sessions.
+	// NOTE: hotload leaves these default(T) on live instances - every use null-checks / lazily
+	// re-initializes (see TelemetryTickHelper and CloseEpochHelper).
+	private Epoch _epoch;
+	private List<string> _epochRows;            // finalized csv rows of closed epochs, in order
+	private string _lastEpochSummary = "";      // one-line summary of the most recently closed epoch
+
 	private static readonly CultureInfo Inv = CultureInfo.InvariantCulture;
+
+	private const string SamplesHeader = "t,x,y,z,yaw,speed,fwd,target,throttle,brake,steer,state,aggr,wp,pathdev,pathang,avoidang,fclear,lclear,rclear,offnav,upz,fhit";
+	private const string LegsHeader = "start_t,duration,outcome,planned,driven,reverses,collisions,avg_speed";
+	private const string EpochsHeader = "epoch,key,version,tuning_revision,start_t,duration,closed,distance,arrived,legs,blocked,reverses,collisions,collisions_static,collisions_dynamic,collisions_hard,teleports,flips,offnav_time,idle_time,steer_sign_flips";
+
+	/// <summary>Everything recorded between two configuration changes (one epoch).</summary>
+	private sealed class Epoch
+	{
+		public int Index;                       // per-car, 0-based, zero-padded to e{NNN} on disk
+		public string Key = "";                 // $"{DriverVersion}|{TuningRevision}"
+		public string TuningRevision = "none";
+		public string AppliedTuning = "{}";     // AppliedTuningJsonHelper() at open time
+		public float StartT;                    // seconds since SESSION start
+		public float EndT;                      // set at close
+		public bool Closed;
+
+		public readonly StringBuilder Samples = new();
+		public readonly StringBuilder Events = new();
+		public readonly StringBuilder Legs = new();
+		public int SampleCount;
+		public int EventCount;
+		public int LegCount;
+
+		// Totals.
+		public float Distance;
+		public readonly Dictionary<DriveState, float> StateTime = new();
+		public readonly Dictionary<string, int> Counters = new();
+		public float OffNavTime;
+		public float FlippedTime;
+		public float MaxImpactSpeed;
+		public int SteerSignFlips;
+		public float LastSteerSign;
+		public float SpeedSum;
+		public int SpeedSamples;
+
+		// Current leg (destination) inside this epoch.
+		public bool LegActive;
+		public float LegStartTime;
+		public float LegPlannedLength;
+		public float LegDriven;
+		public int LegReverses;
+		public int LegCollisions;
+
+		public int Count( string key ) => Counters.TryGetValue( key, out int v ) ? v : 0;
+	}
 
 	// ================================================================== Lifecycle
 
@@ -114,14 +143,7 @@ public sealed partial class AICarDriver : Component.ICollisionListener
 	{
 		if ( !RecordTelemetry ) return;
 
-		if ( _sessionScene != Scene )
-		{
-			_sessionScene = Scene;
-			_sessionId = DateTime.Now.ToString( "yyyyMMdd-HHmmss", Inv );
-			_sessionCarCount = 0;
-			_sessionNavSampled = false;
-		}
-
+		EnsureSessionHelper();
 		_carId = $"car{_sessionCarCount++}";
 		_telemetryActive = true;
 		_sinceTelemetryStart = 0f;
@@ -129,39 +151,139 @@ public sealed partial class AICarDriver : Component.ICollisionListener
 		_sinceFlush = 0f;
 		_lastTelemetryPosition = WorldPosition;
 
-		_samples.Clear();
-		_samples.AppendLine( "t,x,y,z,yaw,speed,fwd,target,throttle,brake,steer,state,aggr,wp,pathdev,pathang,avoidang,fclear,lclear,rclear,offnav,upz,fhit" );
+		// OnStart ran TuningTickHelper() first, so epoch 000 already carries the applied tuning.
+		OpenEpochHelper();
 
 		TelemetryEventHelper( "Start", $"name={GameObject.Name} version={DriverVersion} clone={_teleportPending}" );
+	}
+
+	/// <summary>
+	/// (Re)initialize the session identity: at play start, and again after a hotload wiped the
+	/// statics mid-play. Only the car that (re)creates the session writes current_session.txt.
+	/// </summary>
+	private void EnsureSessionHelper()
+	{
+		if ( _sessionScene == Scene && !string.IsNullOrEmpty( _sessionId ) ) return;
+
+		_sessionScene = Scene;
+		_sessionId = DateTime.Now.ToString( "yyyyMMdd-HHmmss", Inv );
+		_sessionCarCount = 0;
+		_sessionNavSampled = false;
+		AICarTelemetrySink.Put( "aicar/current_session.txt", $"{_sessionId}\n" );
+	}
+
+	private string EpochKeyHelper() => $"{DriverVersion}|{TuningRevision ?? "none"}";
+
+	/// <summary>
+	/// Open a fresh epoch: fresh buffers and totals, starting now on the session clock.
+	/// </summary>
+	private void OpenEpochHelper()
+	{
+		var e = new Epoch
+		{
+			Index = _epochRows?.Count ?? 0,
+			Key = EpochKeyHelper(),
+			TuningRevision = TuningRevision ?? "none",
+			AppliedTuning = AppliedTuningJsonHelper() ?? "{}",
+			StartT = _sinceTelemetryStart,
+		};
+		e.Samples.AppendLine( SamplesHeader );
+		_epoch = e;
+
+		Log.Info( $"AICarTelemetry {_carId}: epoch {e.Index:000} open [{e.Key}]" );
+		TelemetryEventHelper( "EpochStart", $"key={e.Key} tuning={e.AppliedTuning}" );
+	}
+
+	/// <summary>
+	/// Called from OnFixedUpdate when TuningTickHelper() says the applied configuration just changed.
+	/// Closes the open epoch (leg closed as "epoch-split", files final with closed=true, buffers
+	/// dropped) and opens the new one, restarting the leg record for the current path.
+	/// No-ops when the epoch already has this exact key: the key's tuning part carries a hash of the
+	/// applied values, so this only skips a re-apply that landed on identical values (for example a
+	/// tuning file rewritten with the same content). After a hotload (play keeps running,
+	/// instance fields and statics are default(T) again) this restarts recording: OnStart will not
+	/// re-run, and this is the first tick-driven hook after the reload - the epoch key carries the
+	/// new DriverVersion, which is what the loop confirms before trusting the data.
+	/// </summary>
+	private void TelemetryNewEpochHelper()
+	{
+		if ( !RecordTelemetry ) return;
+
+		if ( !_telemetryActive )
+		{
+			TelemetryStartHelper();
+			return;
+		}
+
+		string key = EpochKeyHelper();
+		if ( _epoch is not null && _epoch.Key == key ) return;
+
+		bool restartLeg = _epoch is not null && _epoch.LegActive;
+
+		EnsureSessionHelper();
+		CloseEpochHelper( false );
+		OpenEpochHelper();
+
+		if ( restartLeg ) TelemetryLegStartHelper();
+	}
+
+	/// <summary>
+	/// Finish the open epoch: close its leg, write its files one last time (closed=true), keep only
+	/// its csv row + one-line summary, drop the buffers.
+	/// </summary>
+	private void CloseEpochHelper( bool final )
+	{
+		if ( _epoch is null ) return;
+		Epoch e = _epoch;
+
+		if ( e.LegActive ) TelemetryLegEndHelper( final ? "unfinished" : "epoch-split" );
+		if ( final ) TelemetryEventHelper( "End", "" );
+
+		e.Closed = true;
+		e.EndT = _sinceTelemetryStart;
+
+		WriteEpochFilesHelper( e, final );
+		(_epochRows ??= new()).Add( EpochRowHelper( e ) );
+		_lastEpochSummary = BuildOneLineSummaryHelper( e );
+		_epoch = null;
 	}
 
 	private void TelemetryTickHelper( Vector3 position, float forwardSpeed )
 	{
 		if ( !_telemetryActive ) return;
 
+		// Hotload safety: the epoch field is default(T) on live instances - reopen one (the
+		// EnsureSessionHelper then keeps the file paths valid if the statics were wiped too).
+		if ( _epoch is null )
+		{
+			EnsureSessionHelper();
+			OpenEpochHelper();
+		}
+
+		Epoch e = _epoch;
 		float dt = Time.Delta;
 		float step = FlatDistance( position, _lastTelemetryPosition );
 		// Teleports jump; anything faster than ~5x cruise in one tick is not driving.
 		if ( step < MathF.Max( CruiseSpeed, 500f ) * 5f * MathF.Max( dt, 0.001f ) )
 		{
-			_distanceDriven += step;
-			if ( _legActive ) _legDriven += step;
+			e.Distance += step;
+			if ( e.LegActive ) e.LegDriven += step;
 		}
 		_lastTelemetryPosition = position;
 
-		_stateTime[State] = (_stateTime.TryGetValue( State, out float st ) ? st : 0f) + dt;
+		e.StateTime[State] = (e.StateTime.TryGetValue( State, out float st ) ? st : 0f) + dt;
 
 		if ( State == DriveState.Driving )
 		{
-			_speedSum += MathF.Abs( forwardSpeed );
-			_speedSamples++;
+			e.SpeedSum += MathF.Abs( forwardSpeed );
+			e.SpeedSamples++;
 
 			// Weaving: steering command sign flips while driving with a meaningful lock.
 			if ( MathF.Abs( _steer ) > 0.25f )
 			{
 				float sign = MathF.Sign( _steer );
-				if ( _lastSteerSign != 0f && sign != _lastSteerSign ) _steerSignFlips++;
-				_lastSteerSign = sign;
+				if ( e.LastSteerSign != 0f && sign != e.LastSteerSign ) e.SteerSignFlips++;
+				e.LastSteerSign = sign;
 			}
 		}
 
@@ -174,7 +296,7 @@ public sealed partial class AICarDriver : Component.ICollisionListener
 		}
 		else
 		{
-			_flippedTime += dt;
+			e.FlippedTime += dt;
 			if ( !_flipped && _sinceUpright > 1.5f )
 			{
 				_flipped = true;
@@ -200,7 +322,7 @@ public sealed partial class AICarDriver : Component.ICollisionListener
 			}
 			_offNav = off;
 		}
-		if ( _offNav ) _offNavTime += dt;
+		if ( _offNav ) e.OffNavTime += dt;
 
 		if ( TelemetrySampleRate > 0f && _sinceSample >= 1f / TelemetrySampleRate )
 		{
@@ -233,8 +355,8 @@ public sealed partial class AICarDriver : Component.ICollisionListener
 		}
 
 		bool driving = State == DriveState.Driving;
-		var sb = _samples;
-		sb.Append( F( _sinceTelemetryStart, 2 ) ).Append( ',' )
+		var sb = _epoch.Samples;
+		sb.Append( F( _sinceTelemetryStart, 2 ) ).Append( ',' )   // t stays SECONDS SINCE SESSION START
 			.Append( F( position.x, 0 ) ).Append( ',' )
 			.Append( F( position.y, 0 ) ).Append( ',' )
 			.Append( F( position.z, 0 ) ).Append( ',' )
@@ -257,14 +379,14 @@ public sealed partial class AICarDriver : Component.ICollisionListener
 			.Append( F( _lastOffNavDistance, 0 ) ).Append( ',' )
 			.Append( F( upZ, 2 ) ).Append( ',' )
 			.Append( Csv( hit ) ).AppendLine();
-		_sampleCount++;
+		_epoch.SampleCount++;
 	}
 
 	// ================================================================== Hooks from the driver
 
 	private void TelemetryStateChangeHelper( DriveState from, DriveState to )
 	{
-		if ( !_telemetryActive || from == to ) return;
+		if ( !_telemetryActive || _epoch is null || from == to ) return;
 
 		if ( to == DriveState.Blocked )
 		{
@@ -289,14 +411,14 @@ public sealed partial class AICarDriver : Component.ICollisionListener
 
 	private void TelemetryReverseHelper( float leftClear, float rightClear )
 	{
-		if ( !_telemetryActive ) return;
+		if ( !_telemetryActive || _epoch is null ) return;
 
 		string trigger = _stuckTrigger ? "stuck" : (State == DriveState.Blocked ? "blocked" : "other");
 		_stuckTrigger = false;
 
 		CountHelper( "reverses" );
 		CountHelper( $"reverses_{trigger}" );
-		if ( _legActive ) _legReverses++;
+		if ( _epoch.LegActive ) _epoch.LegReverses++;
 
 		TelemetryEventHelper( "Reverse",
 			$"trigger={trigger} count={_reverseCount} nose={(_reverseSteer < 0f ? "left" : "right")} why={_reverseReason} " +
@@ -305,18 +427,18 @@ public sealed partial class AICarDriver : Component.ICollisionListener
 
 	private void TelemetryLegStartHelper()
 	{
-		if ( !_telemetryActive ) return;
+		if ( !_telemetryActive || _epoch is null ) return;
 
 		float length = 0f;
 		for ( int i = 1; i < _path.Count; i++ )
 			length += FlatDistance( _path[i - 1], _path[i] );
 
-		_legActive = true;
-		_legStartTime = _sinceTelemetryStart;
-		_legPlannedLength = length;
-		_legDriven = 0f;
-		_legReverses = 0;
-		_legCollisions = 0;
+		_epoch.LegActive = true;
+		_epoch.LegStartTime = _sinceTelemetryStart;
+		_epoch.LegPlannedLength = length;
+		_epoch.LegDriven = 0f;
+		_epoch.LegReverses = 0;
+		_epoch.LegCollisions = 0;
 
 		CountHelper( "legs_started" );
 		TelemetryEventHelper( "LegStart", $"dest={Fmt( Destination )} planned={F( length, 0 )} points={_path.Count} path={FmtPath( _path )}" );
@@ -324,32 +446,33 @@ public sealed partial class AICarDriver : Component.ICollisionListener
 
 	private void TelemetryLegEndHelper( string outcome )
 	{
-		if ( !_telemetryActive || !_legActive ) return;
-		_legActive = false;
+		if ( !_telemetryActive || _epoch is null || !_epoch.LegActive ) return;
+		Epoch e = _epoch;
+		e.LegActive = false;
 
-		float duration = _sinceTelemetryStart - _legStartTime;
+		float duration = _sinceTelemetryStart - e.LegStartTime;
 		CountHelper( $"legs_{outcome}" );
 
-		if ( _legCount == 0 )
-			_legs.AppendLine( "start_t,duration,outcome,planned,driven,reverses,collisions,avg_speed" );
-		_legCount++;
+		if ( e.LegCount == 0 )
+			e.Legs.AppendLine( LegsHeader );
+		e.LegCount++;
 
-		_legs.Append( F( _legStartTime, 1 ) ).Append( ',' )
+		e.Legs.Append( F( e.LegStartTime, 1 ) ).Append( ',' )
 			.Append( F( duration, 1 ) ).Append( ',' )
 			.Append( outcome ).Append( ',' )
-			.Append( F( _legPlannedLength, 0 ) ).Append( ',' )
-			.Append( F( _legDriven, 0 ) ).Append( ',' )
-			.Append( _legReverses ).Append( ',' )
-			.Append( _legCollisions ).Append( ',' )
-			.Append( F( duration > 0.01f ? _legDriven / duration : 0f, 0 ) ).AppendLine();
+			.Append( F( e.LegPlannedLength, 0 ) ).Append( ',' )
+			.Append( F( e.LegDriven, 0 ) ).Append( ',' )
+			.Append( e.LegReverses ).Append( ',' )
+			.Append( e.LegCollisions ).Append( ',' )
+			.Append( F( duration > 0.01f ? e.LegDriven / duration : 0f, 0 ) ).AppendLine();
 
-		TelemetryEventHelper( "LegEnd", $"outcome={outcome} duration={F( duration, 1 )} planned={F( _legPlannedLength, 0 )} driven={F( _legDriven, 0 )}" );
+		TelemetryEventHelper( "LegEnd", $"outcome={outcome} duration={F( duration, 1 )} planned={F( e.LegPlannedLength, 0 )} driven={F( e.LegDriven, 0 )}" );
 	}
 
 	/// <summary>Records body hits that are not the ground (curbs, walls, poles, cars, players).</summary>
 	public void OnCollisionStart( Collision collision )
 	{
-		if ( !_telemetryActive ) return;
+		if ( !_telemetryActive || _epoch is null ) return;
 
 		GameObject other = collision.Other.GameObject;
 		if ( IsOwnPartHelper( other ) ) return;
@@ -366,8 +489,8 @@ public sealed partial class AICarDriver : Component.ICollisionListener
 		CountHelper( "collisions" );
 		CountHelper( $"collisions_{kind}" );
 		if ( speed > 200f ) CountHelper( "collisions_hard" );
-		_maxImpactSpeed = MathF.Max( _maxImpactSpeed, speed );
-		if ( _legActive ) _legCollisions++;
+		_epoch.MaxImpactSpeed = MathF.Max( _epoch.MaxImpactSpeed, speed );
+		if ( _epoch.LegActive ) _epoch.LegCollisions++;
 
 		// Scraping along a wall fires many starts; keep the event log readable.
 		if ( _sinceCollisionEvent < 0.5f ) return;
@@ -382,12 +505,12 @@ public sealed partial class AICarDriver : Component.ICollisionListener
 
 	private void TelemetryEventHelper( string type, string detail )
 	{
-		if ( !_telemetryActive ) return;
+		if ( !_telemetryActive || _epoch is null ) return;
 
 		Vector3 p = WorldPosition;
 		float speed = _body.IsValid() ? _body.Velocity.WithZ( 0f ).Length : 0f;
 
-		_events.Append( "{\"t\":" ).Append( F( _sinceTelemetryStart, 2 ) )
+		_epoch.Events.Append( "{\"t\":" ).Append( F( _sinceTelemetryStart, 2 ) )
 			.Append( ",\"type\":\"" ).Append( type ).Append( '"' )
 			.Append( ",\"x\":" ).Append( F( p.x, 0 ) )
 			.Append( ",\"y\":" ).Append( F( p.y, 0 ) )
@@ -396,8 +519,9 @@ public sealed partial class AICarDriver : Component.ICollisionListener
 			.Append( ",\"speed\":" ).Append( F( speed, 0 ) )
 			.Append( ",\"state\":\"" ).Append( State ).Append( '"' )
 			.Append( ",\"aggr\":" ).Append( F( Aggression, 2 ) )
-			.Append( ",\"detail\":\"" ).Append( JsonEscape( detail ) ).Append( "\"}" ).AppendLine();
-		_eventCount++;
+			.Append( ",\"detail\":\"" ).Append( JsonEscape( detail ) ).Append( '"' )
+			.Append( ",\"epoch\":" ).Append( _epoch.Index ).Append( "}" ).AppendLine();
+		_epoch.EventCount++;
 	}
 
 	private void TelemetryFlushHelper( bool final )
@@ -408,7 +532,17 @@ public sealed partial class AICarDriver : Component.ICollisionListener
 		// Runs from OnDestroy while the play scene tears down: never let telemetry throw there.
 		try
 		{
-			WriteFilesHelper( final );
+			if ( final )
+			{
+				CloseEpochHelper( true );
+				WriteEpochsCsvHelper();
+				Log.Info( $"AICarTelemetry {_sessionId}/{_carId} {DriverVersion}: {(_epochRows?.Count ?? 0)} epochs, last: {_lastEpochSummary}" );
+			}
+			else if ( _epoch is not null )
+			{
+				WriteEpochFilesHelper( _epoch, false );
+				WriteEpochsCsvHelper();
+			}
 		}
 		catch ( Exception e )
 		{
@@ -418,29 +552,61 @@ public sealed partial class AICarDriver : Component.ICollisionListener
 		if ( final ) _telemetryActive = false;
 	}
 
-	private void WriteFilesHelper( bool final )
+	private void WriteEpochFilesHelper( Epoch e, bool final )
 	{
-		if ( final )
-		{
-			TelemetryLegEndHelper( "unfinished" );
-			TelemetryEventHelper( "End", "" );
-		}
-
-		string dir = $"aicar/{_sessionId}/{_carId}";
-		AICarTelemetrySink.Put( $"{dir}/samples.csv", _samples.ToString() );
-		AICarTelemetrySink.Put( $"{dir}/events.jsonl", _events.ToString() );
-		AICarTelemetrySink.Put( $"{dir}/legs.csv", _legCount > 0 ? _legs.ToString() : "start_t,duration,outcome,planned,driven,reverses,collisions,avg_speed\n" );
-		AICarTelemetrySink.Put( $"{dir}/summary.json", BuildSummaryHelper( final ) );
-
-		if ( final )
-		{
-			Log.Info( $"AICarTelemetry {_sessionId}/{_carId} {DriverVersion}: {BuildOneLineSummaryHelper()}" );
-		}
+		string dir = $"aicar/{_sessionId}/{_carId}/e{e.Index:000}";
+		AICarTelemetrySink.Put( $"{dir}/samples.csv", e.Samples.ToString() );
+		AICarTelemetrySink.Put( $"{dir}/events.jsonl", e.Events.ToString() );
+		AICarTelemetrySink.Put( $"{dir}/legs.csv", e.LegCount > 0 ? e.Legs.ToString() : LegsHeader + "\n" );
+		AICarTelemetrySink.Put( $"{dir}/summary.json", BuildSummaryHelper( e, final ) );
 	}
 
-	private string BuildSummaryHelper( bool final )
+	private void WriteEpochsCsvHelper()
 	{
-		float duration = _sinceTelemetryStart;
+		var sb = new StringBuilder( EpochsHeader ).AppendLine();
+		if ( _epochRows is not null )
+		{
+			foreach ( string row in _epochRows )
+				sb.Append( row ).AppendLine();
+		}
+		if ( _epoch is not null )
+			sb.Append( EpochRowHelper( _epoch ) ).AppendLine();
+
+		AICarTelemetrySink.Put( $"aicar/{_sessionId}/{_carId}/epochs.csv", sb.ToString() );
+	}
+
+	/// <summary>One epochs.csv row for this epoch (open or closed), without the trailing newline.</summary>
+	private string EpochRowHelper( Epoch e )
+	{
+		float duration = (e.Closed ? e.EndT : _sinceTelemetryStart) - e.StartT;
+		var sb = new StringBuilder();
+		sb.Append( e.Index ).Append( ',' )
+			.Append( Csv( e.Key ) ).Append( ',' )
+			.Append( Csv( DriverVersion ) ).Append( ',' )
+			.Append( Csv( e.TuningRevision ) ).Append( ',' )
+			.Append( F( e.StartT, 1 ) ).Append( ',' )
+			.Append( F( duration, 1 ) ).Append( ',' )
+			.Append( e.Closed ? 1 : 0 ).Append( ',' )
+			.Append( F( e.Distance, 0 ) ).Append( ',' )
+			.Append( e.Count( "legs_arrived" ) ).Append( ',' )
+			.Append( e.Count( "legs_started" ) ).Append( ',' )
+			.Append( e.Count( "blocked" ) ).Append( ',' )
+			.Append( e.Count( "reverses" ) ).Append( ',' )
+			.Append( e.Count( "collisions" ) ).Append( ',' )
+			.Append( e.Count( "collisions_static" ) ).Append( ',' )
+			.Append( e.Count( "collisions_dynamic" ) ).Append( ',' )
+			.Append( e.Count( "collisions_hard" ) ).Append( ',' )
+			.Append( e.Count( "teleports" ) ).Append( ',' )
+			.Append( e.Count( "flips" ) ).Append( ',' )
+			.Append( F( e.OffNavTime, 1 ) ).Append( ',' )
+			.Append( F( e.StateTime.TryGetValue( DriveState.Idle, out float idle ) ? idle : 0f, 1 ) ).Append( ',' )
+			.Append( e.SteerSignFlips );
+		return sb.ToString();
+	}
+
+	private string BuildSummaryHelper( Epoch e, bool final )
+	{
+		float duration = (e.Closed ? e.EndT : _sinceTelemetryStart) - e.StartT;
 		var sb = new StringBuilder();
 		sb.Append( "{\n" );
 		sb.Append( "  \"session\": \"" ).Append( _sessionId ).Append( "\",\n" );
@@ -448,28 +614,34 @@ public sealed partial class AICarDriver : Component.ICollisionListener
 		sb.Append( "  \"name\": \"" ).Append( JsonEscape( GameObject.Name ) ).Append( "\",\n" );
 		sb.Append( "  \"version\": \"" ).Append( DriverVersion ).Append( "\",\n" );
 		sb.Append( "  \"scene\": \"" ).Append( JsonEscape( Scene.Name ?? "" ) ).Append( "\",\n" );
-		sb.Append( "  \"final\": " ).Append( final ? "true" : "false" ).Append( ",\n" );
-		sb.Append( "  \"duration\": " ).Append( F( duration, 1 ) ).Append( ",\n" );
-		sb.Append( "  \"distance\": " ).Append( F( _distanceDriven, 0 ) ).Append( ",\n" );
-		sb.Append( "  \"avg_driving_speed\": " ).Append( F( _speedSamples > 0 ? _speedSum / _speedSamples : 0f, 0 ) ).Append( ",\n" );
-		sb.Append( "  \"offnav_time\": " ).Append( F( _offNavTime, 1 ) ).Append( ",\n" );
-		sb.Append( "  \"flipped_time\": " ).Append( F( _flippedTime, 1 ) ).Append( ",\n" );
-		sb.Append( "  \"max_impact_speed\": " ).Append( F( _maxImpactSpeed, 0 ) ).Append( ",\n" );
-		sb.Append( "  \"steer_sign_flips\": " ).Append( _steerSignFlips ).Append( ",\n" );
+		sb.Append( "  \"epoch\": ").Append( e.Index ).Append( ",\n" );
+		sb.Append( "  \"key\": \"" ).Append( JsonEscape( e.Key ) ).Append( "\",\n" );
+		sb.Append( "  \"tuning_revision\": \"" ).Append( JsonEscape( e.TuningRevision ) ).Append( "\",\n" );
+		sb.Append( "  \"tuning\": " ).Append( string.IsNullOrWhiteSpace( e.AppliedTuning ) ? "{}" : e.AppliedTuning ).Append( ",\n" );
+		sb.Append( "  \"start_t\": ").Append( F( e.StartT, 1 ) ).Append( ",\n" );
+		sb.Append( "  \"closed\": ").Append( e.Closed ? "true" : "false" ).Append( ",\n" );
+		sb.Append( "  \"final\": ").Append( final ? "true" : "false" ).Append( ",\n" );
+		sb.Append( "  \"duration\": ").Append( F( duration, 1 ) ).Append( ",\n" );
+		sb.Append( "  \"distance\": ").Append( F( e.Distance, 0 ) ).Append( ",\n" );
+		sb.Append( "  \"avg_driving_speed\": ").Append( F( e.SpeedSamples > 0 ? e.SpeedSum / e.SpeedSamples : 0f, 0 ) ).Append( ",\n" );
+		sb.Append( "  \"offnav_time\": ").Append( F( e.OffNavTime, 1 ) ).Append( ",\n" );
+		sb.Append( "  \"flipped_time\": ").Append( F( e.FlippedTime, 1 ) ).Append( ",\n" );
+		sb.Append( "  \"max_impact_speed\": ").Append( F( e.MaxImpactSpeed, 0 ) ).Append( ",\n" );
+		sb.Append( "  \"steer_sign_flips\": ").Append( e.SteerSignFlips ).Append( ",\n" );
 
 		sb.Append( "  \"state_time\": {" );
 		bool first = true;
 		foreach ( DriveState s in new[] { DriveState.Idle, DriveState.Driving, DriveState.Blocked, DriveState.Reversing } )
 		{
 			sb.Append( first ? "" : ", " ).Append( '"' ).Append( s ).Append( "\": " )
-				.Append( F( _stateTime.TryGetValue( s, out float v ) ? v : 0f, 1 ) );
+				.Append( F( e.StateTime.TryGetValue( s, out float v ) ? v : 0f, 1 ) );
 			first = false;
 		}
 		sb.Append( "},\n" );
 
 		sb.Append( "  \"counters\": {" );
 		first = true;
-		foreach ( var pair in _counters )
+		foreach ( var pair in e.Counters )
 		{
 			sb.Append( first ? "" : ", " ).Append( '"' ).Append( pair.Key ).Append( "\": " ).Append( pair.Value );
 			first = false;
@@ -481,12 +653,12 @@ public sealed partial class AICarDriver : Component.ICollisionListener
 		return sb.ToString();
 	}
 
-	private string BuildOneLineSummaryHelper()
+	private string BuildOneLineSummaryHelper( Epoch e )
 	{
-		int Count( string key ) => _counters.TryGetValue( key, out int v ) ? v : 0;
-		return $"{F( _sinceTelemetryStart, 0 )}s, {F( _distanceDriven / 39.37f, 0 )}m driven, arrived {Count( "legs_arrived" )}/{Count( "legs_started" )}, " +
-			$"blocked {Count( "blocked" )}, reverses {Count( "reverses" )}, collisions {Count( "collisions" )}, teleports {Count( "teleports" )}, " +
-			$"flips {Count( "flips" )}, offnav {F( _offNavTime, 0 )}s";
+		float duration = (e.Closed ? e.EndT : _sinceTelemetryStart) - e.StartT;
+		return $"{F( duration, 0 )}s [{e.Key}], {F( e.Distance / 39.37f, 0 )}m driven, arrived {e.Count( "legs_arrived" )}/{e.Count( "legs_started" )}, " +
+			$"blocked {e.Count( "blocked" )}, reverses {e.Count( "reverses" )}, collisions {e.Count( "collisions" )}, teleports {e.Count( "teleports" )}, " +
+			$"flips {e.Count( "flips" )}, offnav {F( e.OffNavTime, 0 )}s";
 	}
 
 	/// <summary>Every driving property, so a run records exactly which tuning produced it.</summary>
@@ -625,7 +797,11 @@ public sealed partial class AICarDriver : Component.ICollisionListener
 			GameObject clone = GameObject.Clone( WorldPosition + Vector3.Up * (3000f * (i + 1)) );
 			clone.Name = $"{GameObject.Name} (test {i + 1})";
 			var driver = clone.Components.Get<AICarDriver>();
-			if ( driver.IsValid() ) driver._teleportPending = true;
+			if ( driver.IsValid() )
+			{
+				driver._teleportPending = true;
+				CopyTuningStateToHelper( driver );
+			}
 		}
 	}
 
@@ -652,11 +828,15 @@ public sealed partial class AICarDriver : Component.ICollisionListener
 		TelemetryEventHelper( "Teleport", $"reason={reason} to={Fmt( to )} {ScanSurroundingsHelper()}" );
 	}
 
-	private void CountHelper( string key ) => _counters[key] = (_counters.TryGetValue( key, out int v ) ? v : 0) + 1;
+	private void CountHelper( string key )
+	{
+		if ( _epoch is null ) return;
+		_epoch.Counters[key] = (_epoch.Counters.TryGetValue( key, out int v ) ? v : 0) + 1;
+	}
 
 	private static float Clamp9999( float value ) => MathF.Min( value, 9999f );
 
-	private static string F( float value, int decimals ) => value.ToString( decimals switch
+	private static string F( float value, int decimals ) => !float.IsFinite( value ) ? "0" : value.ToString( decimals switch
 	{
 		0 => "0",
 		1 => "0.0",
@@ -677,7 +857,7 @@ public sealed partial class AICarDriver : Component.ICollisionListener
 		return sb.ToString();
 	}
 
-	private static string Csv( string value ) => value.Replace( ',', ' ' ).Replace( '\n', ' ' );
+	private static string Csv( string value ) => (value ?? "").Replace( ',', ' ' ).Replace( '"', '\'' ).Replace( '\n', ' ' ).Replace( '\r', ' ' );
 
 	private static string JsonEscape( string value )
 	{

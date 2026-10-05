@@ -11,38 +11,42 @@
 //
 
 using System;
-using System.Diagnostics;
 using System.IO;
-using System.Threading.Tasks;
 
 /// <summary>
-/// Editor half of the AI car feedback loop (see AI-Car-Feedback-Loop.md). The only thing the
-/// developer does is start and stop play; this closes the rest of the loop:
+/// Editor half of the LIVE AI car feedback loop (see AI-Car-Feedback-Loop.md). The developer starts
+/// play once and leaves it running; a local agent reads telemetry and changes tuning or code while
+/// play continues. This class closes the editor side of that loop, every frame, playing or not:
 /// <list type="number">
-/// <item>While playing, files queued in <see cref="AICarTelemetrySink"/> are copied out of the
-/// sandbox into &lt;project&gt;/.aicar-telemetry/ (git-ignored).</item>
-/// <item>After play stops, they are mirrored into a separate git worktree on
-/// <see cref="TelemetryBranch"/> (a sibling folder, so your own working tree is never touched),
-/// committed and pushed, where the analysis side picks them up.</item>
-/// <item>While not playing, every <see cref="PullInterval"/> seconds the project fast-forwards
-/// <see cref="CodeBranch"/> from origin, so driver fixes hotload before the next play. Only when
-/// that branch is checked out, and only fast-forwards: local edits are never overwritten.</item>
+/// <item>Files queued in <see cref="AICarTelemetrySink"/> are copied out of the sandbox into
+/// &lt;project&gt;/.aicar-telemetry/ (git-ignored) as soon as they change.</item>
+/// <item>&lt;project&gt;/.aicar-telemetry/tuning.json is relayed into the game through
+/// <see cref="AICarTelemetrySink.SetTuning"/>; the driver re-applies it on its next tick.</item>
+/// <item>Any change to &lt;project&gt;/Code/**.cs|.razor (edit, revert, add, delete) marks the game
+/// compiler for a rebuild, so code fixes hotload mid-play even where the engine's own file watch
+/// does not fire (Linux).</item>
 /// </list>
-/// Create an empty file &lt;project&gt;/.aicar-telemetry/off to pause the git side.
 /// </summary>
 public static class AICarTelemetryExporter
 {
-	public const string CodeBranch = "claude/ai-car-feedback-loop-bxjrbe";
-	public const string TelemetryBranch = "claude/ai-car-feedback-loop-bxjrbe-telemetry";
-	private const float PullInterval = 30f;
+	private const float PollInterval = 1f;
+	private const float RecompileDebounce = 2f;
+	// A tuning.json younger than this may still be mid-write; wait for it to settle.
+	private static readonly TimeSpan TuningSettle = TimeSpan.FromSeconds( 1 );
 
 	private static int _seenVersion = -1;
-	private static bool _dirty;
-	private static bool _busy;
-	private static RealTimeSince _sinceWrite;
-	private static RealTimeSince _sincePush = 1000f;
-	private static RealTimeSince _sincePull = 1000f;
-	private static string _lastPullWarning = "";
+	private static RealTimeSince _sincePoll = 1000f;
+
+	// Tuning relay.
+	private static DateTime _tuningMtime = DateTime.MinValue;
+	private static string _tuningText;
+	private static bool _tuningPresent;
+
+	// Code watch.
+	private static ulong _codeFingerprint;
+	private static bool _codeScanned;
+	private static bool _codePending;
+	private static RealTimeSince _sinceCodeChange;
 
 	[EditorEvent.Frame]
 	public static void Frame()
@@ -56,36 +60,16 @@ public static class AICarTelemetryExporter
 			WriteLocalHelper( root );
 		}
 
-		if ( Game.IsPlaying || _busy ) return;
-		if ( File.Exists( Path.Combine( LocalDir( root ), "off" ) ) ) return;
+		if ( _sincePoll < PollInterval ) return;
+		_sincePoll = 0f;
 
-		// The final flush lands while the play scene shuts down: wait for writes to settle.
-		if ( _dirty && _sinceWrite > 2f && _sincePush > 10f )
-		{
-			_dirty = false;
-			_sincePush = 0f;
-			_busy = true;
-			Task.Run( () => RunSafe( () => PushTelemetryHelper( root ) ) );
-			return;
-		}
-
-		if ( _sincePull > PullInterval )
-		{
-			_sincePull = 0f;
-			_busy = true;
-			Task.Run( () => RunSafe( () => PullCodeHelper( root ) ) );
-		}
+		PollTuningHelper( root );
+		PollCodeHelper( root );
 	}
 
 	private static string LocalDir( string root ) => Path.Combine( root, ".aicar-telemetry" );
 
-	private static string WorktreeDir( string root )
-	{
-		string full = Path.GetFullPath( root ).TrimEnd( Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar );
-		return Path.Combine( Path.GetDirectoryName( full ) ?? full, Path.GetFileName( full ) + "-aicar-telemetry" );
-	}
-
-	/// <summary>Main thread: drains the sink into the git-ignored local folder.</summary>
+	/// <summary>Drains the sink into the git-ignored local folder.</summary>
 	private static void WriteLocalHelper( string root )
 	{
 		var files = AICarTelemetrySink.TakePending();
@@ -100,8 +84,6 @@ public static class AICarTelemetryExporter
 				Directory.CreateDirectory( Path.GetDirectoryName( path ) );
 				File.WriteAllText( path, file.Value );
 			}
-			_dirty = true;
-			_sinceWrite = 0f;
 		}
 		catch ( Exception e )
 		{
@@ -109,184 +91,185 @@ public static class AICarTelemetryExporter
 		}
 	}
 
-	private static void RunSafe( Action action )
+	// ================================================================== Tuning relay
+
+	private static void PollTuningHelper( string root )
 	{
+		string path = Path.Combine( LocalDir( root ), "tuning.json" );
+
 		try
 		{
-			action();
+			if ( !File.Exists( path ) )
+			{
+				if ( !_tuningPresent ) return;
+				_tuningPresent = false;
+				_tuningText = null;
+				_tuningMtime = DateTime.MinValue;
+				AICarTelemetrySink.SetTuning( null );
+				Log.Info( "AICarTelemetryExporter: tuning.json removed, file tuning cleared." );
+				return;
+			}
+
+			DateTime mtime = File.GetLastWriteTimeUtc( path );
+			if ( _tuningPresent && mtime == _tuningMtime ) return;
+
+			// Written within the last second: possibly half-written (in-place editors). Leave the
+			// recorded mtime alone so the next poll looks again once it has settled.
+			if ( DateTime.UtcNow - mtime < TuningSettle ) return;
+
+			string text = File.ReadAllText( path );
+			_tuningMtime = mtime;
+			_tuningPresent = true;
+			if ( text == _tuningText ) return;
+
+			_tuningText = text;
+			AICarTelemetrySink.SetTuning( text );
+			Log.Info( $"AICarTelemetryExporter: tuning.json relayed (revision {RevisionOfHelper( text )}, {text.Length} chars)." );
+		}
+		catch ( IOException )
+		{
+			// Locked or vanished mid-poll; the next poll picks it up.
 		}
 		catch ( Exception e )
 		{
-			Log.Warning( $"AICarTelemetryExporter: {e.Message}" );
-		}
-		finally
-		{
-			_busy = false;
+			Log.Warning( $"AICarTelemetryExporter: reading tuning.json failed: {e.Message}" );
 		}
 	}
 
-	// ================================================================== Telemetry push
-
-	private static void PushTelemetryHelper( string root )
+	/// <summary>Best-effort "revision" value for the log line only; the game side does the real parse.</summary>
+	private static string RevisionOfHelper( string text )
 	{
-		string worktree = WorktreeDir( root );
-		if ( !EnsureWorktreeHelper( root, worktree ) ) return;
-
-		string source = Path.Combine( LocalDir( root ), "aicar" );
-		if ( !Directory.Exists( source ) ) return;
-
-		// Record which code produced these runs.
-		Git( root, "rev-parse --short HEAD", out string sha );
-		Git( root, "status --porcelain -- Code Editor", out string dirtyCode );
-		string codeInfo = $"code_commit={sha.Trim()}\ncode_dirty={(string.IsNullOrWhiteSpace( dirtyCode ) ? "no" : "yes")}\n";
-
-		foreach ( string sessionDir in Directory.GetDirectories( source ) )
+		try
 		{
-			string relative = Path.GetRelativePath( LocalDir( root ), sessionDir );
-			string target = Path.Combine( worktree, relative );
-			CopyDirectoryHelper( sessionDir, target );
-
-			string meta = Path.Combine( target, "meta.txt" );
-			if ( !File.Exists( meta ) ) File.WriteAllText( meta, codeInfo );
+			using var doc = System.Text.Json.JsonDocument.Parse( text );
+			if ( doc.RootElement.ValueKind == System.Text.Json.JsonValueKind.Object
+				&& doc.RootElement.TryGetProperty( "revision", out var revision ) )
+				return revision.ToString();
+			return "(none)";
 		}
-
-		Git( worktree, "add -A", out _ );
-		Git( worktree, "status --porcelain", out string changes );
-		if ( string.IsNullOrWhiteSpace( changes ) ) return;
-
-		if ( !Git( worktree, $"commit -q -m \"AI car telemetry {DateTime.Now:yyyy-MM-dd HH:mm:ss}\"", out string commitOut ) )
+		catch
 		{
-			Log.Warning( $"AICarTelemetryExporter: telemetry commit failed: {commitOut}" );
+			return "(malformed json)";
+		}
+	}
+
+	// ================================================================== Code watch
+
+	private static void PollCodeHelper( string root )
+	{
+		string code = Path.Combine( root, "Code" );
+		if ( !Directory.Exists( code ) ) return;
+
+		ulong fingerprint = 14695981039346656037UL;
+		FingerprintDirectoryHelper( code, code.Length, ref fingerprint );
+
+		// First scan only records the baseline.
+		if ( !_codeScanned )
+		{
+			_codeScanned = true;
+			_codeFingerprint = fingerprint;
 			return;
 		}
 
-		if ( Git( worktree, $"push -q origin HEAD:refs/heads/{TelemetryBranch}", out string pushOut ) )
-			Log.Info( $"AICarTelemetryExporter: telemetry pushed to {TelemetryBranch}." );
-		else
+		// Any difference counts, not just a newer max mtime: a revert copied back from a backup keeps
+		// its old mtime, and an add or delete may not move the max at all.
+		if ( fingerprint != _codeFingerprint )
 		{
-			_dirty = true; // retried on the next idle check
-			Log.Warning( $"AICarTelemetryExporter: telemetry push failed (will retry): {pushOut}" );
+			_codeFingerprint = fingerprint;
+			_codePending = true;
+			_sinceCodeChange = 0f;
+			return;
 		}
+
+		if ( !_codePending || _sinceCodeChange < RecompileDebounce ) return;
+		_codePending = false;
+
+		// Always mark, even if some hotload happened meanwhile: EditorEvent.Hotload fires for ANY
+		// assembly (other addons, editor code), so it can't prove the game code was rebuilt. If the
+		// engine's own watcher already built this change, the worst case is one redundant rebuild.
+		// Marking twice is harmless: the compile group's recompile list is a set, and the per-frame
+		// project tick skips while a build is running.
+		var compiler = Editor.EditorUtility.Projects.ResolveCompiler( typeof( Sandbox.AICarDriver ).Assembly );
+		if ( compiler is null )
+		{
+			Log.Warning( "AICarTelemetryExporter: Code/ changed but no compiler resolved for the game assembly; recompile not forced." );
+			return;
+		}
+
+		compiler.MarkForRecompile();
+		Log.Info( "AICarTelemetryExporter: Code/ changed, marked the game assembly for recompile." );
 	}
 
 	/// <summary>
-	/// Sibling worktree on <see cref="TelemetryBranch"/>: tracks the remote branch if it exists,
-	/// otherwise starts it as an orphan branch holding only telemetry.
+	/// Folds (relative path, size, mtime) of every .cs/.razor under <paramref name="dir"/> into an
+	/// FNV-1a hash. Prunes obj/bin and dot-folders during traversal, and skips any single file or
+	/// folder that disappears mid-scan instead of aborting the whole poll.
 	/// </summary>
-	private static bool EnsureWorktreeHelper( string root, string worktree )
+	private static void FingerprintDirectoryHelper( string dir, int rootLength, ref ulong hash )
 	{
-		if ( File.Exists( Path.Combine( worktree, ".git" ) ) ) return true;
-
-		Git( root, "worktree prune", out _ );
-
-		Git( root, $"ls-remote --heads origin {TelemetryBranch}", out string remote );
-		bool remoteExists = remote.Contains( TelemetryBranch );
-
-		string quoted = $"\"{worktree}\"";
-		if ( remoteExists )
-		{
-			if ( !Git( root, $"fetch -q origin {TelemetryBranch}", out string fetchOut ) )
-			{
-				Log.Warning( $"AICarTelemetryExporter: fetching {TelemetryBranch} failed: {fetchOut}" );
-				return false;
-			}
-			if ( !Git( root, $"worktree add -f -B {TelemetryBranch} {quoted} FETCH_HEAD", out string addOut ) )
-			{
-				Log.Warning( $"AICarTelemetryExporter: creating the telemetry worktree failed: {addOut}" );
-				return false;
-			}
-		}
-		else
-		{
-			if ( !Git( root, $"worktree add -f --detach {quoted} HEAD", out string addOut ) )
-			{
-				Log.Warning( $"AICarTelemetryExporter: creating the telemetry worktree failed: {addOut}" );
-				return false;
-			}
-			Git( worktree, $"checkout -q --orphan {TelemetryBranch}", out _ );
-			Git( worktree, "rm -r -q -f --cached .", out _ );
-			Git( worktree, "clean -f -d -q", out _ );
-			File.WriteAllText( Path.Combine( worktree, "README.md" ),
-				"# AI car telemetry\n\nWritten by Editor/AICarTelemetryExporter.cs after each play session. One folder per session (aicar/<timestamp>/), one subfolder per car. See AI-Car-Feedback-Loop.md on the code branch.\n" );
-		}
-
-		Log.Info( $"AICarTelemetryExporter: telemetry worktree ready at {worktree}." );
-		return true;
-	}
-
-	private static void CopyDirectoryHelper( string from, string to )
-	{
-		Directory.CreateDirectory( to );
-		foreach ( string file in Directory.GetFiles( from ) )
-			File.Copy( file, Path.Combine( to, Path.GetFileName( file ) ), true );
-		foreach ( string dir in Directory.GetDirectories( from ) )
-			CopyDirectoryHelper( dir, Path.Combine( to, Path.GetFileName( dir ) ) );
-	}
-
-	// ================================================================== Code pull
-
-	private static void PullCodeHelper( string root )
-	{
-		if ( !Git( root, "rev-parse --abbrev-ref HEAD", out string branch ) ) return;
-		if ( branch.Trim() != CodeBranch ) return;
-
-		if ( !Git( root, $"fetch -q origin {CodeBranch}", out _ ) ) return;
-
-		Git( root, "rev-list --count HEAD..FETCH_HEAD", out string behind );
-		if ( behind.Trim() == "0" || string.IsNullOrWhiteSpace( behind ) ) return;
-
-		if ( Git( root, "merge -q --ff-only FETCH_HEAD", out string mergeOut ) )
-		{
-			_lastPullWarning = "";
-			Git( root, "log -1 --format=%s", out string subject );
-			Log.Info( $"AICarTelemetryExporter: pulled {behind.Trim()} new commit(s) on {CodeBranch}: {subject.Trim()}" );
-		}
-		else if ( mergeOut != _lastPullWarning )
-		{
-			_lastPullWarning = mergeOut;
-			Log.Warning( $"AICarTelemetryExporter: could not fast-forward {CodeBranch} (local changes or diverged history). Resolve it by hand:\n{mergeOut}" );
-		}
-	}
-
-	// ================================================================== Git
-
-	private static bool Git( string directory, string arguments, out string output )
-	{
-		var info = new ProcessStartInfo( "git", arguments )
-		{
-			WorkingDirectory = directory,
-			UseShellExecute = false,
-			RedirectStandardOutput = true,
-			RedirectStandardError = true,
-			CreateNoWindow = true,
-		};
-		info.Environment["GIT_TERMINAL_PROMPT"] = "0";
-
+		string[] files;
+		string[] subdirs;
 		try
 		{
-			using var process = Process.Start( info );
-			if ( process is null )
-			{
-				output = "git did not start";
-				return false;
-			}
-
-			Task<string> stdout = process.StandardOutput.ReadToEndAsync();
-			Task<string> stderr = process.StandardError.ReadToEndAsync();
-			if ( !process.WaitForExit( 120_000 ) )
-			{
-				try { process.Kill( true ); } catch { }
-				output = $"git {arguments} timed out";
-				return false;
-			}
-
-			output = stdout.Result + stderr.Result;
-			return process.ExitCode == 0;
+			files = Directory.GetFiles( dir );
+			subdirs = Directory.GetDirectories( dir );
 		}
-		catch ( Exception e )
+		catch ( Exception )
 		{
-			output = $"git {arguments}: {e.Message}";
-			return false;
+			return;
+		}
+
+		// Sorted so the hash doesn't depend on filesystem enumeration order.
+		Array.Sort( files, StringComparer.Ordinal );
+		Array.Sort( subdirs, StringComparer.Ordinal );
+
+		foreach ( string file in files )
+		{
+			if ( !file.EndsWith( ".cs", StringComparison.OrdinalIgnoreCase ) && !file.EndsWith( ".razor", StringComparison.OrdinalIgnoreCase ) )
+				continue;
+
+			try
+			{
+				var info = new FileInfo( file );
+				if ( !info.Exists ) continue;
+				HashStringHelper( ref hash, file.Substring( rootLength ) );
+				HashLongHelper( ref hash, info.Length );
+				HashLongHelper( ref hash, info.LastWriteTimeUtc.Ticks );
+			}
+			catch ( Exception )
+			{
+				// Deleted or locked between listing and stat: the next poll sees the settled state.
+			}
+		}
+
+		foreach ( string sub in subdirs )
+		{
+			string name = Path.GetFileName( sub );
+			if ( name.Equals( "obj", StringComparison.OrdinalIgnoreCase )
+				|| name.Equals( "bin", StringComparison.OrdinalIgnoreCase )
+				|| name.StartsWith( '.' ) )
+				continue;
+			FingerprintDirectoryHelper( sub, rootLength, ref hash );
+		}
+	}
+
+	private static void HashStringHelper( ref ulong hash, string value )
+	{
+		foreach ( char c in value )
+		{
+			hash ^= c;
+			hash *= 1099511628211UL;
+		}
+		hash ^= 0xFF; // separator so "ab"+"c" != "a"+"bc"
+		hash *= 1099511628211UL;
+	}
+
+	private static void HashLongHelper( ref ulong hash, long value )
+	{
+		for ( int i = 0; i < 8; i++ )
+		{
+			hash ^= (byte)(value >> (i * 8));
+			hash *= 1099511628211UL;
 		}
 	}
 }
