@@ -36,3 +36,6 @@ Exports/
 *.save
 *.swp
 * (1).*
+
+# AI car feedback loop: local telemetry copy (pushed to the telemetry branch instead)
+.aicar-telemetry/

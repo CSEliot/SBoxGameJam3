@@ -31,7 +31,7 @@ namespace Sandbox;
 /// unowned car, or solo play. On clients the car is a physics proxy and this component idles.
 /// </summary>
 [Icon( "smart_toy" )]
-public sealed class AICarDriver : Component
+public sealed partial class AICarDriver : Component
 {
 	public enum DriveState
 	{
@@ -327,6 +327,17 @@ public sealed class AICarDriver : Component
 	private Vector3 _blockedHeading;
 	private bool _warnedNoNavStart;
 
+	// Last control decisions, kept for telemetry.
+	private float _lastThrottle;
+	private bool _lastBrake;
+	private float _lastTargetSpeed;
+	private float _lastPathAngle;
+	private float _lastAvoidAngle;
+	private float _lastDistanceFromPath;
+	// Name of the object the last CastWhiskerHelper call hit ("" on a miss), and per front whisker.
+	private string _lastCastHitName = "";
+	private string[] _frontHitName;
+
 	protected override void OnStart()
 	{
 		_vehicle = GetComponent<VehicleController>();
@@ -345,11 +356,16 @@ public sealed class AICarDriver : Component
 		// VehicleController off the local keyboard.
 		if ( IsProxy ) return;
 
+		ApplyDevTuningHelper();
+
 		_vehicle.UseExternalInput = true;
 		_stuckAnchor = WorldPosition;
 		_sinceStuckAnchor = 0f;
 		Aggression = float.Clamp( BaseAggression, 0f, 1f );
 		SetStateHelper( DriveState.Idle );
+
+		TelemetryStartHelper();
+		SpawnTestCarsHelper();
 	}
 
 	protected override void OnDisabled()
@@ -364,6 +380,8 @@ public sealed class AICarDriver : Component
 
 	protected override void OnDestroy()
 	{
+		TelemetryFlushHelper( true );
+
 		if ( _filterObject.IsValid() )
 			_filterObject.Destroy();
 	}
@@ -376,13 +394,25 @@ public sealed class AICarDriver : Component
 
 		EnsureEngineRunningHelper();
 
+		// Extra test cars start stacked on the original: move them to their own spot first.
+		if ( _teleportPending )
+		{
+			if ( _untilTeleportRetry )
+			{
+				_untilTeleportRetry = 0.25f;
+				if ( TryTeleportHelper( "spawn" ) ) _teleportPending = false;
+			}
+			ApplyControlsHelper( 0f, 0f, true );
+			return;
+		}
+
 		Vector3 position = WorldPosition;
 		UpdateStuckAreaHelper( position );
 
 		if ( TeleportAfter > 0f && _sinceStuckAnchor > TeleportAfter && _untilTeleportRetry )
 		{
 			_untilTeleportRetry = MathF.Max( RetryDelay, 0.5f );
-			if ( TryTeleportHelper() ) return;
+			if ( TryTeleportHelper( "stuck" ) ) return;
 		}
 
 		float forwardSpeed = Vector3.Dot( _body.Velocity, WorldRotation.Forward );
@@ -404,6 +434,8 @@ public sealed class AICarDriver : Component
 				TickReversingHelper( position, forwardSpeed );
 				break;
 		}
+
+		TelemetryTickHelper( position, forwardSpeed );
 	}
 
 	protected override void OnUpdate()
@@ -439,19 +471,23 @@ public sealed class AICarDriver : Component
 		// Arrived?
 		if ( FlatDistance( position, _path[^1] ) < ArrivalDistance )
 		{
+			TelemetryLegEndHelper( "arrived" );
 			PickNewDestinationOrIdleHelper( position );
 			return;
 		}
 
 		AdvanceWaypointHelper( position, out float distanceFromPath );
+		_lastDistanceFromPath = distanceFromPath;
 
 		// Off the path: re-path, at most twice a second (each try is a navmesh query, and a
 		// failure falls through to a full destination pick).
 		if ( distanceFromPath > OffPathDistance && _sinceRepath > 0.5f )
 		{
 			_sinceRepath = 0f;
+			TelemetryEventHelper( "OffPath", $"dev={F( distanceFromPath, 0 )}" );
 			if ( !TryRepathHelper( position ) )
 			{
+				TelemetryLegEndHelper( "repath-failed" );
 				PickNewDestinationOrIdleHelper( position );
 				return;
 			}
@@ -463,6 +499,8 @@ public sealed class AICarDriver : Component
 		// --- Whisker avoidance.
 		GetFrontClearanceHelper( out float forwardClear, out float forwardLength, out float leftClear, out float rightClear );
 		float avoidAngle = GetAvoidAngleHelper( pathAngle, leftClear, rightClear );
+		_lastPathAngle = pathAngle;
+		_lastAvoidAngle = avoidAngle;
 
 		// --- Blocked right in front: stop, wait for it to clear, then back up (TickBlockedHelper).
 		float stopDistance = EffectiveStopDistance;
@@ -493,6 +531,8 @@ public sealed class AICarDriver : Component
 		if ( _dynamicAhead < forwardLength )
 			targetSpeed = MathF.Min( targetSpeed, EffectiveCreepSpeed );
 
+		_lastTargetSpeed = targetSpeed;
+
 		float throttle;
 		bool brake = false;
 		if ( forwardSpeed > targetSpeed + BrakeMargin )
@@ -512,7 +552,10 @@ public sealed class AICarDriver : Component
 		if ( !tryingToMove || MathF.Abs( forwardSpeed ) > StuckSpeed )
 			_sinceStuckCheckOk = 0f;
 		else if ( _sinceStuckCheckOk > EffectiveStuckTime )
+		{
+			_stuckTrigger = true;
 			EnterReverseHelper( pathAngle, leftClear, rightClear );
+		}
 	}
 
 	/// <summary>
@@ -572,6 +615,7 @@ public sealed class AICarDriver : Component
 			if ( RepickAfterReverses > 0 && _reverseCount >= RepickAfterReverses )
 			{
 				// Same route keeps getting blocked: pick one that starts away from the blocked heading.
+				TelemetryLegEndHelper( "repick" );
 				PickNewDestinationOrIdleHelper( position, _blockedHeading );
 				return;
 			}
@@ -615,6 +659,7 @@ public sealed class AICarDriver : Component
 		_steer = _reverseSteer;
 		_blockedHeading = WorldRotation.Forward.WithZ( 0f ).Normal;
 		_reverseCount++;
+		TelemetryReverseHelper( leftClear, rightClear );
 		SetStateHelper( DriveState.Reversing );
 	}
 
@@ -638,6 +683,7 @@ public sealed class AICarDriver : Component
 
 	private void SetStateHelper( DriveState state )
 	{
+		TelemetryStateChangeHelper( State, state );
 		State = state;
 		_sinceStateChange = 0f;
 		_sinceStuckCheckOk = 0f;
@@ -690,7 +736,7 @@ public sealed class AICarDriver : Component
 	/// Moves the car to a random clear spot on the navmesh that has a usable route out, facing along
 	/// that route. False if no spot was found this attempt (retried after <see cref="RetryDelay"/>).
 	/// </summary>
-	private bool TryTeleportHelper()
+	private bool TryTeleportHelper( string reason )
 	{
 		var nav = Scene.NavMesh;
 		if ( nav is null || !nav.IsEnabled ) return false;
@@ -710,6 +756,8 @@ public sealed class AICarDriver : Component
 			Vector3 heading = GetFirstLegHelper( path );
 			if ( !IsSpawnClearHelper( point.Value, heading ) ) continue;
 
+			TelemetryTeleportHelper( reason, point.Value );
+
 			WorldPosition = point.Value + Vector3.Up * TeleportDropHeight;
 			WorldRotation = Rotation.LookAt( heading, Vector3.Up );
 			_body.Velocity = Vector3.Zero;
@@ -726,7 +774,8 @@ public sealed class AICarDriver : Component
 			CommitPathHelper( path, target );
 			SetStateHelper( DriveState.Driving );
 
-			Log.Info( $"AICarDriver on '{GameObject.Name}': stuck near {from} for {TeleportAfter}s, teleported to {point.Value}." );
+			if ( reason != "spawn" )
+				Log.Info( $"AICarDriver on '{GameObject.Name}': stuck near {from} for {TeleportAfter}s, teleported to {point.Value}." );
 			return true;
 		}
 
@@ -839,6 +888,7 @@ public sealed class AICarDriver : Component
 		if ( path.Status != NavMeshPathStatus.Complete || path.Points is null || path.Points.Count < 2 ) return false;
 
 		SetPathHelper( path );
+		TelemetryEventHelper( "Repath", $"points={_path.Count} path={FmtPath( _path )}" );
 		return true;
 	}
 
@@ -903,6 +953,7 @@ public sealed class AICarDriver : Component
 	{
 		SetPathHelper( path );
 		Destination = target;
+		TelemetryLegStartHelper();
 	}
 
 	private void SetPathHelper( NavMeshPath path )
@@ -1038,6 +1089,7 @@ public sealed class AICarDriver : Component
 		};
 
 		_frontHitDistance = new float[_frontWhiskers.Length];
+		_frontHitName = new string[_frontWhiskers.Length];
 		_frontLength = new float[_frontWhiskers.Length];
 		_rearHitDistance = new float[_rearWhiskers.Length];
 	}
@@ -1057,12 +1109,14 @@ public sealed class AICarDriver : Component
 			if ( !pushThrough )
 			{
 				_frontHitDistance[i] = CastWhiskerHelper( _frontWhiskers[i], _frontLength[i], false );
+				_frontHitName[i] = _lastCastHitName;
 				continue;
 			}
 
 			// Pushing through: steer and stop only for world geometry (seen even behind a shoved
 			// body), but remember the nearest dynamic body straight ahead to cap the shove speed.
 			_frontHitDistance[i] = CastWhiskerHelper( _frontWhiskers[i], _frontLength[i], true );
+			_frontHitName[i] = _lastCastHitName;
 			if ( _frontWhiskers[i].IsForward )
 			{
 				float any = CastWhiskerHelper( _frontWhiskers[i], _frontLength[i], false );
@@ -1101,6 +1155,7 @@ public sealed class AICarDriver : Component
 		if ( WhiskerThickness > 0f )
 			trace = trace.Radius( WhiskerThickness );
 
+		_lastCastHitName = "";
 		SceneTraceResult result = trace.Run();
 		if ( !result.Hit ) return length;
 
@@ -1108,6 +1163,7 @@ public sealed class AICarDriver : Component
 		// stays an obstacle at distance 0.
 		if ( !result.StartedSolid && result.Normal.z >= GroundNormalZ ) return length;
 
+		_lastCastHitName = result.GameObject.IsValid() ? result.GameObject.Name : "?";
 		return result.StartedSolid ? 0f : result.Distance;
 	}
 
@@ -1179,6 +1235,9 @@ public sealed class AICarDriver : Component
 	{
 		float blend = SteerResponse <= 0f ? 1f : 1f - MathF.Exp( -SteerResponse * Time.Delta );
 		_steer += (steer - _steer) * blend;
+
+		_lastThrottle = throttle;
+		_lastBrake = brake;
 
 		_vehicle.UseExternalInput = true;
 		_vehicle.ExternalThrottle = throttle;
