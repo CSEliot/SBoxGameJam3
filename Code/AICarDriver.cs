@@ -132,6 +132,28 @@ public sealed partial class AICarDriver : Component
 	/// </summary>
 	[Property, Group( "Speed" )] public float ObstacleBrakingRate { get; set; } = 1f;
 
+	/// <summary>
+	/// Deceleration (units/s per second) assumed when braking ahead of a corner or the destination:
+	/// the speed allowed at distance d before a corner is sqrt(cornerSpeed^2 + 2 * this * d).
+	/// v1 telemetry measured ~390 median with brakes held, so the default leaves margin.
+	/// </summary>
+	[Property, Group( "Speed" )] public float CornerBrakeDecel { get; set; } = 300f;
+
+	// ------------------------------------------------------------------ Cornering
+
+	/// <summary>
+	/// How far (units) each path corner is pushed toward the outside of the turn, clamped to the
+	/// navmesh. Navmesh corners hug the inside of a turn, but the car turns on a 250-500 unit radius,
+	/// so following them exactly drags the inside of the car through the corner.
+	/// </summary>
+	[Property, Group( "Cornering" )] public float CornerOutsideOffset { get; set; } = 150f;
+
+	/// <summary>
+	/// Path points closer than this to the previous kept point are merged away, so one turn split
+	/// over several tiny navmesh segments is read as one corner with its full angle.
+	/// </summary>
+	[Property, Group( "Cornering" )] public float MinPathPointSpacing { get; set; } = 120f;
+
 	// ------------------------------------------------------------------ Steering
 
 	/// <summary>Heading error (degrees) that gets full steering lock.</summary>
@@ -183,6 +205,12 @@ public sealed partial class AICarDriver : Component
 	/// </summary>
 	[Property, Group( "Avoidance" )] public float BlockedWaitTime { get; set; } = 1.5f;
 
+	/// <summary>
+	/// A point ahead/behind with no ground within this many units below the car's base (plus 0.6
+	/// per unit of distance, for downhill roads) is a ledge and treated as an obstacle. 0 disables.
+	/// </summary>
+	[Property, Group( "Avoidance" )] public float LedgeDropHeight { get; set; } = 80f;
+
 	// ------------------------------------------------------------------ Reversing / stuck
 
 	/// <summary>Throttle used while backing up (0-1).</summary>
@@ -193,6 +221,9 @@ public sealed partial class AICarDriver : Component
 
 	/// <summary>Maximum time spent backing up (seconds).</summary>
 	[Property, Group( "Reversing" )] public float MaxReverseTime { get; set; } = 2f;
+
+	/// <summary>Reverse speed cap (units/s); throttle is cut above it.</summary>
+	[Property, Group( "Reversing" )] public float MaxReverseSpeed { get; set; } = 250f;
 
 	/// <summary>Length of the rear rays checked while backing up.</summary>
 	[Property, Group( "Reversing" )] public float RearProbeLength { get; set; } = 250f;
@@ -212,6 +243,15 @@ public sealed partial class AICarDriver : Component
 	/// </summary>
 	[Property, Group( "Reversing" )] public int RepickAfterReverses { get; set; } = 3;
 
+	/// <summary>
+	/// Path heading error (degrees) beyond which the car stops and backs around (three-point turn)
+	/// instead of trying a forward full-lock turn. 0 disables.
+	/// </summary>
+	[Property, Group( "Reversing" )] public float UTurnAngle { get; set; } = 120f;
+
+	/// <summary>A reverse ends early once the path heading error is below this (degrees).</summary>
+	[Property, Group( "Reversing" )] public float ReverseAlignedAngle { get; set; } = 60f;
+
 	// ------------------------------------------------------------------ Stuck area / teleport
 
 	/// <summary>
@@ -228,6 +268,13 @@ public sealed partial class AICarDriver : Component
 
 	/// <summary>Height above the navmesh the car is dropped at when teleported.</summary>
 	[Property, Group( "Stuck Area" )] public float TeleportDropHeight { get; set; } = 20f;
+
+	/// <summary>
+	/// Teleport right away (instead of after <see cref="TeleportAfter"/>) once the car has been on
+	/// its side/roof, or with no navmesh within 400 units (fell off the map), for this many seconds.
+	/// 0 disables.
+	/// </summary>
+	[Property, Group( "Stuck Area" )] public float LostRecoverTime { get; set; } = 3f;
 
 	// ------------------------------------------------------------------ Aggression
 
@@ -325,7 +372,23 @@ public sealed partial class AICarDriver : Component
 	private string _reverseReason = "";
 	private float _blockedWaitFactor = 1f;
 	private Vector3 _blockedHeading;
+	// Pivot livelock escape (v5): failed turn-reverses counted at one spot (see TickDrivingHelper).
+	// Hotload-safe defaults: _pivotFails 0 keeps the old reverse-first behaviour, and a zero
+	// _pivotAnchor just re-anchors on the first failure.
+	private int _pivotFails;
+	private Vector3 _pivotAnchor;
+	// Blocked-state clear timer (v7). Hotload default reads as "long ago", so a car already Blocked
+	// at hotload may resume once immediately; it is reset on every Blocked entry after that.
+	private TimeSince _sinceBlockedObstacle;
 	private bool _warnedNoNavStart;
+	// Lost recovery (flipped / far off the navmesh). A hotload that adds these mid-play leaves them
+	// at default(T); harmless, because UpdateStuckAreaHelper runs the nav check (default
+	// _sinceLostCheck is huge) and resets _sinceNotLost before the lost-teleport test reads it.
+	private TimeSince _sinceNotLost;
+	private TimeSince _sinceLostCheck;
+	private bool _lastNearNav = true;
+	// Distance to the first missing floor ahead (LedgeProbeHelper). 0 = not probed yet (hotload default), ignored.
+	private float _ledgeAhead;
 
 	// Last control decisions, kept for telemetry.
 	private float _lastThrottle;
@@ -422,6 +485,14 @@ public sealed partial class AICarDriver : Component
 			if ( TryTeleportHelper( "stuck" ) ) return;
 		}
 
+		// Flipped, or fell off the map (v1: drove off a bridge edge and dropped thousands of units,
+		// then sat there for the full TeleportAfter): recover after LostRecoverTime instead.
+		if ( LostRecoverTime > 0f && _sinceNotLost > LostRecoverTime && _untilTeleportRetry )
+		{
+			_untilTeleportRetry = MathF.Max( RetryDelay, 0.5f );
+			if ( TryTeleportHelper( "lost" ) ) return;
+		}
+
 		float forwardSpeed = Vector3.Dot( _body.Velocity, WorldRotation.Forward );
 
 		ProbeFrontHelper( forwardSpeed );
@@ -475,11 +546,11 @@ public sealed partial class AICarDriver : Component
 			return;
 		}
 
-		// Arrived?
+		// Arrived? Prefer a next route that doesn't start with a U-turn.
 		if ( FlatDistance( position, _path[^1] ) < ArrivalDistance )
 		{
 			TelemetryLegEndHelper( "arrived" );
-			PickNewDestinationOrIdleHelper( position );
+			PickNewDestinationOrIdleHelper( position, -FlatForwardHelper() );
 			return;
 		}
 
@@ -503,8 +574,43 @@ public sealed partial class AICarDriver : Component
 		// --- Path steering: aim at a look-ahead point along the path.
 		float pathAngle = GetPathAngleHelper( position, forwardSpeed );
 
-		// --- Whisker avoidance.
+		// --- Whisker clearance. Probed before the path-behind branch below so the pivot escape
+		// can read forwardClear; same values as before (the whiskers were cast earlier this tick).
 		GetFrontClearanceHelper( out float forwardClear, out float forwardLength, out float leftClear, out float rightClear );
+
+		// --- Path is behind the car (new leg pointing back, overshot corner): a forward full-lock
+		// turn needs 250-500 units of radius and drags the car through whatever is beside the road.
+		// Stop and back around instead (three-point turn); TickReversingHelper ends it once the
+		// nose points along the path. Only from (near) standstill: reversing out of speed swings
+		// the car (v2: two cars backed off a bridge doing this at 680 u/s); faster, it brakes first.
+		bool pathBehind = UTurnAngle > 0f && MathF.Abs( pathAngle ) > UTurnAngle;
+		// Forward pivot stays on at any speed once chosen; otherwise creeping past StuckSpeed*2 would
+		// drop out of it into the straight-line brake (steer 0) and the pivot would stall.
+		bool pivotForward = pathBehind && _pivotFails < 4 && _pivotFails % 2 == 1 && forwardClear > EffectiveStopDistance * 2f;
+		if ( pathBehind && !pivotForward && MathF.Abs( forwardSpeed ) < StuckSpeed * 2f )
+		{
+			// v5 pivot livelock escape: a turn-reverse with the rear against a wall ends after
+			// MinReverseTime still pointing away from the path, Driving sees pathBehind again and
+			// reverses forever. _pivotFails counts failed turn-reverses at this spot: even (0, 2)
+			// does today's turn-reverse, odd (1, 3) pivots forward instead when the front is
+			// clear, and 4 gives up and teleports.
+			if ( _pivotFails >= 4 )
+			{
+				if ( _untilTeleportRetry )
+				{
+					_untilTeleportRetry = MathF.Max( RetryDelay, 0.5f );
+					if ( TryTeleportHelper( "pivot" ) ) return;
+				}
+				// No teleport spot yet: fall through, the path-behind brake below holds the car.
+			}
+			else
+			{
+				EnterTurnReverseHelper( pathAngle, leftClear, rightClear );
+				return;
+			}
+		}
+
+		// --- Whisker avoidance.
 		float avoidAngle = GetAvoidAngleHelper( pathAngle, leftClear, rightClear );
 		_lastPathAngle = pathAngle;
 		_lastAvoidAngle = avoidAngle;
@@ -517,14 +623,15 @@ public sealed partial class AICarDriver : Component
 			return;
 		}
 
-		// --- Target speed: cruise, corners, heading error, final approach, obstacles.
+		// --- Target speed: cruise, corners (with braking distance), heading error, final approach, obstacles.
 		float targetSpeed = CruiseSpeed;
 
-		float cornerAngle = MathF.Max( GetUpcomingCornerAngleHelper( position ), MathF.Abs( pathAngle ) );
-		targetSpeed = MathF.Min( targetSpeed, Lerp( CruiseSpeed, CornerSpeed, cornerAngle / 90f ) );
+		// Heading error now: a car pointing well away from its path slows to corner speed at 90 degrees.
+		targetSpeed = MathF.Min( targetSpeed, Lerp( CruiseSpeed, CornerSpeed, MathF.Abs( pathAngle ) / 90f ) );
 
-		if ( FlatDistance( position, _path[^1] ) < CornerLookDistance )
-			targetSpeed = MathF.Min( targetSpeed, CornerSpeed );
+		// Upcoming corners and the destination: the fastest speed from which the car can still brake
+		// down to each one's corner speed by the time it gets there.
+		targetSpeed = MathF.Min( targetSpeed, GetCornerSpeedLimitHelper( position ) );
 
 		// Obstacle ahead: a speed the car can still shed before StopDistance at ObstacleBrakingRate,
 		// floored at CreepSpeed so it reaches StopDistance instead of stalling short of it.
@@ -537,6 +644,11 @@ public sealed partial class AICarDriver : Component
 		// Pushing through a dynamic body (see PushThroughAggression): shove at creep speed, never ram.
 		if ( _dynamicAhead < forwardLength )
 			targetSpeed = MathF.Min( targetSpeed, EffectiveCreepSpeed );
+
+		// Path behind and not pivoting: brake to a stop in a straight line, then back around.
+		// A forward pivot (v5) crawls around the blockage at creep speed instead.
+		if ( pathBehind )
+			targetSpeed = pivotForward ? EffectiveCreepSpeed : 0f;
 
 		_lastTargetSpeed = targetSpeed;
 
@@ -552,7 +664,15 @@ public sealed partial class AICarDriver : Component
 			throttle = float.Clamp( (targetSpeed - forwardSpeed) / EffectiveThrottleResponse, 0f, 1f );
 		}
 
-		ApplyControlsHelper( throttle, SteerFromAngleHelper( pathAngle + avoidAngle ), brake );
+		float steerTarget;
+		if ( pivotForward )
+			steerTarget = pathAngle > 0f ? 1f : -1f; // full lock toward the path side (ExternalSteer + = left)
+		else if ( pathBehind )
+			steerTarget = 0f;
+		else
+			steerTarget = SteerFromAngleHelper( pathAngle + avoidAngle );
+
+		ApplyControlsHelper( throttle, steerTarget, brake );
 
 		// --- Stuck: throttling but not moving (pinned against something the whiskers miss).
 		bool tryingToMove = throttle > 0.2f && _vehicle.IsEngineOn;
@@ -575,7 +695,14 @@ public sealed partial class AICarDriver : Component
 		ApplyControlsHelper( 0f, 0f, true );
 
 		GetFrontClearanceHelper( out float forwardClear, out _, out float leftClear, out float rightClear );
-		if ( forwardClear > EffectiveStopDistance * 1.5f )
+
+		// Resume only once the front has stayed clear for a moment. A car pinned with a bumper corner
+		// against a tree trunk reads hit / miss on alternate ticks (the thick whisker starts inside the
+		// trunk), and resuming on the first clear tick restarted the wait every time: v6 had one car
+		// flip Blocked <-> Driving 126 times at one tree without ever backing up.
+		if ( forwardClear <= EffectiveStopDistance * 1.5f )
+			_sinceBlockedObstacle = 0f;
+		else if ( _sinceBlockedObstacle > 0.3f )
 		{
 			SetStateHelper( _path.Count >= 2 ? DriveState.Driving : DriveState.Idle );
 			return;
@@ -590,6 +717,7 @@ public sealed partial class AICarDriver : Component
 	private void EnterBlockedHelper()
 	{
 		_blockedWaitFactor = _random.Float( 0.75f, 1.25f );
+		_sinceBlockedObstacle = 0f;
 		SetStateHelper( DriveState.Blocked );
 	}
 
@@ -612,12 +740,38 @@ public sealed partial class AICarDriver : Component
 		GetFrontClearanceHelper( out float forwardClear, out _, out _, out _ );
 		bool frontClear = forwardClear > EffectiveStopDistance * 2f;
 
-		bool done = _sinceStateChange > MaxReverseTime
-			|| (_sinceStateChange > MinReverseTime && (frontClear || rearBlocked));
+		// Done once the nose points roughly along the path again (a reverse that ends while still
+		// facing away just drives back into the same spot), or the rear is blocked, or time is up.
+		float pathAngleNow = _path.Count >= 2 ? GetPathAngleHelper( position, 0f ) : 0f;
+		bool aligned = MathF.Abs( pathAngleNow ) < ReverseAlignedAngle;
+		bool turning = _reverseReason == "turn";
+
+		bool done = _sinceStateChange > (turning ? MaxReverseTime * 2f : MaxReverseTime)
+			|| (_sinceStateChange > MinReverseTime && (rearBlocked || (aligned && (frontClear || turning))));
 
 		if ( done )
 		{
 			_sinceStuckCheckOk = 0f;
+
+			// Pivot livelock accounting (v5): a turn-reverse that ends still facing away from the
+			// path is a failed pivot at this spot. Count it while the car stays in the stuck area;
+			// a new spot restarts the count. An aligned end means the turn worked: clear it.
+			if ( turning )
+			{
+				if ( aligned )
+				{
+					_pivotFails = 0;
+				}
+				else if ( FlatDistance( position, _pivotAnchor ) <= MathF.Max( StuckAreaRadius, 1f ) )
+				{
+					_pivotFails++;
+				}
+				else
+				{
+					_pivotFails = 1;
+					_pivotAnchor = position;
+				}
+			}
 
 			if ( RepickAfterReverses > 0 && _reverseCount >= RepickAfterReverses )
 			{
@@ -637,7 +791,10 @@ public sealed partial class AICarDriver : Component
 			return;
 		}
 
-		ApplyControlsHelper( -EffectiveReverseThrottle, _reverseSteer, false );
+		// Cap reverse speed: v3 telemetry had cars backing up at 500-640 u/s under full aggression
+		// throttle, swinging wide into whatever was behind or beside them. Coast above the cap.
+		bool tooFast = -forwardSpeed > MaxReverseSpeed;
+		ApplyControlsHelper( tooFast ? 0f : -EffectiveReverseThrottle, _reverseSteer, false );
 	}
 
 	private void EnterReverseHelper( float pathAngle, float leftClear, float rightClear )
@@ -664,7 +821,27 @@ public sealed partial class AICarDriver : Component
 		// Snap the wheels to the reverse lock. Smoothing from the driving lock would spend the start
 		// of the reverse with the wheels on the wrong side.
 		_steer = _reverseSteer;
-		_blockedHeading = WorldRotation.Forward.WithZ( 0f ).Normal;
+		_blockedHeading = FlatForwardHelper();
+		_reverseCount++;
+		TelemetryReverseHelper( leftClear, rightClear );
+		SetStateHelper( DriveState.Reversing );
+	}
+
+	/// <summary>
+	/// Three-point-turn reverse: the path lies behind the car. Swing the nose toward the path side
+	/// (front-wheel steering in reverse swings the nose away from the steered side, so steer away).
+	/// After one failed pivot (_pivotFails == 2) try the other arc so the second reverse does not
+	/// repeat the exact same blocked swing.
+	/// </summary>
+	private void EnterTurnReverseHelper( float pathAngle, float leftClear, float rightClear )
+	{
+		float noseSide = pathAngle >= 0f ? 1f : -1f;
+		if ( _pivotFails == 2 )
+			noseSide = -noseSide;
+		_reverseReason = "turn";
+		_reverseSteer = -noseSide;
+		_steer = _reverseSteer;
+		_blockedHeading = FlatForwardHelper();
 		_reverseCount++;
 		TelemetryReverseHelper( leftClear, rightClear );
 		SetStateHelper( DriveState.Reversing );
@@ -705,6 +882,17 @@ public sealed partial class AICarDriver : Component
 	/// </summary>
 	private void UpdateStuckAreaHelper( Vector3 position )
 	{
+		// Lost tracking: upright and near the navmesh resets the timer. The navmesh query runs 4x a
+		// second; between queries the last answer stands.
+		if ( _sinceLostCheck > 0.25f )
+		{
+			_sinceLostCheck = 0f;
+			var nav = Scene.NavMesh;
+			_lastNearNav = nav is null || !nav.IsEnabled || nav.GetClosestPoint( position, 400f ).HasValue;
+		}
+		if ( WorldRotation.Up.z > 0.5f && _lastNearNav )
+			_sinceNotLost = 0f;
+
 		if ( FlatDistance( position, _stuckAnchor ) > MathF.Max( StuckAreaRadius, 1f ) )
 		{
 			_stuckAnchor = position;
@@ -774,15 +962,17 @@ public sealed partial class AICarDriver : Component
 			_steer = 0f;
 			ApplyControlsHelper( 0f, 0f, false );
 			_reverseCount = 0;
+			_pivotFails = 0;
 			_stuckAnchor = WorldPosition;
 			_sinceStuckAnchor = 0f;
+			_sinceNotLost = 0f;
 			Aggression = float.Clamp( BaseAggression, 0f, 1f );
 
 			CommitPathHelper( path, target );
 			SetStateHelper( DriveState.Driving );
 
 			if ( reason != "spawn" )
-				Log.Info( $"AICarDriver on '{GameObject.Name}': stuck near {from} for {TeleportAfter}s, teleported to {point.Value}." );
+				Log.Info( $"AICarDriver on '{GameObject.Name}': {reason} near {from}, teleported to {point.Value}." );
 			return true;
 		}
 
@@ -967,11 +1157,72 @@ public sealed partial class AICarDriver : Component
 	{
 		_path.Clear();
 		foreach ( var point in path.Points )
-			_path.Add( point.Position );
+		{
+			// Merge points closer than MinPathPointSpacing to the last kept one (never the start or
+			// the destination), so a turn split over short segments reads as one corner.
+			if ( _path.Count > 0 && FlatDistance( _path[^1], point.Position ) < MinPathPointSpacing && _path.Count > 1 )
+				_path[^1] = point.Position;
+			else
+				_path.Add( point.Position );
+		}
+
+		WidenCornersHelper();
 
 		// Points[0] is the snapped start; drive toward the first corner after it.
 		_waypointIndex = 1;
 		_sinceRepath = 0f;
+	}
+
+	/// <summary>
+	/// Pushes every interior corner toward the outside of its turn by up to
+	/// <see cref="CornerOutsideOffset"/> (scaled by the turn angle, limited by the shorter adjacent
+	/// segment so a short jog is not turned into a zig-zag), then snaps it back onto the navmesh.
+	/// The navmesh's string-pulled path runs tight against the inside of every turn; a car on a
+	/// 250-500 unit turning circle that follows it clips the inside corner (v1: building corners
+	/// were the top collision and block spots).
+	/// </summary>
+	private void WidenCornersHelper()
+	{
+		if ( CornerOutsideOffset <= 0f || _path.Count < 3 ) return;
+		var nav = Scene.NavMesh;
+		if ( nav is null || !nav.IsEnabled ) return;
+
+		// Work from the original points so one moved corner doesn't skew the next one's angle.
+		var original = _path.ToArray();
+		for ( int i = 1; i < original.Length - 1; i++ )
+		{
+			Vector3 inLeg = (original[i] - original[i - 1]).WithZ( 0f );
+			Vector3 outLeg = (original[i + 1] - original[i]).WithZ( 0f );
+			if ( inLeg.LengthSquared < 1f || outLeg.LengthSquared < 1f ) continue;
+
+			Vector3 inDir = inLeg.Normal;
+			Vector3 outDir = outLeg.Normal;
+			float turn = MathF.Acos( float.Clamp( Vector3.Dot( inDir, outDir ), -1f, 1f ) ).RadianToDegree();
+			if ( turn < 15f ) continue;
+
+			// Outside of the turn = opposite the bisector direction (outDir - inDir points inside).
+			Vector3 inside = (outDir - inDir).WithZ( 0f );
+			if ( inside.LengthSquared < 0.0001f ) continue;
+			Vector3 outside = -inside.Normal;
+
+			float shortest = MathF.Min( inLeg.Length, outLeg.Length );
+			float offset = MathF.Min( CornerOutsideOffset * float.Clamp( turn / 90f, 0f, 1f ), shortest * 0.4f );
+
+			Vector3 wanted = original[i] + outside * offset;
+			Vector3? snapped = nav.GetClosestPoint( wanted, offset + 50f );
+			if ( !snapped.HasValue ) continue;
+
+			// Only accept a snap that still moved outward; a snap back past the original corner
+			// (thin road, nothing outside) keeps the original point.
+			if ( Vector3.Dot( (snapped.Value - original[i]).WithZ( 0f ), outside ) <= 0f ) continue;
+
+			// v5 M1: the cube search box has no area filter and no island check, so a snap can
+			// land on a disconnected piece of navmesh far away. Reject a snap that drifted too
+			// far from the original corner or off its level; the original point stays.
+			if ( FlatDistance( snapped.Value, original[i] ) > offset + 60f ) continue;
+			if ( MathF.Abs( snapped.Value.z - original[i].z ) > 60f ) continue;
+			_path[i] = snapped.Value;
+		}
 	}
 
 	/// <summary>Flat direction of the first non-degenerate path leg.</summary>
@@ -999,6 +1250,7 @@ public sealed partial class AICarDriver : Component
 
 			_waypointIndex++;
 			_reverseCount = 0; // progress made
+			_pivotFails = 0;
 		}
 
 		ProjectFlat( position, _path[_waypointIndex - 1], _path[_waypointIndex], out Vector3 closest );
@@ -1032,23 +1284,45 @@ public sealed partial class AICarDriver : Component
 		return _path[^1];
 	}
 
-	/// <summary>Sharpest turn (degrees) at the path corners within <see cref="CornerLookDistance"/> of the car.</summary>
-	private float GetUpcomingCornerAngleHelper( Vector3 position )
+	/// <summary>
+	/// Speed limit from the corners ahead (and the destination, treated as a full corner): for each
+	/// corner at path distance d with turn angle a, the corner speed is Lerp(Cruise, Corner, a/90)
+	/// and the limit now is sqrt(cornerSpeed^2 + 2 * CornerBrakeDecel * d), so braking starts early
+	/// enough instead of when the corner is already within <see cref="CornerLookDistance"/>.
+	/// Corners within CornerLookDistance also cap the speed directly (the old rule), so a corner the
+	/// car is already inside of stays slow until it is past it.
+	/// </summary>
+	private float GetCornerSpeedLimitHelper( Vector3 position )
 	{
-		float maxAngle = 0f;
-		float travelled = FlatDistance( position, _path[_waypointIndex] );
+		float decel = MathF.Max( CornerBrakeDecel, 1f );
+		float limit = CruiseSpeed;
+		// Beyond this distance no corner can lower the limit below cruise.
+		float horizon = (CruiseSpeed * CruiseSpeed - CornerSpeed * CornerSpeed) / (2f * decel) + CornerLookDistance;
 
-		for ( int i = _waypointIndex; i < _path.Count - 1 && travelled < CornerLookDistance; i++ )
+		ProjectFlat( position, _path[_waypointIndex - 1], _path[_waypointIndex], out Vector3 current );
+		float travelled = FlatDistance( current, _path[_waypointIndex] );
+
+		for ( int i = _waypointIndex; i < _path.Count && travelled < horizon; i++ )
 		{
-			Vector3 inDir = (_path[i] - _path[i - 1]).WithZ( 0f ).Normal;
-			Vector3 outDir = (_path[i + 1] - _path[i]).WithZ( 0f ).Normal;
-			float angle = MathF.Acos( float.Clamp( Vector3.Dot( inDir, outDir ), -1f, 1f ) ).RadianToDegree();
-			maxAngle = MathF.Max( maxAngle, angle );
+			float angle = 90f; // destination: arrive at corner speed
+			if ( i < _path.Count - 1 )
+			{
+				Vector3 inDir = (_path[i] - _path[i - 1]).WithZ( 0f ).Normal;
+				Vector3 outDir = (_path[i + 1] - _path[i]).WithZ( 0f ).Normal;
+				angle = MathF.Acos( float.Clamp( Vector3.Dot( inDir, outDir ), -1f, 1f ) ).RadianToDegree();
+			}
 
-			travelled += FlatDistance( _path[i], _path[i + 1] );
+			float cornerSpeed = Lerp( CruiseSpeed, CornerSpeed, angle / 90f );
+			float allowed = travelled < CornerLookDistance
+				? cornerSpeed
+				: MathF.Sqrt( cornerSpeed * cornerSpeed + 2f * decel * (travelled - CornerLookDistance) );
+			limit = MathF.Min( limit, allowed );
+
+			if ( i < _path.Count - 1 )
+				travelled += FlatDistance( _path[i], _path[i + 1] );
 		}
 
-		return maxAngle;
+		return limit;
 	}
 
 	// ================================================================== Whiskers
@@ -1106,6 +1380,7 @@ public sealed partial class AICarDriver : Component
 		float length = WhiskerLength + MathF.Max( forwardSpeed, 0f ) * WhiskerLengthPerSpeed;
 		bool pushThrough = IsPushingThrough;
 		_dynamicAhead = float.MaxValue;
+		_ledgeAhead = LedgeProbeHelper( _hullCenter.x + _hullSize.x * 0.5f, 1f, length );
 
 		for ( int i = 0; i < _frontWhiskers.Length; i++ )
 		{
@@ -1132,7 +1407,7 @@ public sealed partial class AICarDriver : Component
 		}
 	}
 
-	/// <summary>Casts the rear rays and returns the nearest hit distance (or the probe length).</summary>
+	/// <summary>Casts the rear rays (and the rear ledge probe) and returns the nearest hit distance (or the probe length).</summary>
 	private float ProbeRearHelper()
 	{
 		float nearest = RearProbeLength;
@@ -1141,7 +1416,55 @@ public sealed partial class AICarDriver : Component
 			_rearHitDistance[i] = CastWhiskerHelper( _rearWhiskers[i], RearProbeLength, false );
 			nearest = MathF.Min( nearest, _rearHitDistance[i] );
 		}
-		return nearest;
+		return MathF.Min( nearest, LedgeProbeHelper( _hullCenter.x - _hullSize.x * 0.5f, -1f, RearProbeLength ) );
+	}
+
+	/// <summary>
+	/// Ground check ahead of (<paramref name="direction"/> +1) or behind (-1) the car: drops a ray at
+	/// 3 points out to <paramref name="length"/> past the bumper at local x <paramref name="edgeX"/>
+	/// and returns the distance to the first point with no ground (a bridge edge, quay or drop into
+	/// the sea), or <paramref name="length"/> if all have ground. Whiskers run horizontally at
+	/// WhiskerHeight, so they never see a missing floor; v1/v2 telemetry lost cars this way
+	/// (forward off quay edges, backward off a bridge). The allowed drop grows with distance so a
+	/// downhill road far ahead does not read as a ledge.
+	/// </summary>
+	private static readonly float[] LedgeProbeFractions = { 0.1f, 0.45f, 0.85f };
+
+	private float LedgeProbeHelper( float edgeX, float direction, float length )
+	{
+		if ( LedgeDropHeight <= 0f || length <= 0f ) return length;
+
+		foreach ( float f in LedgeProbeFractions )
+		{
+			float d = MathF.Max( 30f, length * f );
+			Vector3 local = new( edgeX + direction * d, 0f, WhiskerHeight );
+			Vector3 start = WorldTransform.PointToWorld( local );
+			float depth = WhiskerHeight + LedgeDropHeight + d * 0.6f;
+
+			SceneTraceResult result = Scene.Trace.Ray( start, start + Vector3.Down * depth )
+				.IgnoreGameObjectHierarchy( GameObject )
+				.IgnoreDynamic()
+				.Run();
+
+			if ( !result.Hit && !result.StartedSolid ) return d;
+		}
+
+		return length;
+	}
+
+	/// <summary>
+	/// World start point of a whisker. With <see cref="WhiskerThickness"/> the edge whiskers are pulled
+	/// in toward the center line by that radius, so the swept spheres cover exactly the car's width:
+	/// thick enough to leave no gap between the three forward rays for a thin pole to slip through,
+	/// without reaching past the car's sides and catching things beside the lane. Computed per cast,
+	/// so a live WhiskerThickness change (tuning.json) takes effect immediately.
+	/// </summary>
+	private Vector3 WhiskerOriginHelper( in Whisker whisker )
+	{
+		Vector3 local = whisker.LocalOrigin;
+		if ( WhiskerThickness > 0f && whisker.Side != 0f )
+			local.y -= whisker.Side * MathF.Min( WhiskerThickness, MathF.Abs( local.y ) );
+		return WorldTransform.PointToWorld( local + Vector3.Up * WhiskerHeight );
 	}
 
 	/// <summary>
@@ -1150,7 +1473,7 @@ public sealed partial class AICarDriver : Component
 	/// </summary>
 	private float CastWhiskerHelper( in Whisker whisker, float length, bool ignoreDynamic )
 	{
-		Vector3 origin = WorldTransform.PointToWorld( whisker.LocalOrigin + Vector3.Up * WhiskerHeight );
+		Vector3 origin = WhiskerOriginHelper( whisker );
 		Vector3 direction = WorldRotation * whisker.LocalDirection;
 
 		var trace = Scene.Trace.Ray( origin, origin + direction * length )
@@ -1191,6 +1514,10 @@ public sealed partial class AICarDriver : Component
 			forwardClear = MathF.Min( forwardClear, _frontHitDistance[i] );
 			forwardLength = MathF.Max( forwardLength, _frontLength[i] );
 		}
+
+		// A missing floor ahead counts as an obstacle straight ahead (slows, then Blocked/reverse).
+		// Not fed into left/right: it says nothing about which side has room.
+		if ( _ledgeAhead > 0f ) forwardClear = MathF.Min( forwardClear, _ledgeAhead );
 
 		for ( int i = 0; i < _frontWhiskers.Length; i++ )
 		{
@@ -1296,7 +1623,7 @@ public sealed partial class AICarDriver : Component
 
 	private void DrawWhiskerHelper( in Whisker whisker, float length, float hitDistance )
 	{
-		Vector3 origin = WorldTransform.PointToWorld( whisker.LocalOrigin + Vector3.Up * WhiskerHeight );
+		Vector3 origin = WhiskerOriginHelper( whisker );
 		Vector3 direction = WorldRotation * whisker.LocalDirection;
 		bool hit = hitDistance < length;
 
@@ -1315,6 +1642,16 @@ public sealed partial class AICarDriver : Component
 	}
 
 	private static float FlatDistance( Vector3 a, Vector3 b ) => (a - b).WithZ( 0f ).Length;
+
+	/// <summary>
+	/// The car's heading flattened to the XY plane, safe against a degenerate rotation: falls back
+	/// to Vector3.Forward when the flattened forward is shorter than 0.001 (Normal would be NaN).
+	/// </summary>
+	private Vector3 FlatForwardHelper()
+	{
+		Vector3 flat = WorldRotation.Forward.WithZ( 0f );
+		return flat.LengthSquared < 0.000001f ? Vector3.Forward : flat.Normal;
+	}
 
 	private static float Lerp( float a, float b, float t ) => a + (b - a) * float.Clamp( t, 0f, 1f );
 

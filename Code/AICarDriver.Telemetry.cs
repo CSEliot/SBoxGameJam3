@@ -32,7 +32,7 @@ public sealed partial class AICarDriver : Component.ICollisionListener
 	/// Bumped with every tuning or logic change made through the feedback loop, so each recorded
 	/// run says which driver produced it.
 	/// </summary>
-	public const string DriverVersion = "v1-baseline";
+	public const string DriverVersion = "v7-block-hysteresis";
 
 	// ------------------------------------------------------------------ Telemetry
 
@@ -413,7 +413,7 @@ public sealed partial class AICarDriver : Component.ICollisionListener
 	{
 		if ( !_telemetryActive || _epoch is null ) return;
 
-		string trigger = _stuckTrigger ? "stuck" : (State == DriveState.Blocked ? "blocked" : "other");
+		string trigger = _stuckTrigger ? "stuck" : _reverseReason == "turn" ? "turn" : (State == DriveState.Blocked ? "blocked" : "other");
 		_stuckTrigger = false;
 
 		CountHelper( "reverses" );
