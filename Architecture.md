@@ -379,7 +379,8 @@ Behavior notes:
 - Empty queue at knockdown: fallback to the live transform (stand up where you
   fell). Queue shorter than the target index: clamp to the oldest available.
 - The recovery point is still snapped onto the navmesh
-  (`SnapRecoveryToNavMeshHelper`, `_RecoveryNavSearchRadius`) as in v0.
+  (`SnapRecoveryToNavMeshHelper`, `_RecoveryNavSnapTolerance`) but only when the navmesh is within that
+  tolerance; the scene navmesh is roads-only (AI car), so otherwise the point is left as-is.
 - Removed by this rework: `_SecondsPerBeer`, `_RecoveryHistoryHeadroom`,
   `_RecoverySampleInterval` and the time-window trim. The rewind no longer uses
   `DifficultyBeerHelper()`/`BeerDifficultyCap`; `MaxBeerLevel` is the recovery

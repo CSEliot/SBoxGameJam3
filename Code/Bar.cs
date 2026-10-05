@@ -337,9 +337,21 @@ public sealed class Bar : Component, Component.ITriggerListener
 		return $"bar[{index}]'{GameObject.Name}' mod='{_activeModuleName}' {ringState}";
 	}
 
+	/// <summary>
+	/// True only for a collider on a player body this client owns. The owner check alone is not
+	/// enough: anything else this machine owns (the host-owned AI car, local props) would pass it,
+	/// and GameManager.HandlePlayerBarTriggerEnter acts on the LOCAL player's state whatever
+	/// triggered it, so a car driving through a bar's enter ring would start the host's bar flow.
+	/// The "player" tag sits on the player root and is inherited by its child colliders.
+	/// </summary>
+	private static bool IsOwnedPlayerCollider( Collider other )
+	{
+		return other.GameObject.Tags.Has( "player" ) && other.GameObject.Network.IsOwner;
+	}
+
 	public void OnTriggerExit( Collider other )
 	{
-		if(other.GameObject.Network.IsOwner)
+		if ( IsOwnedPlayerCollider( other ) )
 		{
 			NotifyGameManagerOfPlayerTriggerExit?.Invoke(other.GameObject.Network.OwnerId);
 			// Log.Info("COLLIDdER EXIT: " + other.GameObject.Name + "Tags: " + other.GameObject.Tags);
@@ -349,7 +361,7 @@ public sealed class Bar : Component, Component.ITriggerListener
 
 	public void OnTriggerEnter( Collider other )
 	{
-		if(other.GameObject.Network.IsOwner)
+		if ( IsOwnedPlayerCollider( other ) )
 		{
 			NotifyGameManagerOfPlayerTriggerEnter?.Invoke(other.GameObject.Network.OwnerId, this);
 			// Log.Info("COLLIDER Enter: " + other.GameObject.Name + "Tags: " + other.GameObject.Tags);
