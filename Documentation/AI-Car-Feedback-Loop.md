@@ -235,3 +235,213 @@ never edit scenes, prefabs, or skills while play is running for the loop.
 - `Editor/AICarTelemetryExporter.cs`: mirrors sink files to `.aicar-telemetry/`, relays
   `tuning.json` into the game, marks the game assembly for recompile on any `Code/` .cs/.razor change
 - `Tools/aicar/analyze.py`: epoch comparison, live mode, detail report and maps
+
+---
+
+# Campaign results: the cornering and stuck-recovery work (2026-10-06/07)
+
+Section added at the end of the live-tuning campaign. Everything below comes from the epoch tables
+of session `20261007-024815` (the long campaign session) and `20261007-163810` (the final check
+run), read back with `Tools/aicar/analyze.py --live`. Figures that come from a subagent analysis
+rather than the epoch tables are marked inline (subagent-recomputed, forensics).
+
+## What the loop was asked to fix
+
+Two symptoms, measured by the loop itself: cars that stop making progress at corners (`Blocked`,
+`Reverse`) and cars that cannot free themselves and have to be teleported (the 25-point penalty in
+the score). The metric that drove every decision was teleports per car-minute, with `Blocked` and
+collisions per minute as the secondary columns.
+
+## The version chain
+
+Each step is one idea, compared against the previous epoch at matched car-minutes. Kept only if the
+targeted column moved.
+
+| version | idea | outcome |
+|---|---|---|
+| v13 | steer deadband 2 deg, yaw damping 0.3 s on path error only, tie-break toward path angle | kept |
+| v14 | brake a backward roll before it sets; speed-scaled rear obstacle stop | kept |
+| v15 | tilt guard: cut throttle when `WorldRotation.Up.z < 0.9` | kept |
+| v16 | flank side probes (probe origin 0.45 hull length, gap radius clamp) | kept: inside-turn scrapes 0.25 vs 0.73/min (82.7 car-min) |
+| v17 | corridor check: reject routes narrower than `MinCorridorWidth` 200 past a 200 u skip | kept |
+| v17b | straight-back wedge escape (no heading change) | 0 pinned teleports in 51.8 car-min, but 82 strict bounce repeats ~1.6/min |
+| v17c | alternate straight-back and a locked swing, gated on repeat at the same spot | kept |
+| v18 | learned no-go zones: a spot that teleports a car twice becomes a rejected route region | kept, teleports 0.193/min |
+| v18b | review fixes: two-pool fallback, repick anchor, merge radius 1.5x, episode gap, struct store | best measured config |
+
+## Final numbers (best validated configuration)
+
+`v18b-nogo-fixes | physcal-avoid30` closed at **201.9 car-min** on all 3 cars (session
+`20261007-024815`):
+
+    score    +39.9        m/min 402      arrivals/min 1.64
+    blocked  3.92/min     reverses 5.40/min
+    collisions 3.04/min   (553 static / 60 dynamic / 78 hard, subagent-recomputed)
+    teleports 24 = 0.119/min    flips 0    inside-turn scrapes 0.14/min (at 156.7 car-min)
+
+Reference points in the same session: v17c closed at 117.3 car-min, score +22.9, teleports
+0.171/min. v18 base closed at 107.5 car-min, score +29.4, teleports 0.167/min (18 teleports; an
+earlier draft said 0.193/min, which belongs to the 119.3 car-min window the v18 review used). So
+against the pre-physcal v13 baseline the chain cut blocked-stop density by about half (7.39/min in
+session `20261007-014136` to 3.92) and teleports by about half again (0.246/min at v13's 20.3
+car-min to 0.119). Scoped honestly: against the in-session v13 window the blocked win is only
+4.3 to 3.92, so the larger claim needs the pre-physcal baseline named. Caveat that matters when
+reading the table: score drifts DOWN as an epoch grows (v17 base scored +37.9 at 20.8 car-min and
++13.9 at 183.8), so only matched-exposure comparisons are meaningful.
+
+`AvoidSteerAngle` 30 was kept over the code default 45 on a 70.5 car-min window: blocked 4.27 vs
+4.36, collisions 3.52 vs 4.09/min (hard 0.40 vs 0.68, dynamic 0.34 vs 0.67), scrapes 0.20 vs 0.23,
+score +31.2 vs +29.4, teleports 0.24 vs 0.17/min. The hypothesis that avoidance was fighting the
+turn (and so causing mid-corner `Blocked`) was refuted: blocked density did not move. The win is
+fewer collisions, not fewer blocks.
+
+## What the learned no-go zones actually do
+
+The store records the position of a teleport whose reason is `stuck` or `repick-loop` (the code
+deliberately excludes spawn, `lost`/flip and pivot escapes), as a running mean, and counts a
+second hit only when it arrives at least `NoGoEpisodeGap` (30 s) after the last COUNTED hit, so two
+cars jammed and teleported together count as one. At `NoGoZoneMinHits` 2 the zone becomes active,
+and from then on route candidates that pass within `NoGoZoneRadius` of it (after the first
+`CorridorCheckSkip` 200 u, the stretch the car already occupies) are rejected, as are teleport and
+spawn targets. If every candidate is rejected the driver still commits the best one, by design: the
+driver never idles.
+
+Measured effect at 156.7 car-min: 3 zones active ((-131,-626), (-1314,3299), (-877,3366)), 76 of
+323 legs rejected at least one route, teleport rate 0.109/min, the best of the campaign.
+
+The honest limits of the mechanism, from the adversarial reviews:
+
+- A zone protects only from its second hit, so the first two teleports at any new spot are the
+  price of learning it. Of 20 teleports analysed, 4 to 5 were the activation hits themselves.
+- The never-idle fallback commits a no-go route when nothing else passes, and at the OfficeSquare
+  corner every road passes within 250 u of the corner, so this happens often: 8 of 87 such commits
+  crossed an active zone, 2 of them ended in a teleport at the crossing.
+- Route-start exemption loophole hypothesis was tested and refuted: 0 of 343 committed routes
+  entered an active zone only inside the skipped first 200 u.
+- Residual failures are mostly first hits at new spots (15 of 20 in the analysed window), which no
+  learned store can prevent. Those need either scene fixes at the specific geometry or a better
+  in-place escape; the v17c locked swing is what fails there.
+
+## Corrections and traps found the hard way
+
+- **Changing a property default in code does not reach live instances.** Hotload preserves each
+  instance's serialized value, so a changed default only affects newly created objects. Live
+  tunables have to go through `tuning.json` or the inspector, and the EFFECTIVE value should be
+  read back from the epoch's `config` block, never from the code default.
+- **Statics survive a hotload but are copied by FIELD NAME.** Renaming the no-go zone fields
+  (v18's three parallel lists to v18b's `List<NoGoZone>`) silently emptied the store: all five
+  learned zones were lost at that boundary. Same-shape hotloads keep their statics.
+- **A struct in a `List<T>` cannot be mutated through the indexer** (`zones[i].Hits = x` is
+  CS1612, the indexer returns a copy). Copy to a local, mutate, assign back.
+- **Judge at matched exposure.** Within one version the score falls as the epoch grows; a short
+  window on a good version can outscore a long window on a better one. Two policies came out of
+  this: compare at equal car-minutes, and treat an early window that scores LOWER than a long
+  reference window as a strong negative signal (it should have looked flattering).
+- **Single-variable A/B is worth the wait.** The window at the end of the campaign was NOT one, and
+  the cost of assuming it was is in the section below.
+
+## Final checked window: two variables changed, so it decides nothing
+
+The last window the user checked by eye is session `20261007-163810`, `30.8 car-min`, epoch key
+`v18b-nogo-fixes | physcal-nogor330`:
+
+    score    +19.3        m/min 424      arrivals/min 1.56
+    blocked  4.49/min     reverses 6.57/min
+    collisions 5.14/min   (118 static / 40 dynamic / 33 hard)
+    teleports 12 = 0.39/min   (8 repick-loop, 1 stuck, 3 lost, plus 2 spawn)
+
+Against the morning reference `v18b | physcal-avoid30` (201.9 car-min, teleports 0.119/min,
+collisions 3.04/min) every incident rate is worse while throughput is actually up (424 vs 402
+m/min). Two things differ between the two windows, not one:
+
+1. `NoGoZoneRadius` 250 to 330 (the tuning change).
+2. A live aggression experiment, applied through the inspector while play ran, and therefore
+   invisible in the epoch key: `BaseAggression` 1 (was 0), `AggressiveCautionScale` 0.1 (was 0.35),
+   `AggressiveDriveScale` 5 (was 2.5), `PushThroughAggression` 1.01 (was 0.75, meaning always shove
+   a dynamic body instead of stopping for it).
+
+The user suspected this himself ("I was playing around with aggression values... perhaps I didn't
+turn it off soon enough") and the telemetry confirms it. The `config` block of that epoch's
+`summary.json` carries those four values, and the 2 Hz samples agree: samples at `aggr >= 0.75` are
+23.2% of the window against 5.0% in the morning reference, and `aggr > 0` 41.1% against 25.5%. A
+driver at base aggression 1 with a tenth of its normal stop distance and a 5x drive scale will hit
+things more often, which is exactly the column that moved.
+
+**Withdrawn: the claim that `NoGoZoneRadius` 330 caused this regression.** The window cannot
+attribute the delta to either variable, and the radius specifically has a much larger window
+pointing the other way.
+
+### The radius does have a large clean window, and it is not the bad one
+
+After the tuning change at 09:21 the same session kept driving the radius-330 config for
+**1,231.2 car-min** (`20261007-024815`, e018, same key `physcal-nogor330#8a9ea4`), on default
+aggression (3.75% of its samples at `aggr >= 0.75`, i.e. no experiment in force). That window:
+
+    score    +46.7        m/min 413      arrivals/min 1.93
+    blocked  3.53/min     reverses 5.36/min
+    collisions 2.90/min   (3118 static / 450 dynamic / 516 hard)
+    teleports 175 = 0.142/min
+
+That is better than the radius-250 window on score, blocked density, arrivals and collisions, and
+about 19% worse on teleports (0.142 vs 0.119/min, z about 2.3 on the two counts, borderline). An
+earlier draft of this section compared the final 30.8 car-min against only the 250 window and
+called the radius change unsupported; the honest reading is the opposite: **the 1,231 car-min
+radius-330 window is the larger dataset and it does not show harm.** Keep or revert 330 on other
+grounds, not on this window.
+
+Why the final window looked so bad anyway, beyond the aggression values:
+
+- The store is scene-keyed and clears on play restart, so the 16:38 restart began with no learned
+  zones: exactly **1** zone activation in the whole window and 2 of 76 legs rejecting any route,
+  against 110 of 411 in the reference window. With an empty store the radius was close to inert, so
+  it cannot be the cause of that window's failures.
+- The failures there are one burst, not a rate: 11 of 14 teleports fall before t=400 s of a 615 s
+  window, and car0 alone took 6, three of them `lost` at speeds 4021/1356/549 u/s with z down to
+  -4349, i.e. a physics ejection rather than a routing failure.
+
+The epoch table could not have caught the aggression confound: an inspector-level value change
+opens no new epoch. The only place a covariate like this shows up is the epoch's `config` block, so
+comparing the `config` blocks of the two epochs, not just their tuning revisions, is what makes an
+A/B readable.
+
+## Shipped defaults do not match the validated configuration
+
+Worth flagging before anyone turns the loop off. The validated behaviour lives in
+`.aicar-telemetry/tuning.json`, which is gitignored and not part of the repo. The values the repo
+would actually use are the code defaults plus the `AICarDriver` overrides serialized in
+`minimal.scene`:
+
+| property | scene / code | validated tuning |
+|---|---|---|
+| `ThrottleResponse` | 125 (scene) | 900 |
+| `CornerSpeed` | 700 (scene) | 350 |
+| `CruiseSpeed` | 1200 (scene) | 1800 |
+| `CornerAimCorridor` | 60 (scene) | 30 |
+| `CornerAimTraceRadius` | 50 (scene), effective 30 after the clamp | unset; the tuned `WhiskerHeight` 45 moves the clamp instead (effective 40) |
+| `WhiskerThickness` | 10 (scene) | 25 |
+| `FullSteerAngle` | 70 (scene) | 70 (unset) |
+| `AvoidSteerAngle` | 45 (code) | 30 |
+| `NoGoZoneRadius` | 250 (code) | 250 (validated) / 330 (larger window) |
+| `CornerBrakeDecel` | 300 (code) | 240 |
+| `WhiskerHeight` | 35 (code) | 45 |
+
+Turning `UseDevTuning` off or deleting `tuning.json` reverts the cars to the left column, which is
+not the configuration that was validated. Bringing them together is step 9 of the operating
+procedure above and needs scene or prefab edits.
+
+The aggression group is a second, separate case and it does NOT live in `tuning.json`, so a
+copy-the-file-onto-the-prefab step will not carry it. The four values that were live in the last
+checked window (`BaseAggression` 1, `AggressiveCautionScale` 0.1, `AggressiveDriveScale` 5,
+`PushThroughAggression` 1.01) were set through the inspector during that session and are not saved
+anywhere: they vanish on play stop. The prefab's own values are the defaults (0 / 0.35 / 2.5 /
+0.75), which are the ones the validated morning window ran with. Decide per value which of the two
+is wanted, and set it on the prefab explicitly rather than expecting a file copy to bring it over.
+
+## Left staged, not deployed
+
+`v18c-nogo-clearance` is complete and compile-clean in
+`~/.hermes/profiles/hermes-sbox/cache/scratch/aicar-live/v18c/stage/`, not deployed. It re-ranks the
+never-idle fallback pool by clearance to the nearest active zone instead of by road width, which
+directly targets the 8 fallback commits that crossed a zone (2 ending in teleports). The skip
+window is deliberately untouched. No effect size was ever estimated for it; the case for it is the
+targeted evidence (the fallback commits above), nothing more.
