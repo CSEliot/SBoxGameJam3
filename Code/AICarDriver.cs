@@ -11,7 +11,6 @@
 // 
 
 using System;
-using System.Collections.Generic;
 using Bugges.VehicleController;
 using Sandbox.Engine.Resources;
 using Sandbox.Navigation;

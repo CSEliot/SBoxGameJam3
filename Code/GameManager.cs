@@ -25,6 +25,7 @@
 // other dealings in the software.
 
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using Sandbox.Network;
 using Sandbox.Services;
@@ -87,6 +88,118 @@ public sealed class GameManager : Component, Component.INetworkListener
 			return null;
 		return _Bars[_targetBarWaiting];
 	}
+
+	/// <summary>
+	/// Host-only: spawns one car per entry in <see cref="_CarPrefabs"/> (once, from
+	/// StartGameHelper when PLAY starts the run). Each clone is placed on the navmesh at a
+	/// random point well away from the target bar, lifted a little so the suspension settles
+	/// instead of spawning buried, networked (host-owned, so the host simulates it and clients
+	/// hold physics proxies), and pointed at the current target bar. Skipped
+	/// on clients (their copies arrive through the network) and when no prefabs are authored.
+	/// </summary>
+	private void SpawnCarsHelper()
+	{
+		if ( IsProxy ) return;
+		if ( _CarPrefabs is null || _CarPrefabs.Count == 0 ) return;
+
+		var nav = Scene.NavMesh;
+		bool hasNav = nav is not null && nav.IsEnabled;
+		Bar target = GetTargetBar();
+
+		int fallbackCount = 0;
+
+		foreach ( GameObject prefab in _CarPrefabs )
+		{
+			if ( !prefab.IsValid() )
+			{
+				Log.Warning( "GameManager: an entry in _CarPrefabs is unset; skipped." );
+				continue;
+			}
+
+			Vector3 spawnPoint = Vector3.Zero;
+			if ( hasNav )
+			{
+				bool found = false;
+				for ( int attempt = 0; attempt < 8 && !found; attempt++ )
+				{
+					Vector3? candidate = nav.GetRandomPoint();
+					if ( !candidate.HasValue ) break;
+					// Not right on top of the destination (a car that spawns arrived looks dead).
+					if ( target != null && (candidate.Value - target.WorldPosition).WithZ( 0f ).Length < 1000f )
+						continue;
+					spawnPoint = candidate.Value;
+					found = true;
+				}
+				if ( !found )
+				{
+					Log.Warning( $"GameManager: no navmesh spawn point found for car '{prefab.Name}'; spawning at the origin." );
+					spawnPoint = Vector3.Zero + Vector3.Right * (fallbackCount++ * 300f);
+				}
+			}
+			else
+			{
+				if ( !_warnedNoCarNavmesh )
+				{
+					_warnedNoCarNavmesh = true;
+					Log.Warning( "GameManager: no enabled navmesh; spawning cars at the origin." );
+				}
+				spawnPoint = Vector3.Zero + Vector3.Right * (fallbackCount++ * 300f);
+			}
+
+			// ai_car's prefab root sits at identity, so Clone(position) lands exactly here.
+			GameObject car = prefab.Clone( spawnPoint + Vector3.Up * 30f );
+			_spawnedCars.Add( car );
+
+			var controller = car.GetComponent<NavMeshCarController>( true );
+			if ( controller.IsValid() )
+				controller.FollowTarget = target?.GameObject;
+
+			// Host-owned networked object: the host simulates it, clients hold physics proxies.
+			// Solo editor: no session, so NetworkSpawn is skipped and the local clone simulates.
+			if ( Networking.IsActive )
+				car.NetworkSpawn();
+		}
+
+		_carTargetBar = target != null ? _targetBarWaiting : -1;
+	}
+
+	/// <summary>
+	/// Host-only: keeps every spawned car's NavMeshCarController.FollowTarget pointed at the
+	/// current target bar, so the GameManager authors the cars' navmesh destinations (the cars
+	/// never search for one). Runs before the local-player early-out in OnUpdate (cars exist
+	/// even when no local player resolves), retargets only when <see cref="_targetBarWaiting"/>
+	/// actually changed, and drops entries whose GameObject died. Retries while the target bar
+	/// is unresolved: the latch is only applied once a valid target resolves, so the cars keep
+	/// their last target and this helper runs again next frame until then.
+	/// </summary>
+	private void SyncCarTargetsHelper()
+	{
+		if ( IsProxy || _spawnedCars.Count == 0 ) return;
+
+		for ( int i = _spawnedCars.Count - 1; i >= 0; i-- )
+		{
+			if ( !_spawnedCars[i].IsValid() )
+			{
+				_spawnedCars.RemoveAt( i );
+				continue;
+			}
+		}
+
+		if ( _carTargetBar == _targetBarWaiting ) return;
+
+		GameObject targetGo = GetTargetBar()?.GameObject;
+		if ( targetGo == null )
+			return;
+
+		_carTargetBar = _targetBarWaiting;
+
+		for ( int i = _spawnedCars.Count - 1; i >= 0; i-- )
+		{
+			var controller = _spawnedCars[i].GetComponent<NavMeshCarController>( true );
+			if ( controller.IsValid() )
+				controller.FollowTarget = targetGo;
+		}
+	}
 	
 	/// <summary>
 	/// After this many beers, the difficulty effects that scale with drunkenness (run speed,
@@ -105,6 +218,13 @@ public sealed class GameManager : Component, Component.INetworkListener
 	[Property] private GameObject _DefaultSpawnLocation { get; set; }
 	// [Property] private GameObject _CityMesh { get; set; }
 	[Property] private GameObject _Dome { get; set; }
+
+	/// <summary>
+	/// Car prefabs (ai_car.prefab) the GameManager spawns, host-only, when the run starts
+	/// (see SpawnCarsHelper). Each spawned car's NavMeshCarController is pointed at the current
+	/// target bar and retargeted whenever <see cref="_targetBarWaiting"/> changes. Empty = no cars.
+	/// </summary>
+	[Property] private List<GameObject> _CarPrefabs { get; set; }
 	
 	[Property, ReadOnly] private GameObject _CCCamera { get; set; } = null;
 	[Property, ReadOnly] private AudioController _AudioController { get; set; }
@@ -157,6 +277,12 @@ public sealed class GameManager : Component, Component.INetworkListener
 	/// </summary>
 	[Property, ReadOnly] private int _targetBarWaiting = 1;
 	private bool _startGameCalled;
+	/// <summary>Cars this host spawned from <see cref="_CarPrefabs"/> (see SpawnCarsHelper).</summary>
+	private readonly List<GameObject> _spawnedCars = new();
+	/// <summary>The _targetBarWaiting value the cars were last retargeted to; -1 = never.</summary>
+	private int _carTargetBar = -1;
+	/// <summary>One-time warning latch for the no-navmesh car spawn path.</summary>
+	private bool _warnedNoCarNavmesh;
 	/// <summary>
 	/// Gate for UpdateEnterRingVisibilityHelper: which _targetBarWaiting value the bar rings
 	/// were last synced to. -1 = never applied yet, so the helper runs (and retries while
@@ -272,6 +398,7 @@ public sealed class GameManager : Component, Component.INetworkListener
 		// _Bars/_targetBarWaiting, so bars get sorted out even while sitting in the menu
 		// (no local player resolves yet) instead of every prefab ring rendering until PLAY.
 		UpdateEnterRingVisibilityHelper();
+		SyncCarTargetsHelper();
 
 		if (ResolveLocalPlayerHelper() == false)
 			return;
@@ -936,6 +1063,7 @@ public sealed class GameManager : Component, Component.INetworkListener
 				return;
 		}
 
+		SpawnCarsHelper();
 		_localGameState = LocalGameState.WaitingToStartMinigame;
 	}
 
