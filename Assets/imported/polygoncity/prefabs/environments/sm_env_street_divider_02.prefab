@@ -3,7 +3,7 @@
     "__guid": "84dac439-a0a3-3837-90ae-1d1805421a6c",
     "__version": 2,
     "Flags": 0,
-    "Name": "SM_Env_Street_Divider_02",
+    "Name": "sm_env_street_divider_02",
     "Position": "0,0,0",
     "Rotation": "0,0,0,1",
     "Scale": "1,1,1",
@@ -26,7 +26,10 @@
         "MaterialGroup": null,
         "MaterialOverride": null,
         "Materials": null,
-        "Model": "imported/polygoncity/models/sm_env_street_divider_02.vmdl",
+        "Model": {
+          "Id": "eb432ba6-8ff3-4e9f-bb9e-0042c8816f40",
+          "Path": "imported/polygoncity/models/sm_env_street_divider_02.vmdl"
+        },
         "OnComponentDestroy": null,
         "OnComponentDisabled": null,
         "OnComponentEnabled": null,
@@ -47,6 +50,7 @@
         "__guid": "1dc51815-2e12-3a95-891b-071196ecc237",
         "__enabled": true,
         "Flags": 0,
+        "Center": "-55.4929199,0,3.24985933",
         "ColliderFlags": 0,
         "Elasticity": null,
         "Friction": null,
@@ -62,11 +66,41 @@
         "OnTriggerEnter": null,
         "OnTriggerExit": null,
         "RollingResistance": null,
+        "Scale": "110.98584,46.5632401,6.49971867",
         "Static": true,
         "Surface": null,
-        "SurfaceVelocity": "0,0,0",
-        "Center": "-55.49292,0,3.2498593",
-        "Scale": "110.98584,46.56324,6.4997187"
+        "SurfaceVelocity": "0,0,0"
+      },
+      {
+        "__type": "Sandbox.NavMeshArea",
+        "__guid": "0c0af44a-8ec2-461c-b64e-350d983d7c14",
+        "__enabled": true,
+        "Flags": 0,
+        "Area": null,
+        "IsBlocker": true,
+        "LinkedCollider": null,
+        "OnComponentDestroy": null,
+        "OnComponentDisabled": null,
+        "OnComponentEnabled": null,
+        "OnComponentFixedUpdate": null,
+        "OnComponentStart": null,
+        "OnComponentUpdate": null,
+        "SceneVolume": {
+          "Type": "Box",
+          "Sphere": {
+            "Center": "0,0,0",
+            "Radius": 10
+          },
+          "Box": {
+            "Mins": "-116.915833,-29.1516151,0",
+            "Maxs": "5.75000048,30.0016193,8.81880569"
+          },
+          "Capsule": {
+            "CenterA": "0,0,10",
+            "CenterB": "0,0,90",
+            "Radius": 10
+          }
+        }
       }
     ],
     "Children": [],

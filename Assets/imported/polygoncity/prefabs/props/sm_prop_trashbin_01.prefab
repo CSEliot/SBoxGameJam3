@@ -3,7 +3,7 @@
     "__guid": "49f4acc8-f462-3273-b25b-c150b1f4aefb",
     "__version": 2,
     "Flags": 0,
-    "Name": "SM_Prop_Trashbin_01",
+    "Name": "sm_prop_trashbin_01",
     "Position": "0,0,0",
     "Rotation": "0,0,0,1",
     "Scale": "1,1,1",
@@ -26,7 +26,10 @@
         "MaterialGroup": null,
         "MaterialOverride": null,
         "Materials": null,
-        "Model": "imported/polygoncity/models/sm_prop_trashbin_01.vmdl",
+        "Model": {
+          "Id": "471e00d4-0293-4b3b-a52a-7443b6aabaf1",
+          "Path": "imported/polygoncity/models/sm_prop_trashbin_01.vmdl"
+        },
         "OnComponentDestroy": null,
         "OnComponentDisabled": null,
         "OnComponentEnabled": null,
@@ -51,7 +54,10 @@
         "Elasticity": null,
         "Friction": null,
         "IsTrigger": false,
-        "Model": "imported/polygoncity/models/sm_prop_trashbin_01.vmdl",
+        "Model": {
+          "Id": "471e00d4-0293-4b3b-a52a-7443b6aabaf1",
+          "Path": "imported/polygoncity/models/sm_prop_trashbin_01.vmdl"
+        },
         "OnComponentDestroy": null,
         "OnComponentDisabled": null,
         "OnComponentEnabled": null,
@@ -66,6 +72,37 @@
         "Static": true,
         "Surface": null,
         "SurfaceVelocity": "0,0,0"
+      },
+      {
+        "__type": "Sandbox.NavMeshArea",
+        "__guid": "2b10b520-457e-4b0a-8975-8591f6241acf",
+        "__enabled": true,
+        "Flags": 0,
+        "Area": null,
+        "IsBlocker": true,
+        "LinkedCollider": null,
+        "OnComponentDestroy": null,
+        "OnComponentDisabled": null,
+        "OnComponentEnabled": null,
+        "OnComponentFixedUpdate": null,
+        "OnComponentStart": null,
+        "OnComponentUpdate": null,
+        "SceneVolume": {
+          "Type": "Box",
+          "Sphere": {
+            "Center": "0,0,0",
+            "Radius": 10
+          },
+          "Box": {
+            "Mins": "-25,-25,-25",
+            "Maxs": "25,25,25"
+          },
+          "Capsule": {
+            "CenterA": "0,0,10",
+            "CenterB": "0,0,90",
+            "Radius": 10
+          }
+        }
       }
     ],
     "Children": [],
