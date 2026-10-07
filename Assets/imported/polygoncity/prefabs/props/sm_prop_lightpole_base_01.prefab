@@ -3,7 +3,7 @@
     "__guid": "f89be5a5-fee0-32bf-a8de-6277f1d4ab94",
     "__version": 2,
     "Flags": 0,
-    "Name": "SM_Prop_LightPole_Base_01",
+    "Name": "sm_prop_lightpole_base_01",
     "Position": "0,0,0",
     "Rotation": "0,0,0,1",
     "Scale": "1,1,1",
@@ -26,7 +26,10 @@
         "MaterialGroup": null,
         "MaterialOverride": null,
         "Materials": null,
-        "Model": "imported/polygoncity/models/sm_prop_lightpole_base_01.vmdl",
+        "Model": {
+          "Id": "48966094-e85f-4da2-954d-83d2923d71e8",
+          "Path": "imported/polygoncity/models/sm_prop_lightpole_base_01.vmdl"
+        },
         "OnComponentDestroy": null,
         "OnComponentDisabled": null,
         "OnComponentEnabled": null,
@@ -51,7 +54,10 @@
         "Elasticity": null,
         "Friction": null,
         "IsTrigger": false,
-        "Model": "imported/polygoncity/models/sm_prop_lightpole_base_01.vmdl",
+        "Model": {
+          "Id": "48966094-e85f-4da2-954d-83d2923d71e8",
+          "Path": "imported/polygoncity/models/sm_prop_lightpole_base_01.vmdl"
+        },
         "OnComponentDestroy": null,
         "OnComponentDisabled": null,
         "OnComponentEnabled": null,
@@ -66,6 +72,37 @@
         "Static": true,
         "Surface": null,
         "SurfaceVelocity": "0,0,0"
+      },
+      {
+        "__type": "Sandbox.NavMeshArea",
+        "__guid": "fa821712-5f0d-48f2-a77d-e7506cd1a245",
+        "__enabled": true,
+        "Flags": 0,
+        "Area": null,
+        "IsBlocker": true,
+        "LinkedCollider": null,
+        "OnComponentDestroy": null,
+        "OnComponentDisabled": null,
+        "OnComponentEnabled": null,
+        "OnComponentFixedUpdate": null,
+        "OnComponentStart": null,
+        "OnComponentUpdate": null,
+        "SceneVolume": {
+          "Type": "Sphere",
+          "Sphere": {
+            "Center": "0,0,0",
+            "Radius": 10
+          },
+          "Box": {
+            "Mins": "-25,-25,-25",
+            "Maxs": "25,25,25"
+          },
+          "Capsule": {
+            "CenterA": "0,0,10",
+            "CenterB": "0,0,90",
+            "Radius": 10
+          }
+        }
       }
     ],
     "Children": [],

@@ -32,7 +32,7 @@ public sealed partial class AICarDriver : Component.ICollisionListener
 	/// Bumped with every tuning or logic change made through the feedback loop, so each recorded
 	/// run says which driver produced it.
 	/// </summary>
-	public const string DriverVersion = "v7-block-hysteresis";
+	public const string DriverVersion = "v18b-nogo-fixes";
 
 	// ------------------------------------------------------------------ Telemetry
 
@@ -68,6 +68,7 @@ public sealed partial class AICarDriver : Component.ICollisionListener
 	private bool _telemetryActive;
 	private bool _teleportPending;
 	private bool _stuckTrigger;
+	private bool _tiltTrigger;
 	private string _carId = "";
 	private TimeSince _sinceTelemetryStart;
 	private TimeSince _sinceSample;
@@ -92,7 +93,7 @@ public sealed partial class AICarDriver : Component.ICollisionListener
 
 	private static readonly CultureInfo Inv = CultureInfo.InvariantCulture;
 
-	private const string SamplesHeader = "t,x,y,z,yaw,speed,fwd,target,throttle,brake,steer,state,aggr,wp,pathdev,pathang,avoidang,fclear,lclear,rclear,offnav,upz,fhit";
+	private const string SamplesHeader = "t,x,y,z,yaw,speed,fwd,target,throttle,brake,steer,state,aggr,wp,pathdev,pathang,avoidang,fclear,lclear,rclear,offnav,upz,fhit,aim,lflank,rflank";
 	private const string LegsHeader = "start_t,duration,outcome,planned,driven,reverses,collisions,avg_speed";
 	private const string EpochsHeader = "epoch,key,version,tuning_revision,start_t,duration,closed,distance,arrived,legs,blocked,reverses,collisions,collisions_static,collisions_dynamic,collisions_hard,teleports,flips,offnav_time,idle_time,steer_sign_flips";
 
@@ -378,7 +379,12 @@ public sealed partial class AICarDriver : Component.ICollisionListener
 			.Append( F( Clamp9999( rightClear ), 0 ) ).Append( ',' )
 			.Append( F( _lastOffNavDistance, 0 ) ).Append( ',' )
 			.Append( F( upZ, 2 ) ).Append( ',' )
-			.Append( Csv( hit ) ).AppendLine();
+			.Append( Csv( hit ) ).Append( ',' )
+			.Append( _aimingAtCorner ? '1' : '0' ).Append( ',' )
+			// v16: front-flank gaps. Probed only in the normal Driving steer branch; outside it
+			// (Blocked/Reversing/Idle/pivot) report the probe length, meaning "no flank info".
+			.Append( F( Clamp9999( driving ? _flankLeftGap : MathF.Max( EffectiveFlankProbeLength, 0f ) ), 0 ) ).Append( ',' )
+			.Append( F( Clamp9999( driving ? _flankRightGap : MathF.Max( EffectiveFlankProbeLength, 0f ) ), 0 ) ).AppendLine();
 		_epoch.SampleCount++;
 	}
 
@@ -411,10 +417,13 @@ public sealed partial class AICarDriver : Component.ICollisionListener
 
 	private void TelemetryReverseHelper( float leftClear, float rightClear )
 	{
-		if ( !_telemetryActive || _epoch is null ) return;
-
-		string trigger = _stuckTrigger ? "stuck" : _reverseReason == "turn" ? "turn" : (State == DriveState.Blocked ? "blocked" : "other");
+		// v15 review fix: read and clear the trigger latches before the telemetry-off early return,
+		// or a reverse taken with telemetry off leaves its latch set and mislabels the next one.
+		string trigger = _stuckTrigger ? "stuck" : _tiltTrigger ? "tilt" : _reverseReason == "turn" ? "turn" : (State == DriveState.Blocked ? "blocked" : "other");
 		_stuckTrigger = false;
+		_tiltTrigger = false;
+
+		if ( !_telemetryActive || _epoch is null ) return;
 
 		CountHelper( "reverses" );
 		CountHelper( $"reverses_{trigger}" );
@@ -441,7 +450,13 @@ public sealed partial class AICarDriver : Component.ICollisionListener
 		_epoch.LegCollisions = 0;
 
 		CountHelper( "legs_started" );
-		TelemetryEventHelper( "LegStart", $"dest={Fmt( Destination )} planned={F( length, 0 )} points={_path.Count} path={FmtPath( _path )}" );
+		TelemetryEventHelper( "LegStart", $"dest={Fmt( Destination )} planned={F( length, 0 )} points={_path.Count} " +
+			$"minw={F( Clamp9999( _legMinWidth ), 0 )} minw_at={F( _legMinWidthAt.x, 0 )},{F( _legMinWidthAt.y, 0 )} " +
+			$"rejected={_legRoutesRejected} " +
+			$"nogo_rejected={_legNogoRejected} " +
+			$"rej_minw={F( Clamp9999( _legRoutesRejected > 0 ? _rejMinWidth : -1f ), 0 )} " +
+			$"rej_minw_at={F( _legRoutesRejected > 0 ? _rejMinWidthAt.x : 0f, 0 )},{F( _legRoutesRejected > 0 ? _rejMinWidthAt.y : 0f, 0 )} " +
+			$"path={FmtPath( _path )}" );
 	}
 
 	private void TelemetryLegEndHelper( string outcome )
@@ -673,6 +688,11 @@ public sealed partial class AICarDriver : Component.ICollisionListener
 			("CruiseSpeed", CruiseSpeed), ("CornerSpeed", CornerSpeed), ("CreepSpeed", CreepSpeed),
 			("ThrottleResponse", ThrottleResponse), ("BrakeMargin", BrakeMargin), ("ObstacleBrakingRate", ObstacleBrakingRate),
 			("FullSteerAngle", FullSteerAngle), ("SteerResponse", SteerResponse),
+			// v13 review fix: log EFFECTIVE values (hotload fallbacks applied), not the raw
+			// properties - a hotloaded instance reads 0 for new properties, and the raw dump
+			// recorded 0 while the car actually drove with the fallback. This is what hid the
+			// stale CornerAimTraceRadius=50 during the v12b-e aim debugging.
+			("SteerDeadband", EffectiveSteerDeadband), ("SteerYawDamping", EffectiveSteerYawDamping),
 			("WhiskerLength", WhiskerLength), ("WhiskerLengthPerSpeed", WhiskerLengthPerSpeed),
 			("SideWhiskerAngle", SideWhiskerAngle), ("SideWhiskerScale", SideWhiskerScale),
 			("WhiskerHeight", WhiskerHeight), ("WhiskerThickness", WhiskerThickness), ("GroundNormalZ", GroundNormalZ),
@@ -680,10 +700,24 @@ public sealed partial class AICarDriver : Component.ICollisionListener
 			("ReverseThrottle", ReverseThrottle), ("MinReverseTime", MinReverseTime), ("MaxReverseTime", MaxReverseTime),
 			("RearProbeLength", RearProbeLength), ("RearStopDistance", RearStopDistance),
 			("StuckSpeed", StuckSpeed), ("StuckTime", StuckTime), ("RepickAfterReverses", RepickAfterReverses),
+			("TiltGuardUpZ", EffectiveTiltGuardUpZ),
+			("FlankProbeLength", EffectiveFlankProbeLength), ("FlankMargin", EffectiveFlankMargin),
+			// v17: effective corridor check values (hotload fallbacks applied), same rule as above.
+			("MinCorridorWidth", EffectiveMinCorridorWidth), ("CorridorCheckSkip", EffectiveCorridorCheckSkip),
+			("CorridorSampleSpacing", EffectiveCorridorSampleSpacing),
+			// v18: effective no-go zone values (hotload fallbacks applied), same rule as above.
+			("NoGoZoneRadius", EffectiveNoGoZoneRadius), ("NoGoZoneMinHits", EffectiveNoGoZoneMinHits),
+			// v18b: episode gap (effective) for the learn-faster fix.
+			("NoGoEpisodeGap", EffectiveNoGoEpisodeGap),
 			("StuckAreaRadius", StuckAreaRadius), ("TeleportAfter", TeleportAfter),
 			("BaseAggression", BaseAggression), ("AggressionDelay", AggressionDelay), ("AggressionRampTime", AggressionRampTime),
 			("AggressionDecayTime", AggressionDecayTime), ("AggressiveCautionScale", AggressiveCautionScale),
 			("AggressiveDriveScale", AggressiveDriveScale), ("PushThroughAggression", PushThroughAggression),
+			("CornerAimMinAngle", EffectiveCornerAimMinAngleHelper()), ("CornerAimDistance", EffectiveCornerAimDistance),
+			("CornerAimCorridor", EffectiveCornerAimCorridor), ("CornerAimTraceRadius", EffectiveCornerAimTraceRadius),
+			("CornerAimTraceDistance", EffectiveCornerAimTraceDistance),
+			("CornerFullAngle", EffectiveCornerFullAngle), ("SharpCornerSpeed", EffectiveSharpCornerSpeedHelper()),
+			("ReverseProgressDistance", EffectiveReverseProgressDistance), ("RepickChainTeleport", EffectiveRepickChainTeleport),
 			("HullLength", _hullSize.x), ("HullWidth", _hullSize.y),
 		};
 

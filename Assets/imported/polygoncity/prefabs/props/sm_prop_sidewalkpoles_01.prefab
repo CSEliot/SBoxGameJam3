@@ -3,7 +3,7 @@
     "__guid": "a8a5eb31-5305-3852-afbd-374cbc487aef",
     "__version": 2,
     "Flags": 0,
-    "Name": "SM_Prop_SidewalkPoles_01",
+    "Name": "sm_prop_sidewalkpoles_01",
     "Position": "0,0,0",
     "Rotation": "0,0,0,1",
     "Scale": "1,1,1",
@@ -26,7 +26,10 @@
         "MaterialGroup": null,
         "MaterialOverride": null,
         "Materials": null,
-        "Model": "imported/polygoncity/models/sm_prop_sidewalkpoles_01.vmdl",
+        "Model": {
+          "Id": "25e60703-7bb8-4d22-8d2a-e6c184357104",
+          "Path": "imported/polygoncity/models/sm_prop_sidewalkpoles_01.vmdl"
+        },
         "OnComponentDestroy": null,
         "OnComponentDisabled": null,
         "OnComponentEnabled": null,
@@ -51,7 +54,10 @@
         "Elasticity": null,
         "Friction": null,
         "IsTrigger": false,
-        "Model": "imported/polygoncity/models/sm_prop_sidewalkpoles_01.vmdl",
+        "Model": {
+          "Id": "25e60703-7bb8-4d22-8d2a-e6c184357104",
+          "Path": "imported/polygoncity/models/sm_prop_sidewalkpoles_01.vmdl"
+        },
         "OnComponentDestroy": null,
         "OnComponentDisabled": null,
         "OnComponentEnabled": null,
@@ -66,6 +72,37 @@
         "Static": true,
         "Surface": null,
         "SurfaceVelocity": "0,0,0"
+      },
+      {
+        "__type": "Sandbox.NavMeshArea",
+        "__guid": "ac7d5156-9b5d-48e0-8ed6-88047400205e",
+        "__enabled": true,
+        "Flags": 0,
+        "Area": null,
+        "IsBlocker": true,
+        "LinkedCollider": null,
+        "OnComponentDestroy": null,
+        "OnComponentDisabled": null,
+        "OnComponentEnabled": null,
+        "OnComponentFixedUpdate": null,
+        "OnComponentStart": null,
+        "OnComponentUpdate": null,
+        "SceneVolume": {
+          "Type": "Box",
+          "Sphere": {
+            "Center": "0,0,0",
+            "Radius": 10
+          },
+          "Box": {
+            "Mins": "-7.13822937,-50,-5.44726562",
+            "Maxs": "7.13825607,50,48.3085938"
+          },
+          "Capsule": {
+            "CenterA": "0,0,10",
+            "CenterB": "0,0,90",
+            "Radius": 10
+          }
+        }
       }
     ],
     "Children": [],
