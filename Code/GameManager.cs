@@ -33,7 +33,7 @@ using Sandbox.UI;
 
 namespace Sandbox;
 
-public sealed class GameManager : Component, Component.INetworkListener
+public sealed partial class GameManager : Component, Component.INetworkListener
 {
 	public enum LocalGameState
 	{
@@ -661,6 +661,9 @@ public sealed class GameManager : Component, Component.INetworkListener
 			}
 		}
 		_AudioController.State = AudioController.MusicState.MainMenu;
+		// Capture the afternoon look once (day values are read from the scene; only night values
+		// are properties). Placed after every setup call so no earlier return can skip it.
+		CaptureDayLightingHelper();
 	}
 
 	protected override void OnUpdate()
@@ -670,6 +673,8 @@ public sealed class GameManager : Component, Component.INetworkListener
 		// (no local player resolves yet) instead of every prefab ring rendering until PLAY.
 		UpdateEnterRingVisibilityHelper();
 		UpdateGhostCarsHelper();
+		// Local visuals for every client (no host gate), so also before the local-player early-out.
+		UpdateDayNightLightingHelper();
 
 		if (ResolveLocalPlayerHelper() == false)
 			return;
