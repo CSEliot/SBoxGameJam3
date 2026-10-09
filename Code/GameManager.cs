@@ -90,115 +90,330 @@ public sealed class GameManager : Component, Component.INetworkListener
 	}
 
 	/// <summary>
-	/// Host-only: spawns one car per entry in <see cref="_CarPrefabs"/> (once, from
-	/// StartGameHelper when PLAY starts the run). Each clone is placed on the navmesh at a
-	/// random point well away from the target bar, lifted a little so the suspension settles
-	/// instead of spawning buried, networked (host-owned, so the host simulates it and clients
-	/// hold physics proxies), and pointed at the current target bar. Skipped
-	/// on clients (their copies arrive through the network) and when no prefabs are authored.
+	/// Host-only: places ONE ghost car clone on the navmesh, lifted a little so the
+	/// suspension settles instead of spawning buried, networked (host-owned, so the host
+	/// simulates it and clients hold physics proxies). The navmesh point is retried until it
+	/// is at least <see cref="_GhostSpawnMinPlayerDistance"/> away from EVERY player; if no
+	/// attempt qualifies the best candidate found is used, and with no navmesh at all the
+	/// car drops at the origin. The clone's GhostCarBrain owns the car's navmesh destination
+	/// (GameManager never authors FollowTarget), its scatter corner is taken from
+	/// <see cref="_GhostScatterCorners"/> at its GhostPersonality index, and its authored
+	/// AICarDriver.BaseAggression is remembered for the aggression bonus. Caller adds the
+	/// returned car to <see cref="_spawnedCars"/>.
 	/// </summary>
-	private void SpawnCarsHelper()
+	private GameObject SpawnGhostCarHelper( GameObject prefab, int slot )
 	{
-		if ( IsProxy ) return;
-		if ( _CarPrefabs is null || _CarPrefabs.Count == 0 ) return;
-
 		var nav = Scene.NavMesh;
 		bool hasNav = nav is not null && nav.IsEnabled;
-		Bar target = GetTargetBar();
 
-		int fallbackCount = 0;
+		// Every player root, including one disabled while sitting in a bar: the car must not
+		// spawn on top of that spot even though the player is not currently enabled.
+		var players = GhostPlayerRootsHelper();
 
-		foreach ( GameObject prefab in _CarPrefabs )
+		Vector3 spawnPoint = Vector3.Zero;
+
+		if ( hasNav )
 		{
-			if ( !prefab.IsValid() )
-			{
-				Log.Warning( "GameManager: an entry in _CarPrefabs is unset; skipped." );
-				continue;
-			}
+			bool found = false;
+			bool haveBest = false;
+			Vector3 best = Vector3.Zero;
+			float bestMinDistance = -1f;
 
-			Vector3 spawnPoint = Vector3.Zero;
-			if ( hasNav )
+			for ( int attempt = 0; attempt < 8; attempt++ )
 			{
-				bool found = false;
-				for ( int attempt = 0; attempt < 8 && !found; attempt++ )
+				Vector3? candidate = nav.GetRandomPoint();
+				if ( !candidate.HasValue ) break;
+
+				// Flat distance to the NEAREST player; the point must clear the minimum
+				// distance from every player, which is the smallest of the per-player gaps.
+				float minDistance = float.MaxValue;
+				foreach ( var player in players )
+					minDistance = MathF.Min( minDistance,
+						( candidate.Value - player.WorldPosition ).WithZ( 0f ).Length );
+
+				if ( minDistance >= _GhostSpawnMinPlayerDistance )
 				{
-					Vector3? candidate = nav.GetRandomPoint();
-					if ( !candidate.HasValue ) break;
-					// Not right on top of the destination (a car that spawns arrived looks dead).
-					if ( target != null && (candidate.Value - target.WorldPosition).WithZ( 0f ).Length < 1000f )
-						continue;
 					spawnPoint = candidate.Value;
 					found = true;
+					break;
 				}
-				if ( !found )
+
+				// Remember the best rejected candidate as the fallback.
+				if ( !haveBest || minDistance > bestMinDistance )
 				{
-					Log.Warning( $"GameManager: no navmesh spawn point found for car '{prefab.Name}'; spawning at the origin." );
-					spawnPoint = Vector3.Zero + Vector3.Right * (fallbackCount++ * 300f);
+					bestMinDistance = minDistance;
+					best = candidate.Value;
+					haveBest = true;
 				}
 			}
-			else
+
+			if ( !found )
 			{
-				if ( !_warnedNoCarNavmesh )
+				if ( haveBest )
 				{
-					_warnedNoCarNavmesh = true;
-					Log.Warning( "GameManager: no enabled navmesh; spawning cars at the origin." );
+					spawnPoint = best;
 				}
-				spawnPoint = Vector3.Zero + Vector3.Right * (fallbackCount++ * 300f);
+				else
+				{
+					Log.Warning( $"GameManager: no navmesh spawn point found for ghost car '{prefab.Name}'; spawning at the origin." );
+					spawnPoint = Vector3.Zero + Vector3.Right * (slot * 300f);
+				}
 			}
-
-			// ai_car's prefab root sits at identity, so Clone(position) lands exactly here.
-			GameObject car = prefab.Clone( spawnPoint + Vector3.Up * 30f );
-			_spawnedCars.Add( car );
-
-			var controller = car.GetComponent<NavMeshCarController>( true );
-			if ( controller.IsValid() )
-				controller.FollowTarget = target?.GameObject;
-
-			// Host-owned networked object: the host simulates it, clients hold physics proxies.
-			// Solo editor: no session, so NetworkSpawn is skipped and the local clone simulates.
-			if ( Networking.IsActive )
-				car.NetworkSpawn();
+		}
+		else
+		{
+			if ( !_warnedNoCarNavmesh )
+			{
+				_warnedNoCarNavmesh = true;
+				Log.Warning( "GameManager: no enabled navmesh; spawning ghost cars at the origin." );
+			}
+			spawnPoint = Vector3.Zero + Vector3.Right * (slot * 300f);
 		}
 
-		_carTargetBar = target != null ? _targetBarWaiting : -1;
+		// ai_car's prefab root sits at identity, so Clone(position) lands exactly here.
+		GameObject car = prefab.Clone( spawnPoint + Vector3.Up * 30f );
+
+		var brain = car.GetComponent<GhostCarBrain>( true );
+		if ( !brain.IsValid() )
+		{
+			// Still counted: a prefab missing its brain is an authoring mistake, not a
+			// reason to distort the count the leader's beers asked for. Warn once per prefab.
+			if ( _warnedNoGhostBrain.Add( prefab ) )
+				Log.Warning( $"GameManager: ghost car prefab '{prefab.Name}' has no GhostCarBrain; it will not be driven." );
+		}
+		else
+		{
+			brain.ScatterCorner = GhostScatterCornerHelper( brain.Personality );
+			// BlinkyPartner is (re)assigned on every brain after each spawn/despawn.
+		}
+
+		var ai = car.GetComponent<AICarDriver>( true );
+		if ( ai.IsValid() )
+			_ghostAuthoredAggression[car] = ai.BaseAggression;
+
+		// Host-owned networked object: the host simulates it, clients hold physics proxies.
+		// Solo editor: no session, so NetworkSpawn is skipped and the local clone simulates.
+		if ( Networking.IsActive )
+			car.NetworkSpawn();
+
+		return car;
 	}
 
 	/// <summary>
-	/// Host-only: keeps every spawned car's NavMeshCarController.FollowTarget pointed at the
-	/// current target bar, so the GameManager authors the cars' navmesh destinations (the cars
-	/// never search for one). Runs before the local-player early-out in OnUpdate (cars exist
-	/// even when no local player resolves), retargets only when <see cref="_targetBarWaiting"/>
-	/// actually changed, and drops entries whose GameObject died. Retries while the target bar
-	/// is unresolved: the latch is only applied once a valid target resolves, so the cars keep
-	/// their last target and this helper runs again next frame until then.
+	/// The scatter corner authored for a given ghost personality, or null when the list is
+	/// shorter than the personality's index or the entry is unset. The list is indexed by
+	/// GhostPersonality (Blinky 0, Pinky 1, Inky 2, Clyde 3) so the corner tracks the ghost
+	/// itself, not its spawn slot: spawn slots skip unset _CarPrefabs entries while this
+	/// list does not, so indexing by slot would hand a car the wrong corner when the two
+	/// authored lists have different shapes. Feeds GhostCarBrain.ScatterCorner.
 	/// </summary>
-	private void SyncCarTargetsHelper()
+	private GameObject GhostScatterCornerHelper( GhostPersonality personality )
 	{
-		if ( IsProxy || _spawnedCars.Count == 0 ) return;
+		if ( _GhostScatterCorners is null )
+			return null;
 
+		int index = (int)personality;
+		if ( index < 0 || index >= _GhostScatterCorners.Count )
+			return null;
+
+		GameObject corner = _GhostScatterCorners[index];
+		return corner.IsValid() ? corner : null;
+	}
+
+	/// <summary>
+	/// The slot-th VALID entry of <see cref="_CarPrefabs"/> (unset entries are skipped
+	/// without consuming a slot), so spawning in list order yields Blinky, Pinky, Inky,
+	/// Clyde and never spawns a null prefab. Returns null once the list is exhausted.
+	/// </summary>
+	private GameObject GhostPrefabForSlotHelper( int slot )
+	{
+		if ( _CarPrefabs is null )
+			return null;
+
+		int seen = 0;
+		foreach ( var prefab in _CarPrefabs )
+		{
+			if ( !prefab.IsValid() )
+				continue;
+
+			if ( seen == slot )
+				return prefab;
+
+			seen++;
+		}
+
+		return null;
+	}
+
+	/// <summary>
+	/// Every player root in the scene, INCLUDING roots whose GameObject is disabled. The
+	/// scene component index (Scene.GetAllComponents) only returns ENABLED components, and
+	/// GameManager disables the local player root during the bar mini-game, the bar menu and
+	/// the end-game freeze. The leading player therefore disappears from that index exactly
+	/// while parked in a bar, which would drop the ghost car count to the next player and
+	/// despawn the newest cars on every visit. This walks the scene's tagged objects
+	/// instead: Scene.FindAllWithTag enumerates the scene directory, which keeps a disabled
+	/// object registered until it is destroyed, and GetComponent( true ) then reads a
+	/// disabled root's DrunkCC. Callers use the same list for the leader beers and for the
+	/// spawn minimum-distance check, so a player sitting in a bar still counts and still
+	/// blocks the spot they occupy.
+	/// </summary>
+	private List<GameObject> GhostPlayerRootsHelper()
+	{
+		return Scene.Scene.FindAllWithTagOrigin( "player" ).ToList();
+	}
+
+	/// <summary>
+	/// Host-only per-frame ghost car manager, run before the local-player early-out in
+	/// OnUpdate. It reads the leading player's BeerLevel (max over every player root in
+	/// the scene, 0 when there are none) and keeps the live car count matched to it: one car
+	/// per <see cref="_GhostBeersPerCar"/> beers, capped at MaxGhostCars and at the authored
+	/// prefab count. Live, not a ratchet: falling beer destroys the newest car, so a leader
+	/// leaving or a Try Again wipes the road. It also runs the Scatter/Chase mode clock
+	/// (<see cref="_GhostModeScheduleSeconds"/>, pushed to every brain's IsScatterMode) and
+	/// raises every car's AICarDriver.BaseAggression by
+	/// <see cref="_GhostAggressionPercentPerBeer"/> per beer the leader holds past the point
+	/// where every car is spawned. The GhostCarBrain owns each car's navmesh destination.
+	/// </summary>
+	private void UpdateGhostCarsHelper()
+	{
+		if ( IsProxy ) return;
+
+		// Drop cars whose GameObject died so the count reflects reality.
 		for ( int i = _spawnedCars.Count - 1; i >= 0; i-- )
 		{
 			if ( !_spawnedCars[i].IsValid() )
 			{
+				_ghostAuthoredAggression.Remove( _spawnedCars[i] );
 				_spawnedCars.RemoveAt( i );
-				continue;
 			}
 		}
 
-		if ( _carTargetBar == _targetBarWaiting ) return;
-
-		GameObject targetGo = GetTargetBar()?.GameObject;
-		if ( targetGo == null )
-			return;
-
-		_carTargetBar = _targetBarWaiting;
-
-		for ( int i = _spawnedCars.Count - 1; i >= 0; i-- )
+		// Leader beers: the max over every player root's DrunkCC, 0 when there are none.
+		// GhostPlayerRootsHelper includes disabled roots, so the leader does not drop out
+		// of the scan while sitting in a bar.
+		float leaderBeers = 0f;
+		foreach ( var player in GhostPlayerRootsHelper() )
 		{
-			var controller = _spawnedCars[i].GetComponent<NavMeshCarController>( true );
-			if ( controller.IsValid() )
-				controller.FollowTarget = targetGo;
+			var cc = player.GetComponent<DrunkCC>( true );
+			if ( cc is not null && cc.BeerLevel > leaderBeers )
+				leaderBeers = cc.BeerLevel;
 		}
+
+		// Budget: the hard cap, clamped to the number of VALID prefab entries.
+		int validPrefabs = 0;
+		if ( _CarPrefabs is not null )
+		{
+			foreach ( var prefab in _CarPrefabs )
+			{
+				if ( prefab.IsValid() )
+					validPrefabs++;
+			}
+		}
+		int maxCars = Math.Min( MaxGhostCars, validPrefabs );
+
+		int desired = _GhostBeersPerCar > 0
+			? Math.Clamp( (int)MathF.Floor( leaderBeers / _GhostBeersPerCar ), 0, maxCars )
+			: 0;
+
+		// Live count: spawn the next prefab in order, or destroy the newest car.
+		while ( _spawnedCars.Count < desired )
+		{
+			GameObject prefab = GhostPrefabForSlotHelper( _spawnedCars.Count );
+			if ( !prefab.IsValid() )
+				break;
+
+			GameObject car = SpawnGhostCarHelper( prefab, _spawnedCars.Count );
+			if ( !car.IsValid() )
+				break;
+
+			_spawnedCars.Add( car );
+		}
+
+		while ( _spawnedCars.Count > desired )
+		{
+			int last = _spawnedCars.Count - 1;
+			GameObject car = _spawnedCars[last];
+			_spawnedCars.RemoveAt( last );
+			_ghostAuthoredAggression.Remove( car );
+			if ( car.IsValid() )
+				car.Destroy();
+		}
+
+		// Mode clock: restarts at zero whenever the count goes 0 -> 1 and clears at 0.
+		bool carsActive = _spawnedCars.Count > 0;
+		if ( !carsActive || !_ghostCarsActive )
+			_ghostModeTimeSince = 0f;
+		_ghostCarsActive = carsActive;
+
+		bool scatter = GhostScatterModeHelper();
+
+		// Inky reads BlinkyPartner; re-find the live Blinky brain after every spawn/despawn.
+		GhostCarBrain blinky = null;
+		foreach ( var car in _spawnedCars )
+		{
+			var candidate = car.GetComponent<GhostCarBrain>( true );
+			if ( candidate.IsValid() && candidate.Personality == GhostPersonality.Blinky )
+			{
+				blinky = candidate;
+				break;
+			}
+		}
+
+		// Aggression bonus: zero until every budgeted car is spawned, then it scales with the
+		// beers the leader holds past the full-fleet level.
+		float bonus = 0f;
+		if ( maxCars > 0 && _spawnedCars.Count >= maxCars )
+		{
+			float beersAtFull = maxCars * _GhostBeersPerCar;
+			bonus = MathF.Max( 0f, MathF.Floor( leaderBeers ) - beersAtFull )
+				* _GhostAggressionPercentPerBeer / 100f;
+		}
+
+		foreach ( var car in _spawnedCars )
+		{
+			var brain = car.GetComponent<GhostCarBrain>( true );
+			if ( brain.IsValid() )
+			{
+				brain.IsScatterMode = scatter;
+				brain.BlinkyPartner = blinky;
+			}
+
+			var ai = car.GetComponent<AICarDriver>( true );
+			if ( ai.IsValid() )
+			{
+				float authored = _ghostAuthoredAggression.TryGetValue( car, out float stored )
+					? stored
+					: ai.BaseAggression;
+				float target = Math.Clamp( authored + bonus, 0f, 1f );
+				if ( MathF.Abs( ai.BaseAggression - target ) > 0.0001f )
+					ai.BaseAggression = target;
+			}
+		}
+	}
+
+	/// <summary>
+	/// True while the ghost cars should be in Scatter mode. The schedule alternates
+	/// Scatter, Chase, Scatter, ... starting with Scatter, one entry per segment length in
+	/// seconds; after the list runs out (or when it is empty or unset) the mode stays Chase
+	/// forever. A zero/negative segment is treated as zero length.
+	/// </summary>
+	private bool GhostScatterModeHelper()
+	{
+		if ( _GhostModeScheduleSeconds is null || _GhostModeScheduleSeconds.Count == 0 )
+			return false;
+
+		float t = _ghostModeTimeSince;
+		for ( int i = 0; i < _GhostModeScheduleSeconds.Count; i++ )
+		{
+			float duration = MathF.Max( 0f, _GhostModeScheduleSeconds[i] );
+			if ( t < duration )
+				return (i % 2) == 0; // even segment index = Scatter
+
+			t -= duration;
+		}
+
+		return false; // schedule exhausted = Chase forever
 	}
 	
 	/// <summary>
@@ -220,11 +435,53 @@ public sealed class GameManager : Component, Component.INetworkListener
 	[Property] private GameObject _Dome { get; set; }
 
 	/// <summary>
-	/// Car prefabs (ai_car.prefab) the GameManager spawns, host-only, when the run starts
-	/// (see SpawnCarsHelper). Each spawned car's NavMeshCarController is pointed at the current
-	/// target bar and retargeted whenever <see cref="_targetBarWaiting"/> changes. Empty = no cars.
+	/// Ghost car prefabs the GameManager spawns host-only during a run (see
+	/// UpdateGhostCarsHelper). List order is spawn order: Blinky, Pinky, Inky, Clyde. The
+	/// live count follows the leading player's beers, and the newest car is destroyed first
+	/// when the count drops. Unset entries are skipped. Empty = no cars.
 	/// </summary>
 	[Property] private List<GameObject> _CarPrefabs { get; set; }
+
+	/// <summary>
+	/// Beers the leading player needs per ghost car: the live car count is
+	/// floor(leaderBeers / this), capped at MaxGhostCars and the authored prefab count. 0 or
+	/// below disables spawning entirely.
+	/// </summary>
+	[Property] private int _GhostBeersPerCar { get; set; } = 3;
+
+	/// <summary>
+	/// Aggression added to every ghost car's AICarDriver.BaseAggression per beer the leading
+	/// player holds PAST the point where every car is spawned, as a percentage of the 0-1
+	/// range. Applied live: the bonus falls back when the lead drops.
+	/// </summary>
+	[Property] private float _GhostAggressionPercentPerBeer { get; set; } = 5f;
+
+	/// <summary>
+	/// Scatter corner points, one per ghost personality (index = GhostPersonality: Blinky 0,
+	/// Pinky 1, Inky 2, Clyde 3). A car's GhostCarBrain.ScatterCorner is taken from the entry
+	/// for that car's own personality, so the corner tracks the ghost and not its spawn slot.
+	/// Missing or unset entries leave the brain with no corner.
+	/// </summary>
+	[Property] private List<GameObject> _GhostScatterCorners { get; set; }
+
+	/// <summary>
+	/// Scatter/Chase mode clock segments in seconds, alternating starting with Scatter
+	/// (index 0 = Scatter, 1 = Chase, 2 = Scatter, ...). After the list runs out the cars
+	/// stay in Chase. Empty or unset = Chase forever.
+	/// </summary>
+	[Property] private List<float> _GhostModeScheduleSeconds { get; set; } = new() { 7f, 20f, 7f, 20f, 5f, 20f, 5f };
+
+	/// <summary>
+	/// Minimum flat distance a new ghost car is spawned from EVERY player, so a car never
+	/// pops in on top of someone. If no navmesh candidate clears it, the best candidate is
+	/// used anyway.
+	/// </summary>
+	[Property] private float _GhostSpawnMinPlayerDistance { get; set; } = 1500f;
+
+	/// <summary>
+	/// Hard cap on live ghost cars (one per classic Pac-Man ghost).
+	/// </summary>
+	private const int MaxGhostCars = 4;
 	
 	[Property, ReadOnly] private GameObject _CCCamera { get; set; } = null;
 	[Property, ReadOnly] private AudioController _AudioController { get; set; }
@@ -277,12 +534,26 @@ public sealed class GameManager : Component, Component.INetworkListener
 	/// </summary>
 	[Property, ReadOnly] private int _targetBarWaiting = 1;
 	private bool _startGameCalled;
-	/// <summary>Cars this host spawned from <see cref="_CarPrefabs"/> (see SpawnCarsHelper).</summary>
+	/// <summary>
+	/// Live ghost cars this host spawned from <see cref="_CarPrefabs"/>, in spawn order
+	/// (index 0 = Blinky). Maintained by UpdateGhostCarsHelper.
+	/// </summary>
 	private readonly List<GameObject> _spawnedCars = new();
-	/// <summary>The _targetBarWaiting value the cars were last retargeted to; -1 = never.</summary>
-	private int _carTargetBar = -1;
+	/// <summary>
+	/// Each spawned car's authored AICarDriver.BaseAggression, captured at spawn so the
+	/// aggression bonus applies on top of the prefab's own value rather than compounding.
+	/// </summary>
+	private readonly Dictionary<GameObject, float> _ghostAuthoredAggression = new();
+	/// <summary>
+	/// Seconds into the Scatter/Chase mode clock, reset when the ghost car count goes 0 -> 1.
+	/// </summary>
+	private TimeSince _ghostModeTimeSince;
+	/// <summary>Whether ghost cars were live last frame, to detect the 0 -> 1 count edge.</summary>
+	private bool _ghostCarsActive;
 	/// <summary>One-time warning latch for the no-navmesh car spawn path.</summary>
 	private bool _warnedNoCarNavmesh;
+	/// <summary>Prefabs already warned about having no GhostCarBrain, so the warning logs once each.</summary>
+	private readonly HashSet<GameObject> _warnedNoGhostBrain = new();
 	/// <summary>
 	/// Gate for UpdateEnterRingVisibilityHelper: which _targetBarWaiting value the bar rings
 	/// were last synced to. -1 = never applied yet, so the helper runs (and retries while
@@ -398,7 +669,7 @@ public sealed class GameManager : Component, Component.INetworkListener
 		// _Bars/_targetBarWaiting, so bars get sorted out even while sitting in the menu
 		// (no local player resolves yet) instead of every prefab ring rendering until PLAY.
 		UpdateEnterRingVisibilityHelper();
-		SyncCarTargetsHelper();
+		UpdateGhostCarsHelper();
 
 		if (ResolveLocalPlayerHelper() == false)
 			return;
@@ -1063,7 +1334,8 @@ public sealed class GameManager : Component, Component.INetworkListener
 				return;
 		}
 
-		SpawnCarsHelper();
+		// No cars at PLAY: the ghost car count is driven live from the leading player's
+		// beers in UpdateGhostCarsHelper (see OnUpdate), so the road starts empty.
 		_localGameState = LocalGameState.WaitingToStartMinigame;
 	}
 

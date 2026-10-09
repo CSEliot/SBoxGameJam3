@@ -109,6 +109,26 @@ public sealed partial class AICarDriver : Component
 	/// <summary>Seconds to wait before retrying when no destination or path could be found.</summary>
 	[Property, Group( "Destinations" )] public float RetryDelay { get; set; } = 1f;
 
+	// ------------------------------------------------------------------ Chase
+
+	/// <summary>
+	/// Runtime chase target (not editor-serialized). While set, destination picks route to this
+	/// object's navmesh position instead of a random point. Set by the ghost brain while it has
+	/// line of sight to a player, cleared when it loses sight.
+	/// </summary>
+	public GameObject ChaseTarget { get; set; }
+
+	/// <summary>
+	/// While chasing, re-path once the target has moved this far (flat) from the committed
+	/// destination. Movement under this distance is ignored so small jitter does not re-route.
+	/// </summary>
+	[Property, Group( "Chase" )] public float ChaseRepathDistance { get; set; } = 200f;
+
+	/// <summary>
+	/// Minimum seconds between chase re-paths, so a moving target cannot spam navmesh queries.
+	/// </summary>
+	[Property, Group( "Chase" )] public float ChaseRepathInterval { get; set; } = 0.5f;
+
 	// ------------------------------------------------------------------ Navigation areas
 
 	/// <summary>
@@ -536,6 +556,19 @@ public sealed partial class AICarDriver : Component
 	private TimeSince _sinceTilted;
 	private TimeSince _sinceStateChange;
 	private TimeSince _sinceRepath = 10f;
+	// Chase re-path rate limit (see TickChaseRepathHelper). Hotload-safe: 10 s means the first
+	// chase re-path after a hotload is allowed at once instead of waiting out the interval.
+	private TimeSince _sinceChaseRepath = 10f;
+	// True while the current path is the direct car-to-chased-object segment set up by
+	// SetDirectChasePathHelper. While it is set and ChaseTarget is valid, the segment is rebuilt
+	// every fixed tick in TickDrivingHelper from the object's live position (no navmesh query),
+	// and refreshed at the start of TickReversingHelper so a reverse ends aligned to where the
+	// object is now. TickChaseRepathHelper stays out of its way. Direct mode ends when the object
+	// becomes invalid, or when its navmesh SNAP is farther than ArrivalDistance + ChaseRepathDistance
+	// (flat) from the car - tested at most once per ChaseRepathInterval against the snapped point,
+	// the same metric that entered the mode - at which point a full navmesh chase route is retried.
+	// Cleared by SetPathHelper on every normal route commit.
+	private bool _chaseDirectSegment;
 	private TimeUntil _untilRetry;
 	private TimeUntil _untilTeleportRetry;
 	private TimeSince _sinceEngineRequest = 10f;
@@ -655,6 +688,29 @@ public sealed partial class AICarDriver : Component
 
 		TelemetryStartHelper();
 		SpawnTestCarsHelper();
+	}
+
+	/// <summary>
+	/// The ghost brain toggles <see cref="Enabled"/> every time line of sight to a target changes,
+	/// and <see cref="OnStart"/> only runs on the first enable. On a re-entry the driver is already
+	/// built, so drop it back into a fresh Idle with the retry timer already elapsed and the stuck
+	/// anchor reset to here: the next fixed tick picks a (chase) destination at once.
+	/// </summary>
+	protected override void OnEnabled()
+	{
+		// First enable: OnStart has not resolved the vehicle yet, and does the setup itself.
+		if ( !_vehicle.IsValid() ) return;
+		if ( IsProxy ) return;
+
+		_path.Clear();
+		_chaseDirectSegment = false;
+		_untilRetry = 0f; // already expired: TickIdleHelper picks a destination on the next tick
+		_stuckAnchor = WorldPosition;
+		_sinceStuckAnchor = 0f;
+		_reverseCount = 0;
+		_pivotFails = 0;
+		_repickChain = 0;
+		SetStateHelper( DriveState.Idle );
 	}
 
 	protected override void OnDisabled()
@@ -778,14 +834,71 @@ public sealed partial class AICarDriver : Component
 			return;
 		}
 
+		// Direct chase segment active: rebuild it from the object's live position BEFORE the
+		// arrival test below, so that test measures against where the object is now rather than a
+		// stale end. This runs every fixed tick and does no navmesh query. Direct mode ends when
+		// ChaseTarget goes invalid (fall through to the normal arrival behaviour) or when the
+		// object's navmesh snap is farther than ArrivalDistance + ChaseRepathDistance (flat) from
+		// the car, where a full navmesh chase route makes sense again. The exit test snaps the
+		// target and runs at most once per ChaseRepathInterval - the same metric (the snapped
+		// point) and the same interval used to ENTER direct mode - so an off-navmesh target can no
+		// longer sit inside the entry band while outside a raw-position exit band and flip every
+		// interval. A failed snap stays in direct mode. If the exit test re-routes, the full
+		// navmesh route replaces the segment; otherwise the refreshed direct segment stands.
+		if ( _chaseDirectSegment )
+		{
+			if ( !ChaseTarget.IsValid() )
+			{
+				_chaseDirectSegment = false;
+			}
+			else
+			{
+				SetDirectChasePathHelper( position );
+
+				if ( _sinceChaseRepath > ChaseRepathInterval )
+				{
+					_sinceChaseRepath = 0f;
+
+					Vector3? snapped = null;
+					var nav = Scene.NavMesh;
+					if ( nav is not null && nav.IsEnabled )
+						snapped = nav.GetClosestPoint( ChaseTarget.WorldPosition, NavMeshSnapRadius );
+
+					if ( snapped.HasValue
+						&& FlatDistance( position, snapped.Value ) > ArrivalDistance + ChaseRepathDistance )
+					{
+						// Re-routes via the snapped start; CommitPathHelper clears _chaseDirectSegment on
+						// success. A failed re-route leaves the refreshed direct segment for this tick.
+						TryReenterNavmeshChaseHelper( position );
+					}
+				}
+			}
+		}
+
 		// Arrived? Prefer a next route that doesn't start with a U-turn.
 		if ( FlatDistance( position, _path[^1] ) < ArrivalDistance )
 		{
-			TelemetryLegEndHelper( "arrived" );
-			_repickChain = 0; // v11c: a finished leg ends any same-spot repick chain
-			PickNewDestinationOrIdleHelper( position, -FlatForwardHelper() );
-			return;
+			// While chasing, the route ends at the chased object, so this test fires the moment
+			// the car closes to ArrivalDistance. Reaching that end is NOT an arrival: picking a
+			// new destination here would re-route to the same point every fixed tick (a navmesh
+			// query per tick) and return before the controls below. Keep driving at the object by
+			// replacing the leg with a direct two point segment (refreshed each tick) and falling
+			// through to the normal steering, speed and whisker code.
+			if ( ChaseTarget.IsValid() )
+			{
+				SetDirectChasePathHelper( position );
+			}
+			else
+			{
+				TelemetryLegEndHelper( "arrived" );
+				_repickChain = 0; // v11c: a finished leg ends any same-spot repick chain
+				PickNewDestinationOrIdleHelper( position, -FlatForwardHelper() );
+				return;
+			}
 		}
+
+		// Chase: the chased object moved away from the committed destination -> re-route now.
+		TickChaseRepathHelper( position );
 
 		AdvanceWaypointHelper( position, out float distanceFromPath );
 		_lastDistanceFromPath = distanceFromPath;
@@ -1061,6 +1174,14 @@ public sealed partial class AICarDriver : Component
 
 	private void TickReversingHelper( Vector3 position, float forwardSpeed )
 	{
+		// Chase: the direct segment is otherwise only rebuilt in TickDrivingHelper, so while the car
+		// is reversing it would keep the old endpoint and the reverse-exit angle below
+		// (GetPathAngleHelper) would align to where the object was when the car stopped, not where
+		// it is now. Refresh it here from the live position (no navmesh query) so the alignment exit
+		// reads the current target.
+		if ( _chaseDirectSegment && ChaseTarget.IsValid() )
+			SetDirectChasePathHelper( position );
+
 		// Still rolling forward: brake to a stop before backing up. The reverse timers start once
 		// the car has stopped. The library brakes along each steered wheel's axis with a force far
 		// above its sideways grip (VehicleController.Brakes.cs ApplyBrake vs ApplyAntiSlip), so while
@@ -1671,11 +1792,38 @@ public sealed partial class AICarDriver : Component
 			return false;
 		}
 
+		// Chasing: prefer a route straight at the chased object. A failure here falls through to
+		// the random pick below, so a lost or unreachable chase never idles the car forever.
+		if ( TryChaseDestinationHelper( nav, start.Value ) )
+		{
+			_warnedNoNavStart = false;
+			return true;
+		}
+
 		if ( !TryFindDestinationHelper( nav, start.Value, awayFrom, out NavMeshPath path, out Vector3 target ) )
 			return false;
 
 		CommitPathHelper( path, target );
 		_warnedNoNavStart = false;
+		return true;
+	}
+
+	/// <summary>
+	/// Commits a route straight to <see cref="ChaseTarget"/>'s navmesh position. Returns false when
+	/// there is no chase target, the navmesh cannot snap the target, or no complete route exists,
+	/// so the caller falls back to a random destination and the car never idles over a lost chase.
+	/// </summary>
+	private bool TryChaseDestinationHelper( NavMesh nav, Vector3 start )
+	{
+		if ( !ChaseTarget.IsValid() ) return false;
+
+		Vector3? target = nav.GetClosestPoint( ChaseTarget.WorldPosition, NavMeshSnapRadius );
+		if ( !target.HasValue ) return false;
+
+		NavMeshPath path = CalculateRouteHelper( nav, start, target.Value );
+		if ( path.Status != NavMeshPathStatus.Complete || path.Points is null || path.Points.Count < 2 ) return false;
+
+		CommitPathHelper( path, target.Value );
 		return true;
 	}
 
@@ -1987,6 +2135,93 @@ public sealed partial class AICarDriver : Component
 		return result.StartedSolid ? 0f : result.Distance;
 	}
 
+	/// <summary>
+	/// While chasing, replaces the current route with a direct two point segment from the car to
+	/// the chased object's live position, refreshed on every call. Used once the car has closed to
+	/// within <see cref="ArrivalDistance"/> of the chase route's end: reaching that end is not an
+	/// arrival, so the car keeps driving at the object through the normal steering, speed and
+	/// whisker code instead of picking a fresh navmesh destination. Sets
+	/// <see cref="_chaseDirectSegment"/> so the navmesh chase re-path stays out of the way.
+	/// </summary>
+	private void SetDirectChasePathHelper( Vector3 position )
+	{
+		_path.Clear();
+		_path.Add( position );
+		_path.Add( ChaseTarget.WorldPosition );
+		_waypointIndex = 1;
+		_sinceRepath = 0f;
+		Destination = ChaseTarget.WorldPosition;
+		_chaseDirectSegment = true;
+
+		// The corner-aim trace cache is keyed on (corner index, waypoint index); a new path reuses
+		// both for different world points, so force the next gated corner aim to re-trace.
+		_cornerAimCache = 10f;
+		_cornerAimCacheIndex = 0;
+	}
+
+	/// <summary>
+	/// Rebuilds the full navmesh chase route to <see cref="ChaseTarget"/>. Used when the direct
+	/// chase segment (see <see cref="SetDirectChasePathHelper"/>) is left because the chased
+	/// object has moved beyond <see cref="ArrivalDistance"/> + <see cref="ChaseRepathDistance"/>
+	/// (flat) from the car and routing around obstacles makes sense again. Commits through
+	/// <see cref="TryChaseDestinationHelper"/>, so a success hands the car a normal chase route
+	/// and a failure has no side effect, letting the caller keep the direct segment for the tick.
+	/// </summary>
+	private bool TryReenterNavmeshChaseHelper( Vector3 position )
+	{
+		var nav = Scene.NavMesh;
+		if ( nav is null || !nav.IsEnabled ) return false;
+
+		Vector3? start = nav.GetClosestPoint( position, NavMeshSnapRadius );
+		if ( !start.HasValue ) return false;
+
+		return TryChaseDestinationHelper( nav, start.Value );
+	}
+
+	/// <summary>
+	/// While driving at a chase target, recompute the route once the target has moved more than
+	/// <see cref="ChaseRepathDistance"/> (flat) from the committed destination. Rate limited to one
+	/// attempt per <see cref="ChaseRepathInterval"/> seconds so a moving target cannot spam navmesh
+	/// queries (the interval is consumed before the snap, so a failed attempt and the
+	/// near-destination case both consume it too, rather than issuing a query every tick). The
+	/// current path is left in place when there is no chase target, the target is near the
+	/// destination, or no complete route exists.
+	/// The target is snapped to the navmesh BEFORE the distance test: <see cref="Destination"/> is
+	/// the snapped point committed by CommitPathHelper, so measuring the raw transform against it
+	/// would re-route forever while a player stands off the navmesh.
+	/// </summary>
+	private void TickChaseRepathHelper( Vector3 position )
+	{
+		if ( !ChaseTarget.IsValid() ) return;
+		// The direct chase segment (see SetDirectChasePathHelper) already tracks the object's live
+		// position every fixed tick, so a navmesh re-route here would only fight it.
+		if ( _chaseDirectSegment ) return;
+		// Interval gate in front of the snap: the navmesh query itself is rate limited to one per
+		// ChaseRepathInterval.
+		if ( _sinceChaseRepath <= ChaseRepathInterval ) return;
+
+		// Consume the interval immediately after the gate, before the snap: every path through this
+		// helper past the gate is then rate limited, including the near-destination return below
+		// (which otherwise left the interval expired and re-issued the snap query every fixed tick).
+		_sinceChaseRepath = 0f;
+
+		var nav = Scene.NavMesh;
+		if ( nav is null || !nav.IsEnabled ) return;
+
+		Vector3? target = nav.GetClosestPoint( ChaseTarget.WorldPosition, NavMeshSnapRadius );
+		if ( !target.HasValue ) return;
+
+		if ( FlatDistance( target.Value, Destination ) <= ChaseRepathDistance ) return;
+
+		Vector3? start = nav.GetClosestPoint( position, NavMeshSnapRadius );
+		if ( !start.HasValue ) return;
+
+		NavMeshPath path = CalculateRouteHelper( nav, start.Value, target.Value );
+		if ( path.Status != NavMeshPathStatus.Complete || path.Points is null || path.Points.Count < 2 ) return;
+
+		CommitPathHelper( path, target.Value );
+	}
+
 	/// <summary>Recomputes the path from the car to the current destination. False if it can't be reached.</summary>
 	private bool TryRepathHelper( Vector3 position )
 	{
@@ -2088,6 +2323,7 @@ public sealed partial class AICarDriver : Component
 		// Points[0] is the snapped start; drive toward the first corner after it.
 		_waypointIndex = 1;
 		_sinceRepath = 0f;
+		_chaseDirectSegment = false;
 
 		// v12b (F3): the corner-aim trace cache is keyed on (corner index, waypoint index); a new
 		// path reuses both indices for different world points, so stale clear/blocked answers
@@ -2762,6 +2998,17 @@ public sealed partial class AICarDriver : Component
 
 		var trace = Scene.Trace.Ray( origin, origin + direction * length )
 			.IgnoreGameObjectHierarchy( GameObject );
+
+		// While chasing a player, that player is the goal, not an obstacle: also ignore their
+		// hierarchy in the whisker trace so the car drives into them instead of braking or
+		// backing off. Only the chased player is skipped; other players, props and world
+		// geometry still block. IgnoreGameObjectHierarchy appends to the trace's ignore list
+		// (engine Scene.Trace.cs), so the car's own hierarchy stays ignored as well. This helper
+		// backs the front and rear whiskers and the flank probes, i.e. the obstacle hits that
+		// decide braking, avoidance and steering; the ledge, corner-aim and corridor traces are
+		// pure geometry and keep ignoring only this car.
+		if ( ChaseTarget.IsValid() )
+			trace = trace.IgnoreGameObjectHierarchy( ChaseTarget.Root );
 
 		if ( ignoreDynamic )
 			trace = trace.IgnoreDynamic();

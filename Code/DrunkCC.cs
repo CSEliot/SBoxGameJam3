@@ -45,8 +45,10 @@ public sealed class DrunkCC : Component
 	/// How many beers the player has in them. No maximum. Difficulty effects that scale with
 	/// this saturate at GameManager.BeerDifficultyCap (see DifficultyBeerHelper()); score, HUD
 	/// and End-Game readouts always use the raw value.
+	/// Synced so the host can read every player's beers and find the leading player that drives
+	/// the ghost car count and aggression.
 	/// </summary>
-	[Property] public float BeerLevel { get; set; } = 1;
+	[Property, Sync] public float BeerLevel { get; set; } = 1;
 
 	/// <summary>
 	/// Debug: hard-zero spin and orientation on this axis every tick.

@@ -1,0 +1,1466 @@
+{
+  "RootObject": {
+    "__guid": "047fd6cd-008b-440d-bb1a-9da5ba20f979",
+    "__version": 2,
+    "Flags": 0,
+    "Name": "ghost_clyde",
+    "Position": "0,0,0",
+    "Rotation": "0,0,0,1",
+    "Scale": "1,1,1",
+    "Tags": "knockdowner",
+    "Enabled": true,
+    "NetworkMode": 1,
+    "NetworkFlags": 8,
+    "NetworkOrphaned": 0,
+    "NetworkTransmit": true,
+    "OwnerTransfer": 1,
+    "Components": [
+      {
+        "__type": "Bugges.VehicleController.VehicleController",
+        "__guid": "007b3059-b13d-4719-95c1-6a3fe521de8d",
+        "__enabled": true,
+        "Flags": 0,
+        "Audio_EngineHighRPM": {
+          "_type": "component",
+          "component_id": "0e5bf84c-7fb3-413d-ab24-86d9a290f458",
+          "go": "406ae4cc-a885-4301-866b-06fa3bc33d3c",
+          "component_type": "SoundPointComponent"
+        },
+        "Audio_EngineIdle": {
+          "_type": "component",
+          "component_id": "0a24ff31-b4ea-4913-9554-f30a06f900c6",
+          "go": "ecc0c63c-e1ad-4375-8fec-cbfc5f978e1a",
+          "component_type": "SoundPointComponent"
+        },
+        "Audio_EngineLowRPM": {
+          "_type": "component",
+          "component_id": "b632c05d-c0d7-4590-8c32-9f352c1e7a18",
+          "go": "2cc6bb79-a7bc-4d37-8733-bf89385529f4",
+          "component_type": "SoundPointComponent"
+        },
+        "Audio_EngineStart": {
+          "_type": "component",
+          "component_id": "737f3a73-a40b-4edd-9943-9621d8668407",
+          "go": "a71dc966-a47d-4bde-a280-73e5ffd4b95c",
+          "component_type": "SoundPointComponent"
+        },
+        "Audio_EngineStop": {
+          "_type": "component",
+          "component_id": "de31e1eb-0700-403f-a9b6-c1bc8f31a0ce",
+          "go": "9c7a2ca9-53a0-4efc-b1f2-fb218d7e3df0",
+          "component_type": "SoundPointComponent"
+        },
+        "Audio_GearSwitch": {
+          "_type": "component",
+          "component_id": "7c976194-5539-43f0-9f6f-283683257e15",
+          "go": "ffb885ee-da1d-41be-9828-ddfd8e1675c2",
+          "component_type": "SoundPointComponent"
+        },
+        "Brake_Strength": 10,
+        "Brakes_RollingFriction": 4,
+        "Brakes_SlidingFriction": 0.7,
+        "CurrentRPM": 0,
+        "Engine_HighRPM": 2000,
+        "Engine_IdleRPM": 800,
+        "Engine_LowRPM": 1000,
+        "Engine_MaxRPM": 5000,
+        "Engine_RPMSmoothing": 8,
+        "Engine_StartDelay": 0.5,
+        "Engine_TopSpeed": 3600,
+        "Engine_Torque": 90000,
+        "Gear_AutoSwitchToReverse": true,
+        "Gear_Current": "Park",
+        "Gear_CurrentRatio": 5.13,
+        "Gear_CurrentRatioIndex": 1,
+        "Gear_FinalDriveRatio": 3.5,
+        "Gear_Ratios": [
+          4.49,
+          5.13,
+          2.63,
+          1.53,
+          1,
+          0.81,
+          0.72
+        ],
+        "Gear_ShiftDownRPM": 1500,
+        "Gear_ShiftUpRPM": 2500,
+        "Input_Brake": "Brake",
+        "Input_Engine": "Engine",
+        "Input_Gear": "Gear",
+        "IsAudioEnabled": true,
+        "IsEngineOn": false,
+        "IsSkidMarksEnabled": true,
+        "Kmh": 0,
+        "OnComponentDestroy": null,
+        "OnComponentDisabled": null,
+        "OnComponentEnabled": null,
+        "OnComponentFixedUpdate": null,
+        "OnComponentStart": null,
+        "OnComponentUpdate": null,
+        "SkidMark_Decal": {
+          "Id": "20aec2ad-2923-2f43-a064-fe9fc23d050a",
+          "Path": "decals/skid_marks.decal"
+        },
+        "SkidMark_DistanceBetween": 6,
+        "SkidMark_Tolerance": 200,
+        "Spring_Damping": 7500,
+        "Spring_MaxDistance": 35,
+        "Spring_MinDistance": 25,
+        "Spring_OverCompressionMultiplier": 6,
+        "Spring_RestDistance": 30,
+        "Spring_Strength": 75000,
+        "UseExternalInput": true,
+        "Wheel_CastType": "Cylinder",
+        "Wheel_MaxTurnAngle": 45,
+        "Wheel_VisualizeTrace": false,
+        "Wheels": [
+          {
+            "Radius": 20,
+            "Width": 20,
+            "Grip": 1,
+            "Visual": {
+              "_type": "gameobject",
+              "go": "3f599934-bc15-40d7-ba37-886f10a814e4"
+            },
+            "Spring": {
+              "_type": "gameobject",
+              "go": "1bb36e6a-eb0e-478c-8a25-fa3f5236d6b7"
+            },
+            "Side": "Right",
+            "IsRotationReversed": true,
+            "IsBrake": true,
+            "IsTurnable": false,
+            "IsMotor": true,
+            "Audio_SkidMark": {
+              "_type": "component",
+              "component_id": "4284d4bd-4c9c-49be-a0c3-5b9371e9a68f",
+              "go": "acada112-2712-4619-9873-b4eb971b209c",
+              "component_type": "SoundPointComponent"
+            },
+            "IsBraking": false,
+            "IsAccelerating": false,
+            "IsGrounded": false,
+            "SpinSpeed": 0,
+            "TurnAngle": 0,
+            "WheelAngle": 0,
+            "Forward": "1,0,0",
+            "Up": "0,0,1",
+            "Down": "0,0,-1",
+            "SteerRotation": "0,0,0,1",
+            "Outwards": "0,-1,0",
+            "Rotation": "0,0,0,1",
+            "CurrentDownforce": 0,
+            "IsSkidding": false
+          },
+          {
+            "Radius": 20,
+            "Width": 20,
+            "Grip": 1,
+            "Visual": {
+              "_type": "gameobject",
+              "go": "ef2b823b-7077-4132-96ae-fd51e69a7150"
+            },
+            "Spring": {
+              "_type": "gameobject",
+              "go": "343edf0c-836e-47f4-a21e-d057a9b18765"
+            },
+            "Side": "Right",
+            "IsRotationReversed": true,
+            "IsBrake": true,
+            "IsTurnable": true,
+            "IsMotor": true,
+            "Audio_SkidMark": {
+              "_type": "component",
+              "component_id": "d1dc98b5-6009-423f-95f8-bda77704e510",
+              "go": "a6689819-dbbf-452b-8b88-4aa8838a219e",
+              "component_type": "SoundPointComponent"
+            },
+            "IsBraking": false,
+            "IsAccelerating": false,
+            "IsGrounded": false,
+            "SpinSpeed": 0,
+            "TurnAngle": 0,
+            "WheelAngle": 0,
+            "Forward": "1,0,0",
+            "Up": "0,0,1",
+            "Down": "0,0,-1",
+            "SteerRotation": "0,0,0,1",
+            "Outwards": "0,-1,0",
+            "Rotation": "0,0,0,1",
+            "CurrentDownforce": 0,
+            "IsSkidding": false
+          },
+          {
+            "Radius": 20,
+            "Width": 20,
+            "Grip": 1,
+            "Visual": {
+              "_type": "gameobject",
+              "go": "1adb6b67-d0fe-4431-ba39-4ea28be0a8eb"
+            },
+            "Spring": {
+              "_type": "gameobject",
+              "go": "ce1acaf4-7736-492b-b3e5-9a4db1086cdc"
+            },
+            "Side": "Left",
+            "IsRotationReversed": false,
+            "IsBrake": true,
+            "IsTurnable": true,
+            "IsMotor": true,
+            "Audio_SkidMark": {
+              "_type": "component",
+              "component_id": "0efd110b-7008-4448-a782-721eb333b9a7",
+              "go": "e532e8dc-4b7f-4c0a-ad62-a59e0d4d3f78",
+              "component_type": "SoundPointComponent"
+            },
+            "IsBraking": false,
+            "IsAccelerating": false,
+            "IsGrounded": false,
+            "SpinSpeed": 0,
+            "TurnAngle": 0,
+            "WheelAngle": 0,
+            "Forward": "1,0,0",
+            "Up": "0,0,1",
+            "Down": "0,0,-1",
+            "SteerRotation": "0,0,0,1",
+            "Outwards": "0,1,0",
+            "Rotation": "0,0,0,1",
+            "CurrentDownforce": 0,
+            "IsSkidding": false
+          },
+          {
+            "Radius": 20,
+            "Width": 20,
+            "Grip": 1,
+            "Visual": {
+              "_type": "gameobject",
+              "go": "3f29d6a0-5e08-4466-b460-1958102a9b5a"
+            },
+            "Spring": {
+              "_type": "gameobject",
+              "go": "3504cef4-a74c-42bd-a671-9e5d37e7d516"
+            },
+            "Side": "Left",
+            "IsRotationReversed": false,
+            "IsBrake": true,
+            "IsTurnable": false,
+            "IsMotor": true,
+            "Audio_SkidMark": {
+              "_type": "component",
+              "component_id": "078b18f4-230f-4b6d-bfef-549b25771a2b",
+              "go": "e218ad34-d53f-4d78-8e1d-b7146d84cda2",
+              "component_type": "SoundPointComponent"
+            },
+            "IsBraking": false,
+            "IsAccelerating": false,
+            "IsGrounded": false,
+            "SpinSpeed": 0,
+            "TurnAngle": 0,
+            "WheelAngle": 0,
+            "Forward": "1,0,0",
+            "Up": "0,0,1",
+            "Down": "0,0,-1",
+            "SteerRotation": "0,0,0,1",
+            "Outwards": "0,1,0",
+            "Rotation": "0,0,0,1",
+            "CurrentDownforce": 0,
+            "IsSkidding": false
+          }
+        ]
+      },
+      {
+        "__type": "Sandbox.Rigidbody",
+        "__guid": "4a1f2fc8-e04a-4483-9833-d495524a0b1f",
+        "__enabled": true,
+        "Flags": 0,
+        "AngularDamping": 0,
+        "EnableImpactDamage": true,
+        "EnhancedCcd": false,
+        "Gravity": true,
+        "GravityScale": 1,
+        "ImpactDamage": 0,
+        "LinearDamping": 0,
+        "Locking": {
+          "X": false,
+          "Y": false,
+          "Z": false,
+          "Pitch": false,
+          "Yaw": false,
+          "Roll": false
+        },
+        "MassCenterOverride": "0,0,10",
+        "MassOverride": 2500,
+        "MinImpactDamageSpeed": 500,
+        "MotionEnabled": true,
+        "OnComponentDestroy": null,
+        "OnComponentDisabled": null,
+        "OnComponentEnabled": null,
+        "OnComponentFixedUpdate": null,
+        "OnComponentStart": null,
+        "OnComponentUpdate": null,
+        "OverrideMassCenter": true,
+        "RigidbodyFlags": 0,
+        "SleepThreshold": 2,
+        "StartAsleep": false
+      },
+      {
+        "__type": "Sandbox.BoxCollider",
+        "__guid": "7629349e-45be-4896-9c6b-6800ad9d3b5f",
+        "__enabled": true,
+        "Flags": 0,
+        "Center": "3.63711548,0,32.9385338",
+        "ColliderFlags": 0,
+        "Elasticity": null,
+        "Friction": null,
+        "IsTrigger": false,
+        "OnComponentDestroy": null,
+        "OnComponentDisabled": null,
+        "OnComponentEnabled": null,
+        "OnComponentFixedUpdate": null,
+        "OnComponentStart": null,
+        "OnComponentUpdate": null,
+        "OnObjectTriggerEnter": null,
+        "OnObjectTriggerExit": null,
+        "OnTriggerEnter": null,
+        "OnTriggerExit": null,
+        "RollingResistance": null,
+        "Scale": "217.274231,100,47.5527191",
+        "Static": false,
+        "Surface": {
+          "Id": "af7a8b7c-a226-c541-aea0-4296553cad8f",
+          "Path": "surfaces/vehicle_surface.surface"
+        },
+        "SurfaceVelocity": "0,0,0"
+      },
+      {
+        "__type": "Sandbox.AICarDriver",
+        "__guid": "163ccf90-4c50-4f8c-9f65-30aff4e161b9",
+        "__enabled": false,
+        "Flags": 0,
+        "Aggression": 0,
+        "AggressionDecayTime": 4,
+        "AggressionDelay": 4,
+        "AggressionRampTime": 8,
+        "AggressiveCautionScale": 0.35,
+        "AggressiveDriveScale": 2.5,
+        "ArrivalDistance": 250,
+        "AvoidSteerAngle": 30,
+        "BaseAggression": 0,
+        "BlockedWaitTime": 1.5,
+        "BrakeMargin": 50,
+        "CornerAimCorridor": 30,
+        "CornerAimDistance": 1500,
+        "CornerAimMinAngle": 15,
+        "CornerAimTraceDistance": 500,
+        "CornerAimTraceRadius": 50,
+        "CornerBrakeDecel": 240,
+        "CornerFullAngle": 45,
+        "CornerLookDistance": 800,
+        "CornerOutsideOffset": 150,
+        "CornerSpeed": 350,
+        "CorridorCheckSkip": 200,
+        "CorridorSampleSpacing": 120,
+        "CreepSpeed": 80,
+        "CruiseSpeed": 1800,
+        "Destination": "2896,3624,225.948715",
+        "DestinationAllowDefaultArea": true,
+        "DestinationAllowedAreas": [],
+        "DestinationForbiddenAreas": [],
+        "DestinationPickAttempts": 8,
+        "DisableCornerAim": false,
+        "DrawDebug": false,
+        "ExtraTestCars": 0,
+        "FlankMargin": 40,
+        "FlankProbeLength": 60,
+        "FullSteerAngle": 70,
+        "GroundNormalZ": 0.7,
+        "LedgeDropHeight": 80,
+        "LookAheadDistance": 300,
+        "LookAheadTime": 0.3,
+        "LostRecoverTime": 3,
+        "MaxDestinationDistance": 12000,
+        "MaxReverseSpeed": 250,
+        "MaxReverseTime": 2,
+        "MinCorridorWidth": 200,
+        "MinDestinationDistance": 3000,
+        "MinPathPointSpacing": 120,
+        "MinReverseTime": 0.75,
+        "NavMeshSnapRadius": 2000,
+        "NoGoEpisodeGap": 30,
+        "NoGoZoneMinHits": 2,
+        "NoGoZoneRadius": 330,
+        "ObstacleBrakingRate": 1,
+        "OffPathDistance": 500,
+        "OnComponentDestroy": null,
+        "OnComponentDisabled": null,
+        "OnComponentEnabled": null,
+        "OnComponentFixedUpdate": null,
+        "OnComponentStart": null,
+        "OnComponentUpdate": null,
+        "PushThroughAggression": 0.75,
+        "RearProbeLength": 250,
+        "RearStopDistance": 80,
+        "RecordTelemetry": false,
+        "RepickAfterReverses": 3,
+        "RepickChainTeleport": 2,
+        "RetryDelay": 1,
+        "ReverseAlignedAngle": 60,
+        "ReverseProgressDistance": 150,
+        "ReverseThrottle": 0.5,
+        "RouteForbiddenAreas": [],
+        "SharpCornerSpeed": 200,
+        "SideWhiskerAngle": 45,
+        "SideWhiskerScale": 0.7,
+        "State": "Driving",
+        "SteerDeadband": 2,
+        "SteerResponse": 4,
+        "SteerYawDamping": 0.3,
+        "StopDistance": 50,
+        "StuckAreaRadius": 300,
+        "StuckSpeed": 40,
+        "StuckTime": 1.5,
+        "TelemetryFlushInterval": 5,
+        "TelemetrySampleRate": 2,
+        "TeleportAfter": 20,
+        "TeleportAttempts": 8,
+        "TeleportDropHeight": 20,
+        "ThrottleResponse": 900,
+        "TiltGuardUpZ": 0.9,
+        "UseDevTuning": false,
+        "UTurnAngle": 120,
+        "WhiskerHeight": 45,
+        "WhiskerLength": 400,
+        "WhiskerLengthPerSpeed": 0.5,
+        "WhiskerThickness": 25
+      },
+      {
+        "__type": "Sandbox.NavMeshCarController",
+        "__guid": "7fcd639d-ba02-4fdd-bdfb-9c3d5e89dc8a",
+        "__enabled": true,
+        "Flags": 0,
+        "ArrivalDistance": 250,
+        "BrakeMargin": 50,
+        "CornerBrakeDecel": 300,
+        "CornerFullAngle": 45,
+        "CornerLookDistance": 800,
+        "CornerSpeed": 350,
+        "CruiseSpeed": 800,
+        "Destination": "0,0,0",
+        "DrawDebug": false,
+        "FollowTarget": null,
+        "FullSteerAngle": 35,
+        "LookAheadDistance": 300,
+        "LookAheadTime": 0.3,
+        "MinPathPointSpacing": 120,
+        "NavMeshSnapRadius": 500,
+        "OnComponentDestroy": null,
+        "OnComponentDisabled": null,
+        "OnComponentEnabled": null,
+        "OnComponentFixedUpdate": null,
+        "OnComponentStart": null,
+        "OnComponentUpdate": null,
+        "PathStrictness": 0,
+        "RepathDistance": 500,
+        "RepathInterval": 0.5,
+        "SharpCornerSpeed": 200,
+        "SmoothPath": true,
+        "SplineSubdivisions": 4,
+        "State": "Idle",
+        "SteerDeadband": 2,
+        "SteerResponse": 8,
+        "SteerYawDamping": 0.3,
+        "ThrottleResponse": 250
+      },
+      {
+        "__type": "Sandbox.GhostCarBrain",
+        "__guid": "fbc17335-8060-425f-88cd-8ad00e3e6f85",
+        "__enabled": true,
+        "Flags": 0,
+        "ClydeShyRadius": 1200,
+        "InkyPivotDistance": 300,
+        "LoseSightGraceSeconds": 1,
+        "OnComponentDestroy": null,
+        "OnComponentDisabled": null,
+        "OnComponentEnabled": null,
+        "OnComponentFixedUpdate": null,
+        "OnComponentStart": null,
+        "OnComponentUpdate": null,
+        "Personality": "Clyde",
+        "PinkyLeadDistance": 600,
+        "SightEyeHeight": 60,
+        "SightRange": 3000,
+        "SightTargetHeight": 50,
+        "TargetUpdateInterval": 0.25
+      }
+    ],
+    "Children": [
+      {
+        "__guid": "a1705830-fa4e-4a7c-aa66-61289020e9a7",
+        "__version": 2,
+        "Flags": 0,
+        "Name": "springs",
+        "Position": "0,0,0",
+        "Rotation": "0,0,0,1",
+        "Scale": "1,1,1",
+        "Tags": "",
+        "Enabled": true,
+        "NetworkMode": 2,
+        "NetworkFlags": 0,
+        "NetworkOrphaned": 0,
+        "NetworkTransmit": true,
+        "OwnerTransfer": 1,
+        "Components": [],
+        "Children": [
+          {
+            "__guid": "1bb36e6a-eb0e-478c-8a25-fa3f5236d6b7",
+            "__version": 2,
+            "Flags": 0,
+            "Name": "Tronco_RR_Spring",
+            "Position": "-57.5999985,-38.515625,45",
+            "Rotation": "0,0,0,1",
+            "Scale": "0.449999988,0.449999988,0.449999988",
+            "Tags": "",
+            "Enabled": true,
+            "NetworkMode": 2,
+            "NetworkFlags": 0,
+            "NetworkOrphaned": 0,
+            "NetworkTransmit": true,
+            "OwnerTransfer": 1,
+            "Components": [],
+            "Children": []
+          },
+          {
+            "__guid": "343edf0c-836e-47f4-a21e-d057a9b18765",
+            "__version": 2,
+            "Flags": 0,
+            "Name": "Tronco_FR_Spring",
+            "Position": "71.8465729,-38.5156288,45",
+            "Rotation": "0,0,0,1",
+            "Scale": "0.449999988,0.449999988,0.449999988",
+            "Tags": "",
+            "Enabled": true,
+            "NetworkMode": 2,
+            "NetworkFlags": 0,
+            "NetworkOrphaned": 0,
+            "NetworkTransmit": true,
+            "OwnerTransfer": 1,
+            "Components": [],
+            "Children": []
+          },
+          {
+            "__guid": "ce1acaf4-7736-492b-b3e5-9a4db1086cdc",
+            "__version": 2,
+            "Flags": 0,
+            "Name": "Tronco_FL_Spring",
+            "Position": "72,38.515625,45",
+            "Rotation": "0,0,0,1",
+            "Scale": "0.449999988,0.449999988,0.449999988",
+            "Tags": "",
+            "Enabled": true,
+            "NetworkMode": 2,
+            "NetworkFlags": 0,
+            "NetworkOrphaned": 0,
+            "NetworkTransmit": true,
+            "OwnerTransfer": 1,
+            "Components": [],
+            "Children": []
+          },
+          {
+            "__guid": "3504cef4-a74c-42bd-a671-9e5d37e7d516",
+            "__version": 2,
+            "Flags": 0,
+            "Name": "Tronco_RL_Spring",
+            "Position": "-57.5999985,38.5156288,45",
+            "Rotation": "0,0,0,1",
+            "Scale": "0.449999988,0.449999988,0.449999988",
+            "Tags": "",
+            "Enabled": true,
+            "NetworkMode": 2,
+            "NetworkFlags": 0,
+            "NetworkOrphaned": 0,
+            "NetworkTransmit": true,
+            "OwnerTransfer": 1,
+            "Components": [],
+            "Children": []
+          }
+        ]
+      },
+      {
+        "__guid": "61922f0d-523d-4861-abf3-b1df24f06139",
+        "__version": 2,
+        "Flags": 0,
+        "Name": "audio",
+        "Position": "0,0,0",
+        "Rotation": "0,0,0,1",
+        "Scale": "1,1,1",
+        "Tags": "",
+        "Enabled": true,
+        "NetworkMode": 2,
+        "NetworkFlags": 0,
+        "NetworkOrphaned": 0,
+        "NetworkTransmit": true,
+        "OwnerTransfer": 1,
+        "Components": [],
+        "Children": [
+          {
+            "__guid": "a71dc966-a47d-4bde-a280-73e5ffd4b95c",
+            "__version": 2,
+            "Flags": 0,
+            "Name": "EngineStart",
+            "Position": "75,0,50",
+            "Rotation": "0,0,0,1",
+            "Scale": "1,1,1",
+            "Tags": "",
+            "Enabled": true,
+            "NetworkMode": 2,
+            "NetworkFlags": 0,
+            "NetworkOrphaned": 0,
+            "NetworkTransmit": true,
+            "OwnerTransfer": 1,
+            "Components": [
+              {
+                "__type": "Sandbox.SoundPointComponent",
+                "__guid": "737f3a73-a40b-4edd-9943-9621d8668407",
+                "__enabled": true,
+                "Flags": 0,
+                "Distance": 8500,
+                "DistanceAttenuation": true,
+                "DistanceAttenuationOverride": false,
+                "Falloff": [
+                  {
+                    "x": 0,
+                    "y": 1,
+                    "in": 3.1415927,
+                    "out": -3.1415927,
+                    "mode": "Mirrored"
+                  },
+                  {
+                    "x": 1,
+                    "y": 0,
+                    "in": 0,
+                    "out": 0,
+                    "mode": "Mirrored"
+                  }
+                ],
+                "Force2d": false,
+                "MaxRepeatTime": 1,
+                "MinRepeatTime": 1,
+                "OcclusionEnabled": false,
+                "OcclusionOverride": false,
+                "OnComponentDestroy": null,
+                "OnComponentDisabled": null,
+                "OnComponentEnabled": null,
+                "OnComponentFixedUpdate": null,
+                "OnComponentStart": null,
+                "OnComponentUpdate": null,
+                "Pitch": 1,
+                "PlayOnStart": false,
+                "Repeat": false,
+                "ReverbEnabled": false,
+                "ReverbOverride": false,
+                "SoundEvent": {
+                  "Id": "92095c3b-6dfa-5642-8234-061c848ec675",
+                  "Path": "sounds/engine_start.sound"
+                },
+                "SoundOverride": false,
+                "StopOnNew": false,
+                "TargetMixer": {
+                  "Name": "game",
+                  "Id": "bf0ae866-d700-4a37-884f-7a0094085bc2"
+                },
+                "Volume": 1
+              }
+            ],
+            "Children": []
+          },
+          {
+            "__guid": "9c7a2ca9-53a0-4efc-b1f2-fb218d7e3df0",
+            "__version": 2,
+            "Flags": 0,
+            "Name": "EngineStop",
+            "Position": "75,0,50",
+            "Rotation": "0,0,0,1",
+            "Scale": "1,1,1",
+            "Tags": "",
+            "Enabled": true,
+            "NetworkMode": 2,
+            "NetworkFlags": 0,
+            "NetworkOrphaned": 0,
+            "NetworkTransmit": true,
+            "OwnerTransfer": 1,
+            "Components": [
+              {
+                "__type": "Sandbox.SoundPointComponent",
+                "__guid": "de31e1eb-0700-403f-a9b6-c1bc8f31a0ce",
+                "__enabled": true,
+                "Flags": 0,
+                "Distance": 8500,
+                "DistanceAttenuation": true,
+                "DistanceAttenuationOverride": false,
+                "Falloff": [
+                  {
+                    "x": 0,
+                    "y": 1,
+                    "in": 3.1415927,
+                    "out": -3.1415927,
+                    "mode": "Mirrored"
+                  },
+                  {
+                    "x": 1,
+                    "y": 0,
+                    "in": 0,
+                    "out": 0,
+                    "mode": "Mirrored"
+                  }
+                ],
+                "Force2d": false,
+                "MaxRepeatTime": 1,
+                "MinRepeatTime": 1,
+                "OcclusionEnabled": false,
+                "OcclusionOverride": false,
+                "OnComponentDestroy": null,
+                "OnComponentDisabled": null,
+                "OnComponentEnabled": null,
+                "OnComponentFixedUpdate": null,
+                "OnComponentStart": null,
+                "OnComponentUpdate": null,
+                "Pitch": 1,
+                "PlayOnStart": false,
+                "Repeat": false,
+                "ReverbEnabled": false,
+                "ReverbOverride": false,
+                "SoundEvent": {
+                  "Id": "a3b2edbc-fb24-e947-abe0-efa92e3006d3",
+                  "Path": "sounds/engine_stop.sound"
+                },
+                "SoundOverride": false,
+                "StopOnNew": false,
+                "TargetMixer": {
+                  "Name": "game",
+                  "Id": "bf0ae866-d700-4a37-884f-7a0094085bc2"
+                },
+                "Volume": 1
+              }
+            ],
+            "Children": []
+          },
+          {
+            "__guid": "ecc0c63c-e1ad-4375-8fec-cbfc5f978e1a",
+            "__version": 2,
+            "Flags": 0,
+            "Name": "EngineIdle",
+            "Position": "75,0,50",
+            "Rotation": "0,0,0,1",
+            "Scale": "1,1,1",
+            "Tags": "",
+            "Enabled": true,
+            "NetworkMode": 2,
+            "NetworkFlags": 0,
+            "NetworkOrphaned": 0,
+            "NetworkTransmit": true,
+            "OwnerTransfer": 1,
+            "Components": [
+              {
+                "__type": "Sandbox.SoundPointComponent",
+                "__guid": "0a24ff31-b4ea-4913-9554-f30a06f900c6",
+                "__enabled": true,
+                "Flags": 0,
+                "Distance": 8500,
+                "DistanceAttenuation": true,
+                "DistanceAttenuationOverride": false,
+                "Falloff": [
+                  {
+                    "x": 0,
+                    "y": 1,
+                    "in": 3.1415927,
+                    "out": -3.1415927,
+                    "mode": "Mirrored"
+                  },
+                  {
+                    "x": 1,
+                    "y": 0,
+                    "in": 0,
+                    "out": 0,
+                    "mode": "Mirrored"
+                  }
+                ],
+                "Force2d": false,
+                "MaxRepeatTime": 1,
+                "MinRepeatTime": 1,
+                "OcclusionEnabled": false,
+                "OcclusionOverride": false,
+                "OnComponentDestroy": null,
+                "OnComponentDisabled": null,
+                "OnComponentEnabled": null,
+                "OnComponentFixedUpdate": null,
+                "OnComponentStart": null,
+                "OnComponentUpdate": null,
+                "Pitch": 1,
+                "PlayOnStart": false,
+                "Repeat": false,
+                "ReverbEnabled": false,
+                "ReverbOverride": false,
+                "SoundEvent": {
+                  "Id": "4acf06d2-b08e-c14b-824b-5f78c95cd7c7",
+                  "Path": "sounds/engine_idle.sound"
+                },
+                "SoundOverride": true,
+                "StopOnNew": false,
+                "TargetMixer": {
+                  "Name": "game",
+                  "Id": "bf0ae866-d700-4a37-884f-7a0094085bc2"
+                },
+                "Volume": 1
+              }
+            ],
+            "Children": []
+          },
+          {
+            "__guid": "2cc6bb79-a7bc-4d37-8733-bf89385529f4",
+            "__version": 2,
+            "Flags": 0,
+            "Name": "EngineLowRPM",
+            "Position": "75,0,50",
+            "Rotation": "0,0,0,1",
+            "Scale": "1,1,1",
+            "Tags": "",
+            "Enabled": true,
+            "NetworkMode": 2,
+            "NetworkFlags": 0,
+            "NetworkOrphaned": 0,
+            "NetworkTransmit": true,
+            "OwnerTransfer": 1,
+            "Components": [
+              {
+                "__type": "Sandbox.SoundPointComponent",
+                "__guid": "b632c05d-c0d7-4590-8c32-9f352c1e7a18",
+                "__enabled": true,
+                "Flags": 0,
+                "Distance": 8500,
+                "DistanceAttenuation": true,
+                "DistanceAttenuationOverride": false,
+                "Falloff": [
+                  {
+                    "x": 0,
+                    "y": 1,
+                    "in": 3.1415927,
+                    "out": -3.1415927,
+                    "mode": "Mirrored"
+                  },
+                  {
+                    "x": 1,
+                    "y": 0,
+                    "in": 0,
+                    "out": 0,
+                    "mode": "Mirrored"
+                  }
+                ],
+                "Force2d": false,
+                "MaxRepeatTime": 1,
+                "MinRepeatTime": 1,
+                "OcclusionEnabled": false,
+                "OcclusionOverride": false,
+                "OnComponentDestroy": null,
+                "OnComponentDisabled": null,
+                "OnComponentEnabled": null,
+                "OnComponentFixedUpdate": null,
+                "OnComponentStart": null,
+                "OnComponentUpdate": null,
+                "Pitch": 1,
+                "PlayOnStart": false,
+                "Repeat": false,
+                "ReverbEnabled": false,
+                "ReverbOverride": false,
+                "SoundEvent": {
+                  "Id": "647996b9-7763-184b-9a58-16d1280db7ef",
+                  "Path": "sounds/engine_1000rpm.sound"
+                },
+                "SoundOverride": true,
+                "StopOnNew": false,
+                "TargetMixer": {
+                  "Name": "game",
+                  "Id": "bf0ae866-d700-4a37-884f-7a0094085bc2"
+                },
+                "Volume": 1
+              }
+            ],
+            "Children": []
+          },
+          {
+            "__guid": "406ae4cc-a885-4301-866b-06fa3bc33d3c",
+            "__version": 2,
+            "Flags": 0,
+            "Name": "EngineHighRPM",
+            "Position": "75,0,50",
+            "Rotation": "0,0,0,1",
+            "Scale": "1,1,1",
+            "Tags": "",
+            "Enabled": true,
+            "NetworkMode": 2,
+            "NetworkFlags": 0,
+            "NetworkOrphaned": 0,
+            "NetworkTransmit": true,
+            "OwnerTransfer": 1,
+            "Components": [
+              {
+                "__type": "Sandbox.SoundPointComponent",
+                "__guid": "0e5bf84c-7fb3-413d-ab24-86d9a290f458",
+                "__enabled": true,
+                "Flags": 0,
+                "Distance": 8500,
+                "DistanceAttenuation": true,
+                "DistanceAttenuationOverride": false,
+                "Falloff": [
+                  {
+                    "x": 0,
+                    "y": 1,
+                    "in": 3.1415927,
+                    "out": -3.1415927,
+                    "mode": "Mirrored"
+                  },
+                  {
+                    "x": 1,
+                    "y": 0,
+                    "in": 0,
+                    "out": 0,
+                    "mode": "Mirrored"
+                  }
+                ],
+                "Force2d": false,
+                "MaxRepeatTime": 1,
+                "MinRepeatTime": 1,
+                "OcclusionEnabled": false,
+                "OcclusionOverride": false,
+                "OnComponentDestroy": null,
+                "OnComponentDisabled": null,
+                "OnComponentEnabled": null,
+                "OnComponentFixedUpdate": null,
+                "OnComponentStart": null,
+                "OnComponentUpdate": null,
+                "Pitch": 1,
+                "PlayOnStart": false,
+                "Repeat": false,
+                "ReverbEnabled": false,
+                "ReverbOverride": false,
+                "SoundEvent": {
+                  "Id": "1b133bfb-5809-4e41-b568-73e532b20276",
+                  "Path": "sounds/engine_2000rpm.sound"
+                },
+                "SoundOverride": true,
+                "StopOnNew": false,
+                "TargetMixer": {
+                  "Name": "game",
+                  "Id": "bf0ae866-d700-4a37-884f-7a0094085bc2"
+                },
+                "Volume": 1
+              }
+            ],
+            "Children": []
+          },
+          {
+            "__guid": "ffb885ee-da1d-41be-9828-ddfd8e1675c2",
+            "__version": 2,
+            "Flags": 0,
+            "Name": "GearSwitch",
+            "Position": "20,0,40",
+            "Rotation": "0,0,0,1",
+            "Scale": "1,1,1",
+            "Tags": "",
+            "Enabled": true,
+            "NetworkMode": 2,
+            "NetworkFlags": 0,
+            "NetworkOrphaned": 0,
+            "NetworkTransmit": true,
+            "OwnerTransfer": 1,
+            "Components": [
+              {
+                "__type": "Sandbox.SoundPointComponent",
+                "__guid": "7c976194-5539-43f0-9f6f-283683257e15",
+                "__enabled": true,
+                "Flags": 0,
+                "Distance": 512,
+                "DistanceAttenuation": false,
+                "DistanceAttenuationOverride": false,
+                "Falloff": [
+                  {
+                    "x": 0,
+                    "y": 1,
+                    "in": 3.1415927,
+                    "out": -3.1415927,
+                    "mode": "Mirrored"
+                  },
+                  {
+                    "x": 1,
+                    "y": 0,
+                    "in": 0,
+                    "out": 0,
+                    "mode": "Mirrored"
+                  }
+                ],
+                "Force2d": false,
+                "MaxRepeatTime": 1,
+                "MinRepeatTime": 1,
+                "OcclusionEnabled": false,
+                "OcclusionOverride": false,
+                "OnComponentDestroy": null,
+                "OnComponentDisabled": null,
+                "OnComponentEnabled": null,
+                "OnComponentFixedUpdate": null,
+                "OnComponentStart": null,
+                "OnComponentUpdate": null,
+                "Pitch": 1,
+                "PlayOnStart": false,
+                "Repeat": false,
+                "ReverbEnabled": false,
+                "ReverbOverride": false,
+                "SoundEvent": {
+                  "Id": "42dfb282-78be-ae4b-a20f-523673b5f87a",
+                  "Path": "sounds/gear_switch.sound"
+                },
+                "SoundOverride": false,
+                "StopOnNew": false,
+                "TargetMixer": {
+                  "Name": "game",
+                  "Id": "47a4e1c0-903b-4ee9-be4f-d44f7a0d0e9f"
+                },
+                "Volume": 1
+              }
+            ],
+            "Children": []
+          },
+          {
+            "__guid": "acada112-2712-4619-9873-b4eb971b209c",
+            "__version": 2,
+            "Flags": 0,
+            "Name": "SkidMark_RR",
+            "Position": "-60,-38,9.29832677E-05",
+            "Rotation": "0,0,0,1",
+            "Scale": "1,1,1",
+            "Tags": "",
+            "Enabled": true,
+            "NetworkMode": 2,
+            "NetworkFlags": 0,
+            "NetworkOrphaned": 0,
+            "NetworkTransmit": true,
+            "OwnerTransfer": 1,
+            "Components": [
+              {
+                "__type": "Sandbox.SoundPointComponent",
+                "__guid": "4284d4bd-4c9c-49be-a0c3-5b9371e9a68f",
+                "__enabled": true,
+                "Flags": 0,
+                "Distance": 512,
+                "DistanceAttenuation": false,
+                "DistanceAttenuationOverride": false,
+                "Falloff": [
+                  {
+                    "x": 0,
+                    "y": 1,
+                    "in": 3.1415927,
+                    "out": -3.1415927,
+                    "mode": "Mirrored"
+                  },
+                  {
+                    "x": 1,
+                    "y": 0,
+                    "in": 0,
+                    "out": 0,
+                    "mode": "Mirrored"
+                  }
+                ],
+                "Force2d": false,
+                "MaxRepeatTime": 1,
+                "MinRepeatTime": 1,
+                "OcclusionEnabled": false,
+                "OcclusionOverride": false,
+                "OnComponentDestroy": null,
+                "OnComponentDisabled": null,
+                "OnComponentEnabled": null,
+                "OnComponentFixedUpdate": null,
+                "OnComponentStart": null,
+                "OnComponentUpdate": null,
+                "Pitch": 1,
+                "PlayOnStart": false,
+                "Repeat": false,
+                "ReverbEnabled": false,
+                "ReverbOverride": false,
+                "SoundEvent": {
+                  "Id": "8a1bb394-2370-4a05-9af3-3c5f8e8a2a90",
+                  "Path": "sounds/skid.sound"
+                },
+                "SoundOverride": true,
+                "StopOnNew": false,
+                "TargetMixer": {
+                  "Name": "game",
+                  "Id": "47a4e1c0-903b-4ee9-be4f-d44f7a0d0e9f"
+                },
+                "Volume": 1
+              }
+            ],
+            "Children": []
+          },
+          {
+            "__guid": "a6689819-dbbf-452b-8b88-4aa8838a219e",
+            "__version": 2,
+            "Flags": 0,
+            "Name": "SkidMark_FR",
+            "Position": "70,-38,9.29832677E-05",
+            "Rotation": "0,0,0,1",
+            "Scale": "1,1,1",
+            "Tags": "",
+            "Enabled": true,
+            "NetworkMode": 2,
+            "NetworkFlags": 0,
+            "NetworkOrphaned": 0,
+            "NetworkTransmit": true,
+            "OwnerTransfer": 1,
+            "Components": [
+              {
+                "__type": "Sandbox.SoundPointComponent",
+                "__guid": "d1dc98b5-6009-423f-95f8-bda77704e510",
+                "__enabled": true,
+                "Flags": 0,
+                "Distance": 512,
+                "DistanceAttenuation": false,
+                "DistanceAttenuationOverride": false,
+                "Falloff": [
+                  {
+                    "x": 0,
+                    "y": 1,
+                    "in": 3.1415927,
+                    "out": -3.1415927,
+                    "mode": "Mirrored"
+                  },
+                  {
+                    "x": 1,
+                    "y": 0,
+                    "in": 0,
+                    "out": 0,
+                    "mode": "Mirrored"
+                  }
+                ],
+                "Force2d": false,
+                "MaxRepeatTime": 1,
+                "MinRepeatTime": 1,
+                "OcclusionEnabled": false,
+                "OcclusionOverride": false,
+                "OnComponentDestroy": null,
+                "OnComponentDisabled": null,
+                "OnComponentEnabled": null,
+                "OnComponentFixedUpdate": null,
+                "OnComponentStart": null,
+                "OnComponentUpdate": null,
+                "Pitch": 1,
+                "PlayOnStart": false,
+                "Repeat": false,
+                "ReverbEnabled": false,
+                "ReverbOverride": false,
+                "SoundEvent": {
+                  "Id": "8a1bb394-2370-4a05-9af3-3c5f8e8a2a90",
+                  "Path": "sounds/skid.sound"
+                },
+                "SoundOverride": true,
+                "StopOnNew": false,
+                "TargetMixer": {
+                  "Name": "game",
+                  "Id": "47a4e1c0-903b-4ee9-be4f-d44f7a0d0e9f"
+                },
+                "Volume": 1
+              }
+            ],
+            "Children": []
+          },
+          {
+            "__guid": "e532e8dc-4b7f-4c0a-ad62-a59e0d4d3f78",
+            "__version": 2,
+            "Flags": 0,
+            "Name": "SkidMark_FL",
+            "Position": "70,38,9.29832677E-05",
+            "Rotation": "0,0,0,1",
+            "Scale": "1,1,1",
+            "Tags": "",
+            "Enabled": true,
+            "NetworkMode": 2,
+            "NetworkFlags": 0,
+            "NetworkOrphaned": 0,
+            "NetworkTransmit": true,
+            "OwnerTransfer": 1,
+            "Components": [
+              {
+                "__type": "Sandbox.SoundPointComponent",
+                "__guid": "0efd110b-7008-4448-a782-721eb333b9a7",
+                "__enabled": true,
+                "Flags": 0,
+                "Distance": 512,
+                "DistanceAttenuation": false,
+                "DistanceAttenuationOverride": false,
+                "Falloff": [
+                  {
+                    "x": 0,
+                    "y": 1,
+                    "in": 3.1415927,
+                    "out": -3.1415927,
+                    "mode": "Mirrored"
+                  },
+                  {
+                    "x": 1,
+                    "y": 0,
+                    "in": 0,
+                    "out": 0,
+                    "mode": "Mirrored"
+                  }
+                ],
+                "Force2d": false,
+                "MaxRepeatTime": 1,
+                "MinRepeatTime": 1,
+                "OcclusionEnabled": false,
+                "OcclusionOverride": false,
+                "OnComponentDestroy": null,
+                "OnComponentDisabled": null,
+                "OnComponentEnabled": null,
+                "OnComponentFixedUpdate": null,
+                "OnComponentStart": null,
+                "OnComponentUpdate": null,
+                "Pitch": 1,
+                "PlayOnStart": false,
+                "Repeat": false,
+                "ReverbEnabled": false,
+                "ReverbOverride": false,
+                "SoundEvent": {
+                  "Id": "8a1bb394-2370-4a05-9af3-3c5f8e8a2a90",
+                  "Path": "sounds/skid.sound"
+                },
+                "SoundOverride": true,
+                "StopOnNew": false,
+                "TargetMixer": {
+                  "Name": "game",
+                  "Id": "47a4e1c0-903b-4ee9-be4f-d44f7a0d0e9f"
+                },
+                "Volume": 1
+              }
+            ],
+            "Children": []
+          },
+          {
+            "__guid": "e218ad34-d53f-4d78-8e1d-b7146d84cda2",
+            "__version": 2,
+            "Flags": 0,
+            "Name": "SkidMark_RL",
+            "Position": "-60,38,0",
+            "Rotation": "0,0,0,1",
+            "Scale": "1,1,1",
+            "Tags": "",
+            "Enabled": true,
+            "NetworkMode": 2,
+            "NetworkFlags": 0,
+            "NetworkOrphaned": 0,
+            "NetworkTransmit": true,
+            "OwnerTransfer": 1,
+            "Components": [
+              {
+                "__type": "Sandbox.SoundPointComponent",
+                "__guid": "078b18f4-230f-4b6d-bfef-549b25771a2b",
+                "__enabled": true,
+                "Flags": 0,
+                "Distance": 512,
+                "DistanceAttenuation": false,
+                "DistanceAttenuationOverride": false,
+                "Falloff": [
+                  {
+                    "x": 0,
+                    "y": 1,
+                    "in": 3.1415927,
+                    "out": -3.1415927,
+                    "mode": "Mirrored"
+                  },
+                  {
+                    "x": 1,
+                    "y": 0,
+                    "in": 0,
+                    "out": 0,
+                    "mode": "Mirrored"
+                  }
+                ],
+                "Force2d": false,
+                "MaxRepeatTime": 1,
+                "MinRepeatTime": 1,
+                "OcclusionEnabled": false,
+                "OcclusionOverride": false,
+                "OnComponentDestroy": null,
+                "OnComponentDisabled": null,
+                "OnComponentEnabled": null,
+                "OnComponentFixedUpdate": null,
+                "OnComponentStart": null,
+                "OnComponentUpdate": null,
+                "Pitch": 1,
+                "PlayOnStart": false,
+                "Repeat": false,
+                "ReverbEnabled": false,
+                "ReverbOverride": false,
+                "SoundEvent": {
+                  "Id": "8a1bb394-2370-4a05-9af3-3c5f8e8a2a90",
+                  "Path": "sounds/skid.sound"
+                },
+                "SoundOverride": true,
+                "StopOnNew": false,
+                "TargetMixer": {
+                  "Name": "game",
+                  "Id": "47a4e1c0-903b-4ee9-be4f-d44f7a0d0e9f"
+                },
+                "Volume": 1
+              }
+            ],
+            "Children": []
+          }
+        ]
+      },
+      {
+        "__guid": "11dd92cd-cc47-412d-a6ad-f1bd377ffdd4",
+        "__version": 2,
+        "__Prefab": {
+          "Id": "20122f80-1f3d-4f4c-97e0-0c2e34d4b729",
+          "Path": "imported/polygoncity/prefabs/vehicles/sm_veh_car_muscle_01.prefab"
+        },
+        "__PrefabInstancePatch": {
+          "AddedObjects": [],
+          "RemovedObjects": [],
+          "PropertyOverrides": [
+            {
+              "Target": {
+                "Type": "Component",
+                "IdValue": "9ecf5261-cd4f-3164-ac85-74f4db1fd9bc"
+              },
+              "Property": "__enabled",
+              "Value": false
+            },
+            {
+              "Target": {
+                "Type": "GameObject",
+                "IdValue": "2c9d24f3-add8-3372-bfff-fa48375d2735"
+              },
+              "Property": "Position",
+              "Value": "75.8515549,-35.6561394,14"
+            },
+            {
+              "Target": {
+                "Type": "Component",
+                "IdValue": "8cbf81ad-6d0d-309c-bd22-7efb3cdfb8de"
+              },
+              "Property": "__enabled",
+              "Value": false
+            },
+            {
+              "Target": {
+                "Type": "GameObject",
+                "IdValue": "95a5f30a-67b4-36ef-9591-8c8466b0e80e"
+              },
+              "Property": "Position",
+              "Value": "77.3085938,34.5646286,14"
+            },
+            {
+              "Target": {
+                "Type": "Component",
+                "IdValue": "fcb8ba36-79a7-3cfd-ad7d-dbed3250f36b"
+              },
+              "Property": "__enabled",
+              "Value": false
+            },
+            {
+              "Target": {
+                "Type": "GameObject",
+                "IdValue": "b2072b39-f576-3963-85ec-b37a7fdc51ea"
+              },
+              "Property": "Position",
+              "Value": "-53.4892578,-34.2008018,16.603529"
+            },
+            {
+              "Target": {
+                "Type": "Component",
+                "IdValue": "b17ffe20-7099-3aed-a6f1-eb0a341fe186"
+              },
+              "Property": "__enabled",
+              "Value": false
+            },
+            {
+              "Target": {
+                "Type": "GameObject",
+                "IdValue": "9eb49ad4-d8ce-3b39-b9ee-5e5754622bc5"
+              },
+              "Property": "Position",
+              "Value": "-53.2978516,34.2008018,16.603529"
+            },
+            {
+              "Target": {
+                "Type": "Component",
+                "IdValue": "7375dfdc-2176-346d-b2a5-2b1719cd1d92"
+              },
+              "Property": "__enabled",
+              "Value": false
+            },
+            {
+              "Target": {
+                "Type": "Component",
+                "IdValue": "c1bae6e6-a75f-34c4-95b0-a193f6f152ee"
+              },
+              "Property": "Tint",
+              "Value": "1,0.6,0.15,1"
+            }
+          ],
+          "MovedObjects": []
+        },
+        "__PrefabIdToInstanceId": {
+          "7b5b1f4d-76fe-3b37-9a23-63d9f71283b5": "11dd92cd-cc47-412d-a6ad-f1bd377ffdd4",
+          "2ceeb917-b702-3c7f-a365-56ef65d68f5c": "54958e60-305a-46ea-afdb-61fe167d7483",
+          "ffc5e7c8-7e7a-33a4-9aa5-cba249323832": "46d37aef-5139-4ffa-8aa4-b586af51eaae",
+          "bccbe290-8a5a-34ec-823f-67f69b1e8806": "94817b6a-94f5-4312-a97d-cfcbb879c82a",
+          "2c9d24f3-add8-3372-bfff-fa48375d2735": "1adb6b67-d0fe-4431-ba39-4ea28be0a8eb",
+          "95a5f30a-67b4-36ef-9591-8c8466b0e80e": "ef2b823b-7077-4132-96ae-fd51e69a7150",
+          "b2072b39-f576-3963-85ec-b37a7fdc51ea": "3f29d6a0-5e08-4466-b460-1958102a9b5a",
+          "9eb49ad4-d8ce-3b39-b9ee-5e5754622bc5": "3f599934-bc15-40d7-ba37-886f10a814e4",
+          "c1bae6e6-a75f-34c4-95b0-a193f6f152ee": "e8d5399d-27d2-49a2-b5b3-ce8cda06a8ba",
+          "9ecf5261-cd4f-3164-ac85-74f4db1fd9bc": "2da21fd8-d327-4c67-9f14-13b00ac1b6ab",
+          "bfbff214-d4f9-345c-a3fb-d1d82041ff6b": "34a8891f-3b0f-427e-b515-e99f7aa058ec",
+          "4796cdc6-f6b4-30c8-82f7-63db90dfe00a": "33c9683c-2012-451d-a276-9a7f48be148f",
+          "c8d66972-9b94-3c32-ab94-37fe257e9ed1": "3ff2998b-cee5-4c46-ab5d-f4b0f76f6e25",
+          "13441794-984d-3f95-a523-6f01b012481d": "99de9428-9c24-4830-850e-f50b67a22a50",
+          "8cbf81ad-6d0d-309c-bd22-7efb3cdfb8de": "7c78785f-2bf5-40e9-978d-595867c29fad",
+          "86ed2891-1402-3124-9f2b-ce3edb9751fe": "5d685e38-1a73-43a8-be23-feff3a49a8f0",
+          "fcb8ba36-79a7-3cfd-ad7d-dbed3250f36b": "cdb9d9cd-3781-463b-90d6-1a219ff442f7",
+          "592adba7-e40e-317d-8c5d-b3b3b3520f4d": "3d6d5af6-0d95-4399-a96a-7b00673edd04",
+          "b17ffe20-7099-3aed-a6f1-eb0a341fe186": "c8734c6e-665a-48f4-8be0-91e8f934fd74",
+          "97123074-1db5-3830-ae56-a42b857509e1": "44fd433e-01d0-47fa-9337-bbeb0a72439b",
+          "7375dfdc-2176-346d-b2a5-2b1719cd1d92": "74a33a4e-2b96-40c4-a98a-fc5fbb85cd68"
+        }
+      }
+    ],
+    "__properties": {
+      "NetworkInterpolation": true,
+      "PhysicsMode": "Physics3D",
+      "TimeScale": 1,
+      "WantsSystemScene": true,
+      "Metadata": {},
+      "NavMesh": {
+        "Enabled": false,
+        "IncludeStaticBodies": true,
+        "IncludeKeyframedBodies": true,
+        "EditorAutoUpdate": false,
+        "AgentHeight": 64,
+        "AgentRadius": 16,
+        "AgentStepSize": 18,
+        "AgentMaxSlope": 40,
+        "ExcludedBodies": "",
+        "IncludedBodies": "",
+        "DeferGeneration": false,
+        "CustomBounds": false
+      }
+    },
+    "__variables": []
+  },
+  "ResourceVersion": 2,
+  "ShowInMenu": false,
+  "MenuPath": null,
+  "MenuIcon": null,
+  "DontBreakAsTemplate": false,
+  "__references": [],
+  "__version": 2
+}
