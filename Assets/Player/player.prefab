@@ -346,6 +346,7 @@
             "BoneMergeTarget": null,
             "CreateAttachments": false,
             "CreateBoneObjects": true,
+            "DeformationMode": "Normal",
             "LodOverride": null,
             "MaterialGroup": "default",
             "MaterialOverride": null,
@@ -362,11 +363,16 @@
             "OnComponentStart": null,
             "OnComponentUpdate": null,
             "Parameters": {
-              "bools": {},
-              "ints": {},
-              "floats": {},
-              "vectors": {},
-              "rotations": {}
+              "floats": {
+                "scale_height": 0.8016394,
+                "scale_heel": 0
+              },
+              "bools": {
+                "ik.hand_left.enabled": false,
+                "ik.hand_right.enabled": false,
+                "ik.foot_left.enabled": false,
+                "ik.foot_right.enabled": false
+              }
             },
             "PlaybackRate": 1.0063425,
             "RenderOptions": {
@@ -2344,7 +2350,10 @@
             "MaterialGroup": null,
             "MaterialOverride": null,
             "Materials": null,
-            "Model": "models/dev/sphere.vmdl",
+            "Model": {
+              "Id": "00000000-0000-0000-f09f-a6f0fe7f0000",
+              "Path": "models/dev/sphere.vmdl"
+            },
             "OnComponentDestroy": null,
             "OnComponentDisabled": null,
             "OnComponentEnabled": null,
@@ -2406,7 +2415,10 @@
             "MaterialGroup": null,
             "MaterialOverride": null,
             "Materials": null,
-            "Model": "models/dev/sphere.vmdl",
+            "Model": {
+              "Id": "00000000-0000-0000-f09f-a6f0fe7f0000",
+              "Path": "models/dev/sphere.vmdl"
+            },
             "OnComponentDestroy": null,
             "OnComponentDisabled": null,
             "OnComponentEnabled": null,
@@ -2517,7 +2529,7 @@
                     "MaterialOverride": null,
                     "Materials": null,
                     "Model": {
-                      "Id": "31b2af35-7c37-48e8-918a-60135e6b0ea6",
+                      "Id": "30b62499-9b80-8e47-b713-dbffa83d21c7",
                       "Path": "itch/board-game-pieces/models/event-arrow.vmdl"
                     },
                     "OnComponentDestroy": null,
@@ -2545,7 +2557,7 @@
                     "Friction": null,
                     "IsTrigger": false,
                     "Model": {
-                      "Id": "31b2af35-7c37-48e8-918a-60135e6b0ea6",
+                      "Id": "30b62499-9b80-8e47-b713-dbffa83d21c7",
                       "Path": "itch/board-game-pieces/models/event-arrow.vmdl"
                     },
                     "OnComponentDestroy": null,
@@ -2645,7 +2657,10 @@
             "MaterialGroup": null,
             "MaterialOverride": null,
             "Materials": null,
-            "Model": "models/dev/box.vmdl",
+            "Model": {
+              "Id": "a0e5848a-f801-0000-f0db-b088f8010000",
+              "Path": "models/dev/box.vmdl"
+            },
             "OnComponentDestroy": null,
             "OnComponentDisabled": null,
             "OnComponentEnabled": null,
@@ -2700,6 +2715,73 @@
             "OnComponentFixedUpdate": null,
             "OnComponentStart": null,
             "OnComponentUpdate": null
+          }
+        ],
+        "Children": []
+      },
+      {
+        "__guid": "7b44aac4-b26a-4555-8b82-f8703e324cd3",
+        "__version": 2,
+        "Flags": 0,
+        "Name": "Fake-Sun",
+        "Position": "0,40.4514694,86.1448822",
+        "Rotation": "0,0,0,1",
+        "Scale": "0.0796979889,0.0796979889,0.0796979889",
+        "Tags": "render_two",
+        "Enabled": true,
+        "NetworkMode": 2,
+        "NetworkFlags": 0,
+        "NetworkOrphaned": 0,
+        "NetworkTransmit": true,
+        "OwnerTransfer": 1,
+        "Components": [
+          {
+            "__type": "Sandbox.ModelRenderer",
+            "__guid": "57d01290-06b3-40fe-b21d-9b6be5771279",
+            "__enabled": true,
+            "Flags": 0,
+            "BodyGroups": 18446744073709551615,
+            "CreateAttachments": false,
+            "LodOverride": null,
+            "MaterialGroup": null,
+            "MaterialOverride": {
+              "Id": "a18de556-158b-41f5-973e-435922d71cf4",
+              "Path": "materials/sun.vmat"
+            },
+            "Materials": null,
+            "Model": {
+              "Id": "00000000-0000-0000-f09f-a6f0fe7f0000",
+              "Path": "models/dev/sphere.vmdl"
+            },
+            "OnComponentDestroy": null,
+            "OnComponentDisabled": null,
+            "OnComponentEnabled": null,
+            "OnComponentFixedUpdate": null,
+            "OnComponentStart": null,
+            "OnComponentUpdate": null,
+            "RenderOptions": {
+              "GameLayer": true,
+              "OverlayLayer": false,
+              "BloomLayer": false,
+              "AfterUILayer": false
+            },
+            "RenderType": "On",
+            "Tint": "1,1,1,1"
+          },
+          {
+            "__type": "Sandbox.FakeSun",
+            "__guid": "6f652d12-6f7e-4991-a187-d1c4f5a4f076",
+            "__enabled": true,
+            "Flags": 0,
+            "OnComponentDestroy": null,
+            "OnComponentDisabled": null,
+            "OnComponentEnabled": null,
+            "OnComponentFixedUpdate": null,
+            "OnComponentStart": null,
+            "OnComponentUpdate": null,
+            "Sun": null,
+            "SunObjectName": "Sun",
+            "Distance": 100
           }
         ],
         "Children": []
