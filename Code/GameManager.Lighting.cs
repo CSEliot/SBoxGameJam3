@@ -49,10 +49,13 @@ public sealed partial class GameManager
 	[Property, Group( "Night Lighting" )] private float _NightBlendSeconds { get; set; } = 3f;
 
 	/// <summary>
-	/// World rotation of the sun directional light at full night (from city.scene). The day value
-	/// is read from the live scene at start.
+	/// The sun's elevation in degrees at full night: the angle of the sun above the horizon,
+	/// where negative sits it below the horizon. The night sun keeps the day sun's compass
+	/// direction (yaw and roll); only its elevation changes, so the sun sets along the same
+	/// bearing it held during the day. Below the horizon the atmosphere sky shows a sunset and
+	/// then stars, and the light comes from slightly below, dimmed by the night LightColor.
 	/// </summary>
-	[Property, Group( "Night Lighting" )] private Rotation _NightSunRotation { get; set; } = new Rotation( 0.379222363f, 0.102005303f, -0.299588025f, 0.869501114f );
+	[Property, Group( "Night Lighting" ), Range( -30f, 10f )] private float _NightSunElevation { get; set; } = -5f;
 
 	/// <summary>
 	/// DirectionalLight.LightColor at full night (from city.scene).
@@ -378,7 +381,12 @@ public sealed partial class GameManager
 	{
 		if ( _daySun is not null && _daySun.IsValid() )
 		{
-			_daySun.WorldRotation = Rotation.Slerp( _daySunRotation, _NightSunRotation, factor );
+			// Rebuild the night pose from the captured day orientation every pass so live tweaks to
+			// _NightSunElevation take effect during play. Elevation replaces the day pitch; the day
+			// yaw and roll (the compass bearing) are kept, so the sun sets and rises on that bearing.
+			Angles dayAngles = _daySunRotation.Angles();
+			Rotation nightSunRotation = Rotation.From( new Angles( _NightSunElevation, dayAngles.yaw, dayAngles.roll ) );
+			_daySun.WorldRotation = Rotation.Slerp( _daySunRotation, nightSunRotation, factor );
 			_daySun.LightColor = Color.Lerp( _dayLightColor, _NightLightColor, factor );
 			// SkyColor feeds world ambient on the next frame; sliding it is the light's ambient path.
 			_daySun.SkyColor = Color.Lerp( _daySkyColor, _NightSkyColor, factor );
