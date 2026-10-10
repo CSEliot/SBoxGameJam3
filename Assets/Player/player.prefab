@@ -363,15 +363,27 @@
             "OnComponentStart": null,
             "OnComponentUpdate": null,
             "Parameters": {
+              "bools": {
+                "ik.hand_left.enabled": true,
+                "ik.hand_right.enabled": true,
+                "ik.foot_left.enabled": true,
+                "ik.foot_right.enabled": true
+              },
               "floats": {
-                "scale_height": 0.8016394,
+                "scale_height": 0.8,
                 "scale_heel": 0
               },
-              "bools": {
-                "ik.hand_left.enabled": false,
-                "ik.hand_right.enabled": false,
-                "ik.foot_left.enabled": false,
-                "ik.foot_right.enabled": false
+              "vectors": {
+                "ik.hand_left.position": "9.26242924,10.8698664,31.9786205",
+                "ik.hand_right.position": "10.9518013,-10.4680214,32.0118027",
+                "ik.foot_right.position": "-4.32035065,-2.79049826,12.3908062",
+                "ik.foot_left.position": "2.93848038,5.03186655,11.4683228"
+              },
+              "rotations": {
+                "ik.hand_left.rotation": "0.997855008,0,0,-0.0654628724",
+                "ik.hand_right.rotation": "0,0,0,1",
+                "ik.foot_right.rotation": "0.399359077,0.540803611,-0.595523536,0.43976742",
+                "ik.foot_left.rotation": "0.437096149,0.632700205,-0.525944769,0.363344967"
               }
             },
             "PlaybackRate": 1.0063425,
@@ -388,7 +400,7 @@
               "Blending": true
             },
             "Tint": "1,1,1,1",
-            "UseAnimGraph": false
+            "UseAnimGraph": true
           },
           {
             "__type": "ShrimpleRagdolls.ShrimpleRagdoll",
@@ -498,7 +510,7 @@
             "EyeColor": 0,
             "HeadShape": 0.5,
             "ManualAge": 0,
-            "ManualHeight": 0.0040983604,
+            "ManualHeight": 0,
             "ManualTint": 0.30515465,
             "NeckSize": 0,
             "NoseSize": 0,
@@ -523,10 +535,22 @@
             "EyesWeight": 1,
             "HeadWeight": 1,
             "Height": null,
-            "IkLeftFoot": null,
-            "IkLeftHand": null,
-            "IkRightFoot": null,
-            "IkRightHand": null,
+            "IkLeftFoot": {
+              "_type": "gameobject",
+              "go": "16408010-b134-4902-a6aa-de8b817bf37d"
+            },
+            "IkLeftHand": {
+              "_type": "gameobject",
+              "go": "909d504b-e92c-4686-8ccc-0a8f9d20bc6b"
+            },
+            "IkRightFoot": {
+              "_type": "gameobject",
+              "go": "18d36b39-d1ac-4042-a2b3-d58702c02505"
+            },
+            "IkRightHand": {
+              "_type": "gameobject",
+              "go": "48d20a13-4982-41a9-8b7e-031b6ec2fadc"
+            },
             "LookAt": null,
             "LookAtEnabled": false,
             "LookAtEyes": null,
@@ -549,7 +573,7 @@
           {
             "__type": "Sandbox.CitizenHeight",
             "__guid": "77cceb8b-577e-40c8-8d00-711847c35008",
-            "__enabled": true,
+            "__enabled": false,
             "Flags": 0,
             "_Renderer": {
               "_type": "component",
@@ -563,6 +587,41 @@
             "OnComponentFixedUpdate": null,
             "OnComponentStart": null,
             "OnComponentUpdate": null
+          },
+          {
+            "__type": "Sandbox.BikeRiderPose",
+            "__guid": "185cd50c-2dcf-480f-9ccd-85f603801166",
+            "__enabled": true,
+            "Flags": 0,
+            "Bike": {
+              "_type": "gameobject",
+              "go": "985c5e0f-eb5b-4a6c-9301-f53eb52f5f0f"
+            },
+            "Helper": null,
+            "LeftFoot": {
+              "_type": "gameobject",
+              "go": "16408010-b134-4902-a6aa-de8b817bf37d"
+            },
+            "LeftHand": {
+              "_type": "gameobject",
+              "go": "909d504b-e92c-4686-8ccc-0a8f9d20bc6b"
+            },
+            "OnComponentDestroy": null,
+            "OnComponentDisabled": null,
+            "OnComponentEnabled": null,
+            "OnComponentFixedUpdate": null,
+            "OnComponentStart": null,
+            "OnComponentUpdate": null,
+            "Renderer": null,
+            "RightFoot": {
+              "_type": "gameobject",
+              "go": "18d36b39-d1ac-4042-a2b3-d58702c02505"
+            },
+            "RightHand": {
+              "_type": "gameobject",
+              "go": "48d20a13-4982-41a9-8b7e-031b6ec2fadc"
+            },
+            "SitPose": "Chair1"
           }
         ],
         "Children": [
@@ -2350,10 +2409,7 @@
             "MaterialGroup": null,
             "MaterialOverride": null,
             "Materials": null,
-            "Model": {
-              "Id": "00000000-0000-0000-f09f-a6f0fe7f0000",
-              "Path": "models/dev/sphere.vmdl"
-            },
+            "Model": "models/dev/sphere.vmdl",
             "OnComponentDestroy": null,
             "OnComponentDisabled": null,
             "OnComponentEnabled": null,
@@ -2415,10 +2471,7 @@
             "MaterialGroup": null,
             "MaterialOverride": null,
             "Materials": null,
-            "Model": {
-              "Id": "00000000-0000-0000-f09f-a6f0fe7f0000",
-              "Path": "models/dev/sphere.vmdl"
-            },
+            "Model": "models/dev/sphere.vmdl",
             "OnComponentDestroy": null,
             "OnComponentDisabled": null,
             "OnComponentEnabled": null,
@@ -2452,6 +2505,135 @@
           }
         ],
         "Children": []
+      },
+      {
+        "__guid": "985c5e0f-eb5b-4a6c-9301-f53eb52f5f0f",
+        "__version": 2,
+        "Flags": 0,
+        "Name": "bike",
+        "Position": "19.6007347,2.94297934E-07,-1.26679111",
+        "Rotation": "0,0,0,1",
+        "Scale": "0.219999999,0.299779654,0.21977967",
+        "Tags": "",
+        "Enabled": true,
+        "NetworkMode": 2,
+        "NetworkFlags": 0,
+        "NetworkOrphaned": 0,
+        "NetworkTransmit": true,
+        "OwnerTransfer": 1,
+        "Components": [
+          {
+            "__type": "Sandbox.ModelRenderer",
+            "__guid": "1094fcc2-a214-4021-a5d5-de1f5b159f3a",
+            "__enabled": true,
+            "Flags": 0,
+            "BodyGroups": 18446744073709551615,
+            "CreateAttachments": false,
+            "LodOverride": null,
+            "MaterialGroup": null,
+            "MaterialOverride": null,
+            "Materials": {
+              "indexed": {
+                "6": {
+                  "Id": "49ee38b4-854d-6445-ae54-05342876e868",
+                  "Path": "player/bikes/green.vmat"
+                }
+              }
+            },
+            "Model": {
+              "Id": "14e9ca1d-8d5c-4c15-af89-26f533c5e905",
+              "Path": "player/bikes/low_ply_honda_50.vmdl"
+            },
+            "OnComponentDestroy": null,
+            "OnComponentDisabled": null,
+            "OnComponentEnabled": null,
+            "OnComponentFixedUpdate": null,
+            "OnComponentStart": null,
+            "OnComponentUpdate": null,
+            "RenderOptions": {
+              "GameLayer": true,
+              "OverlayLayer": false,
+              "BloomLayer": false,
+              "AfterUILayer": false
+            },
+            "RenderType": "On",
+            "Tint": "1,1,1,1"
+          }
+        ],
+        "Children": [
+          {
+            "__guid": "48d20a13-4982-41a9-8b7e-031b6ec2fadc",
+            "__version": 2,
+            "Flags": 0,
+            "Name": "righthand",
+            "Position": "-39.3133354,-34.9190521,151.417984",
+            "Rotation": "0,0,0,1",
+            "Scale": "1,1,1",
+            "Tags": "",
+            "Enabled": true,
+            "NetworkMode": 2,
+            "NetworkFlags": 0,
+            "NetworkOrphaned": 0,
+            "NetworkTransmit": true,
+            "OwnerTransfer": 1,
+            "Components": [],
+            "Children": []
+          },
+          {
+            "__guid": "909d504b-e92c-4686-8ccc-0a8f9d20bc6b",
+            "__version": 2,
+            "Flags": 0,
+            "Name": "lefthand",
+            "Position": "-46.9922981,36.2595215,151.266998",
+            "Rotation": "0.997855008,0,0,-0.0654628724",
+            "Scale": "1,1,1",
+            "Tags": "",
+            "Enabled": true,
+            "NetworkMode": 2,
+            "NetworkFlags": 0,
+            "NetworkOrphaned": 0,
+            "NetworkTransmit": true,
+            "OwnerTransfer": 1,
+            "Components": [],
+            "Children": []
+          },
+          {
+            "__guid": "18d36b39-d1ac-4042-a2b3-d58702c02505",
+            "__version": 2,
+            "Flags": 0,
+            "Name": "rightfoot",
+            "Position": "-108.732208,-9.30849838,62.1422234",
+            "Rotation": "0.399359077,0.540803611,-0.595523536,0.43976742",
+            "Scale": "1,1,1",
+            "Tags": "",
+            "Enabled": true,
+            "NetworkMode": 2,
+            "NetworkFlags": 0,
+            "NetworkOrphaned": 0,
+            "NetworkTransmit": true,
+            "OwnerTransfer": 1,
+            "Components": [],
+            "Children": []
+          },
+          {
+            "__guid": "16408010-b134-4902-a6aa-de8b817bf37d",
+            "__version": 2,
+            "Flags": 0,
+            "Name": "leftfoot",
+            "Position": "-75.7375183,16.7852154,57.9449158",
+            "Rotation": "0.437096149,0.632700205,-0.525944769,0.363344967",
+            "Scale": "1,1,1",
+            "Tags": "",
+            "Enabled": true,
+            "NetworkMode": 2,
+            "NetworkFlags": 0,
+            "NetworkOrphaned": 0,
+            "NetworkTransmit": true,
+            "OwnerTransfer": 1,
+            "Components": [],
+            "Children": []
+          }
+        ]
       },
       {
         "__guid": "6427f8ba-2767-470e-a98f-3640f003daa2",
@@ -2529,7 +2711,7 @@
                     "MaterialOverride": null,
                     "Materials": null,
                     "Model": {
-                      "Id": "30b62499-9b80-8e47-b713-dbffa83d21c7",
+                      "Id": "2f0e9fc8-0e45-471c-af22-52a9ad5a15de",
                       "Path": "itch/board-game-pieces/models/event-arrow.vmdl"
                     },
                     "OnComponentDestroy": null,
@@ -2557,7 +2739,7 @@
                     "Friction": null,
                     "IsTrigger": false,
                     "Model": {
-                      "Id": "30b62499-9b80-8e47-b713-dbffa83d21c7",
+                      "Id": "2f0e9fc8-0e45-471c-af22-52a9ad5a15de",
                       "Path": "itch/board-game-pieces/models/event-arrow.vmdl"
                     },
                     "OnComponentDestroy": null,
@@ -2657,10 +2839,7 @@
             "MaterialGroup": null,
             "MaterialOverride": null,
             "Materials": null,
-            "Model": {
-              "Id": "a0e5848a-f801-0000-f0db-b088f8010000",
-              "Path": "models/dev/box.vmdl"
-            },
+            "Model": "models/dev/box.vmdl",
             "OnComponentDestroy": null,
             "OnComponentDisabled": null,
             "OnComponentEnabled": null,
@@ -2715,6 +2894,46 @@
             "OnComponentFixedUpdate": null,
             "OnComponentStart": null,
             "OnComponentUpdate": null
+          }
+        ],
+        "Children": []
+      },
+      {
+        "__guid": "d53d2937-c757-4ad6-86d8-fd104ce4cf44",
+        "__version": 2,
+        "Flags": 0,
+        "Name": "Point Light",
+        "Position": "25.3903885,-27.5474339,40.5044861",
+        "Rotation": "0,0,0,1",
+        "Scale": "1,1,1",
+        "Tags": "light_point,light",
+        "Enabled": true,
+        "NetworkMode": 2,
+        "NetworkFlags": 0,
+        "NetworkOrphaned": 0,
+        "NetworkTransmit": true,
+        "OwnerTransfer": 1,
+        "Components": [
+          {
+            "__type": "Sandbox.PointLight",
+            "__guid": "89a57f84-af52-4b1d-8a90-64ad5be05730",
+            "__enabled": true,
+            "Flags": 0,
+            "Attenuation": 8.326087,
+            "Contribution": "Diffuse, Specular, Transmissive",
+            "FogMode": "Enabled",
+            "FogStrength": 1,
+            "LightColor": "0.91373,0.98039,1,1",
+            "OnComponentDestroy": null,
+            "OnComponentDisabled": null,
+            "OnComponentEnabled": null,
+            "OnComponentFixedUpdate": null,
+            "OnComponentStart": null,
+            "OnComponentUpdate": null,
+            "Radius": 372.49002,
+            "ShadowBias": 0,
+            "ShadowHardness": 0,
+            "Shadows": true
           }
         ],
         "Children": []
