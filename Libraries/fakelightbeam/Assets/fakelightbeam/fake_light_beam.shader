@@ -7,11 +7,11 @@
 // reads as light in air. Unlit; the edge fade comes from an analytic cone
 // normal (apex + axis + half-angle pushed from C#), not the mesh normal, so
 // it survives flat shading and the non-uniform scale used to fit the light.
-// No depth write in any mode, no shadow casting - the ModelRenderer that
-// draws this sets RenderType = Off.
+// No depth write in any mode, no shadow casting - the component-owned
+// SceneObject that draws this sets Flags.CastShadows = false.
 //
 // Per-beam values arrive through Attribute() uniforms pushed by
-// Code/FakeLightBeam.cs every frame via Renderer.Attributes; one shared
+// Code/FakeLightBeam.cs every frame via SceneObject.Attributes; one shared
 // material (Material.FromShader) then serves every beam.
 //=========================================================================================================================
 HEADER

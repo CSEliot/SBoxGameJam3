@@ -39,8 +39,9 @@ namespace Sandbox;
 /// visual, so there is no host-only gate), out of children marked
 /// <see cref="NetworkMode.Never"/> and <see cref="GameObjectFlags.NotSaved"/> so the rig
 /// is never networked or written back to disk. Each light is a real
-/// <see cref="SpotLight"/> with a <see cref="FakeLightBeam"/> cone child, so it works as
-/// a light source and as a visible volumetric beam. Every spot light has shadows off;
+/// <see cref="SpotLight"/> with a <see cref="FakeLightBeam"/> on the same object, so it works
+/// as a light source and as a visible volumetric beam (the beam component renders its own
+/// cone via a SceneObject). Every spot light has shadows off;
 /// there are 16 of them across four cars.
 ///
 /// The beacon colour is the car's ghost tint, read from <see cref="TintSource"/> or
@@ -249,8 +250,8 @@ public sealed class CopCarLights : Component
 	}
 
 	/// <summary>
-	/// Creates one SpotLight GameObject (with its FakeLightBeam cone child) under parent,
-	/// records it so LightsOn can toggle it, and returns it.
+	/// Creates one SpotLight GameObject (with a FakeLightBeam on the same object) under
+	/// parent, records it so LightsOn can toggle it, and returns it.
 	/// </summary>
 	private GameObject BuildSpotLightHelper( GameObject parent, string name, Vector3 localPosition, Rotation localRotation,
 		Color color, float radius, float coneInner, float coneOuter, float attenuation,
@@ -269,15 +270,9 @@ public sealed class CopCarLights : Component
 		// Shadows off: sixteen of these across four cars would be far too expensive.
 		spot.Shadows = false;
 
-		// Cone mesh child, sharing the one unit cone model.
-		var beamObject = MakeRigObjectHelper( lightObject, "beam" );
-		var coneRenderer = beamObject.Components.Create<ModelRenderer>();
-		coneRenderer.Model = FakeLightBeam.GetUnitConeModel();
-		coneRenderer.RenderType = ModelRenderer.ShadowRenderType.Off;
-
+		// The beam component owns its cone SceneObject, so no child GameObject is needed.
 		var beam = lightObject.Components.Create<FakeLightBeam>();
 		beam.Light = spot;
-		beam.Cone = coneRenderer;
 		beam.MaxLength = beamMaxLength;
 		beam.Intensity = beamIntensity;
 		// The length-clip trace must never hit the car itself.

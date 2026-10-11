@@ -531,10 +531,10 @@
       },
       {
         "__type": "Sandbox.OnCollideThrow",
-        "__guid": "fb643f30-666c-44b3-920e-1b3fdd72baf6",
+        "__guid": "6fc92973-5653-41fd-a297-44f1227111fb",
         "__enabled": true,
         "Flags": 0,
-        "_ThrowForce": 2000,
+        "_ThrowForce": 10000,
         "OnComponentDestroy": null,
         "OnComponentDisabled": null,
         "OnComponentEnabled": null,

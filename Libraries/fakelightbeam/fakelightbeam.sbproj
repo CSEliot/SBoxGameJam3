@@ -1,0 +1,14 @@
+{
+  "Title": "Fake Light Beam",
+  "Type": "library",
+  "Org": "local",
+  "Ident": "fakelightbeam",
+  "Schema": 1,
+  "IncludeSourceFiles": false,
+  "Resources": null,
+  "PackageReferences": [],
+  "EditorReferences": null,
+  "Mounts": null,
+  "IsStandaloneOnly": false,
+  "Metadata": {}
+}

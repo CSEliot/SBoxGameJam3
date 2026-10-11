@@ -1,8 +1,8 @@
-// Project: sboxgamejam3
+// Project: fakelightbeam
 // File:    FakeLightBeam.cs
 // Author:  cseliot
-// Created: 2026.10.11.10.07.08
-// Edited: 2026.10.11.10.07.08
+// Created: 2026.10.11.14.52.37
+// Edited: 2026.10.11.15.05.00
 // 
 // Copyright (c) 2026 KiteLion Games, LLC. All rights reserved.
 // 
@@ -11,10 +11,11 @@
 // permission from KiteLion Games, LLC.
 // 
 // Description:
-// Drives one fake light beam: sizes a shared unit-cone mesh to the light's
+// Drives one fake light beam. Sizes a shared unit-cone mesh to the light's
 // aim/angle and pushes the shader uniforms (apex, axis, length, half-angle,
-// colour, intensity) every frame. Optionally clips the cone length to the
-// first world hit so the beam does not poke through walls.
+// colour, intensity) every frame through a component-owned SceneObject.
+// Optionally clips the cone length to the first world hit so the beam does
+// not poke through walls. Runs in the editor as well as in play.
 // 
 // License:
 // This code is provided "as is," without warranty of any kind, express or
@@ -32,15 +33,13 @@ namespace Sandbox;
 /// <summary>
 /// Fits a shared unit cone mesh to a <see cref="SpotLight"/> and feeds the
 /// fake_light_beam shader its per-beam uniforms every frame. Put this on the
-/// light and point <see cref="Cone"/> at a child ModelRenderer whose Model is
-/// <see cref="GetUnitConeModel"/>.
+/// light and leave <see cref="Light"/> empty to auto-resolve the SpotLight on
+/// the same GameObject, or point it at one explicitly. The component owns its
+/// own <see cref="SceneObject"/> and creates no child GameObjects.
 /// </summary>
-public sealed class FakeLightBeam : Component
+public sealed class FakeLightBeam : Component, Component.ExecuteInEditor
 {
 	[Property] public SpotLight Light { get; set; }
-
-	/// <summary>Unit cone child (apex at origin, axis +X, length 1, base radius 1).</summary>
-	[Property] public ModelRenderer Cone { get; set; }
 
 	[Property] public float MaxLength { get; set; } = 400f;
 
@@ -59,6 +58,9 @@ public sealed class FakeLightBeam : Component
 
 	private static Model _unitConeModel;
 	private static bool _unitConeBuilt;
+	private static bool _unitConeErrorLogged;
+
+	private SceneObject _beamObject;
 
 	/// <summary>
 	/// One shared unit cone model for every beam in the game. Built lazily on first
@@ -69,13 +71,18 @@ public sealed class FakeLightBeam : Component
 		if ( _unitConeBuilt )
 			return _unitConeModel;
 
-		var material = Material.FromShader( "shaders/fake_light_beam.shader" );
+		var material = Material.FromShader( "fakelightbeam/fake_light_beam.shader" );
 		var model = BuildUnitConeHelper( material, 24 );
 		if ( model is null )
 		{
 			// Leave the latch clear so a later caller retries instead of every beam
-			// silently rendering nothing behind a half-set latch.
-			Log.Error( "FakeLightBeam: failed to build the shared unit cone model." );
+			// silently rendering nothing behind a half-set latch. Log once only: the
+			// retry runs every frame per beam.
+			if ( !_unitConeErrorLogged )
+			{
+				_unitConeErrorLogged = true;
+				Log.Error( "FakeLightBeam: failed to build the shared unit cone model." );
+			}
 			return null;
 		}
 
@@ -120,12 +127,60 @@ public sealed class FakeLightBeam : Component
 		return Model.Builder.AddMesh( mesh ).Create();
 	}
 
-	protected override void OnPreRender()
+	protected override void OnEnabled()
 	{
-		if ( !Light.IsValid() || !Cone.IsValid() )
+		if ( !Light.IsValid() )
+			Light = GetComponent<SpotLight>();
+
+		CreateBeamObjectHelper();
+	}
+
+	protected override void OnDisabled()
+	{
+		DestroyBeamObjectHelper();
+	}
+
+	protected override void OnDestroy()
+	{
+		DestroyBeamObjectHelper();
+	}
+
+	private void CreateBeamObjectHelper()
+	{
+		if ( _beamObject.IsValid() )
 			return;
 
-		Cone.RenderType = ModelRenderer.ShadowRenderType.Off;
+		var model = GetUnitConeModel();
+		if ( model is null || Scene is null )
+			return;
+
+		_beamObject = new SceneObject( Scene.SceneWorld, model );
+		_beamObject.Flags.CastShadows = false;
+		_beamObject.RenderingEnabled = false;
+	}
+
+	private void DestroyBeamObjectHelper()
+	{
+		if ( !_beamObject.IsValid() )
+			return;
+
+		_beamObject.Delete();
+		_beamObject = null;
+	}
+
+	protected override void OnPreRender()
+	{
+		if ( !_beamObject.IsValid() )
+			CreateBeamObjectHelper();
+
+		if ( !_beamObject.IsValid() )
+			return;
+
+		if ( !Light.IsValid() || !Light.Active || Intensity <= 0f )
+		{
+			_beamObject.RenderingEnabled = false;
+			return;
+		}
 
 		var apex = Light.WorldPosition;
 		var axis = Light.WorldRotation.Forward;
@@ -143,16 +198,18 @@ public sealed class FakeLightBeam : Component
 
 		var halfAngle = (Light.ConeOuter * AngleScale).DegreeToRadian();
 		var radius = length * MathF.Tan( halfAngle );
-		Cone.LocalScale = new Vector3( length, radius, radius );
+		_beamObject.Transform = new Transform( apex, Light.WorldRotation, new Vector3( length, radius, radius ) );
 
 		var c = Light.LightColor;
-		var attrs = Cone.Attributes;
+		var attrs = _beamObject.Attributes;
 		attrs.Set( "BeamApex", apex );
 		attrs.Set( "BeamAxis", axis );
 		attrs.Set( "BeamLength", length );
 		attrs.Set( "BeamSin", MathF.Sin( halfAngle ) );
 		attrs.Set( "BeamCos", MathF.Cos( halfAngle ) );
 		attrs.Set( "BeamColor", new Vector3( c.r, c.g, c.b ) );
-		attrs.Set( "BeamIntensity", Light.Active ? Intensity : 0f );
+		attrs.Set( "BeamIntensity", Intensity );
+
+		_beamObject.RenderingEnabled = true;
 	}
 }

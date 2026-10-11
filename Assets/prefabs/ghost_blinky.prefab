@@ -534,7 +534,7 @@
         "__guid": "f86a6352-560b-40ad-98cc-102666fac7ff",
         "__enabled": true,
         "Flags": 0,
-        "_ThrowForce": 999999,
+        "_ThrowForce": 10000,
         "OnComponentDestroy": null,
         "OnComponentDisabled": null,
         "OnComponentEnabled": null,
