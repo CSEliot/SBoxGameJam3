@@ -116,6 +116,7 @@ public sealed class GhostCarBrain : Component
 
 	private NavMeshCarController _nav;
 	private AICarDriver _ai;
+	private CopCarLights _copLights;
 	private GameObject _marker;
 	private TimeSince _sinceTargetUpdate = 10f;
 	private TimeSince _sinceLastSight = 10f;
@@ -126,6 +127,7 @@ public sealed class GhostCarBrain : Component
 	{
 		_nav = GetComponent<NavMeshCarController>( true );
 		_ai = GetComponent<AICarDriver>( true );
+		_copLights = GetComponent<CopCarLights>( true );
 
 		// Force the dev/test knobs off before the AICarDriver can first enable. Its OnStart
 		// clones the car ExtraTestCars times and applies dev tuning, and the authored car
@@ -148,6 +150,12 @@ public sealed class GhostCarBrain : Component
 		// Host (or solo) owns the ghost. Clients never simulate the car, so they never create
 		// the target marker and never drive the controllers.
 		if ( IsProxy ) return;
+
+		// Lights stay dark until the car first SEES a player: CopCarLights.LightsOn defaults
+		// to false, and SetLineOfSightHelper flips it with the controller handoff. Setting it
+		// again here covers hotloads and a prefab edited while in play.
+		if ( _copLights.IsValid() )
+			_copLights.LightsOn = false;
 
 		// One top-level marker for the navmesh to steer toward. Deliberately not parented to
 		// the car, so the car's own motion and physics never drag the target along with it,
@@ -347,6 +355,12 @@ public sealed class GhostCarBrain : Component
 	{
 		if ( HasLineOfSight == seen ) return;
 		HasLineOfSight = seen;
+
+		// The lights ride the same handoff: lit while the driver owns the car, dark while
+		// the navmesh controller roams. LightsOn is [Sync], so every client sees the same
+		// state from this single host-side writer.
+		if ( _copLights.IsValid() )
+			_copLights.LightsOn = seen;
 
 		if ( seen )
 		{
