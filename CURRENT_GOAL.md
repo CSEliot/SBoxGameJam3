@@ -12,7 +12,7 @@ Here's the next step:
 
 		In the /3-Research/ folder, there's research about how to implemeent fake beam lights in sbox. Using that info, build fake cop car lights. Ones that spin on the top, and headlamp lights. Do this for each cop car. The spinning color should match their pacman ghost tints.
 
-	Task 2: DONE? NO!
+	Task 2: DONE? YES!
 
 		The cop car lights only turn on when the cop car SEES the player (the same moment the ai car driver logic takes over from the simpler nav mesh pathing logic).
 		EDIT: Playtesting is showing the cars not firing the lights. Validate.
@@ -67,5 +67,11 @@ Clarification Questions and Answers:
     A7: Re-add the four CopCarLights entries (same GUIDs and values as commit 8e41991), keep the OnCollideThrow edits, and commit the four prefabs with both changes.
 
     Status 2026-10-11: Task 4 done. Portable library + dusk demo pushed to the private repo https://github.com/CSEliot/PortableFakeLightBeam (c0abbc0); beam verified rendering in the editor scene view (Dev editor screenshot). sboxgamejam3 now uses the same library from Libraries/fakelightbeam (old Code/FakeLightBeam.cs and Assets/shaders/fake_light_beam.shader removed), CopCarLights restored in the four ghost prefabs; editor relaunched on sboxgamejam3, compile green.
+
+    Status 2026-10-11 (Task 2 re-validation, after the EDIT): live playtest in the Dev editor (minimal.scene, 12 beers, 4 ghost cars). All four cars spawned with CopCarLights and their light rigs built; while no car could see the player all 16 lights stayed off; when ghost_clyde was moved next to the player its HasLineOfSight went true and beacon0, beacon1, headlamp_l and headlamp_r all switched on the same frame, while the three cars without sight stayed dark. No CopCarLights/FakeLightBeam errors in the console. Most likely cause of the failed playtest: the 14:41-14:44 editor saves show the editor held ghost prefabs WITHOUT CopCarLights (see Q7), so the cars spawned in those playtests had no lights at all; fixed by the restore in e5c377e.
+    Findings from the same playtest, not fixed (not part of Task 2):
+        - The lights are hard to see in the warm daytime/dusk haze (Clyde's orange beacons on an orange scene; the beams are additive). Brightness or colour tuning is a separate decision.
+        - The ghost cars spawned 4-5 km from the player, beyond GhostCarBrain.SightRange 3000, so with normal play they take a while to see the player at all.
+        - ghost_pinky and ghost_inky ended up at z of about -3.3M and -4.4M (fallen through / flung off the map) during the run. Separate car physics/navmesh bug.
 
 IGNORE: <<Update sboxgamejam3 project state according to document CURRENT_GOAL.md. If "SESSION START?" is "NO!" then consider best clarifying questions, ask them, and record them below and after that update "SESSION START?" to "YES!" >>
