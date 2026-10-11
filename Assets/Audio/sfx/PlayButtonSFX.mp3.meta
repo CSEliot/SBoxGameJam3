@@ -1,3 +1,13 @@
 {
-  "guid": "4523f617-1215-a940-890e-832ab339805e"
+  "guid": "17f62345-1512-40a9-890e-832ab339805e",
+  "loop": false,
+  "start": 0,
+  "end": 0,
+  "forceMono": false,
+  "trimSilence": false,
+  "normalize": false,
+  "gain": 0,
+  "rate": 44100,
+  "compress": false,
+  "bitrate": 256
 }

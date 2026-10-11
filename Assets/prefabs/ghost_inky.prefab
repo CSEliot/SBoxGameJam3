@@ -497,33 +497,17 @@
         "TargetUpdateInterval": 0.25
       },
       {
-        "__type": "Sandbox.BoxCollider",
-        "__guid": "f2507832-1d0d-4fda-ba91-387dd979ab0b",
-        "__enabled": false,
+        "__type": "Sandbox.OnCollideThrow",
+        "__guid": "42949ee2-0e17-4c64-ab93-3c3fb1b09081",
+        "__enabled": true,
         "Flags": 0,
-        "Center": "3.63711548,0,32.9385338",
-        "ColliderFlags": 0,
-        "Elasticity": null,
-        "Friction": null,
-        "IsTrigger": true,
+        "_ThrowForce": 999999,
         "OnComponentDestroy": null,
         "OnComponentDisabled": null,
         "OnComponentEnabled": null,
         "OnComponentFixedUpdate": null,
         "OnComponentStart": null,
-        "OnComponentUpdate": null,
-        "OnObjectTriggerEnter": null,
-        "OnObjectTriggerExit": null,
-        "OnTriggerEnter": null,
-        "OnTriggerExit": null,
-        "RollingResistance": null,
-        "Scale": "221.794235,103.119995,52.6227112",
-        "Static": false,
-        "Surface": {
-          "Id": "af7a8b7c-a226-c541-aea0-4296553cad8f",
-          "Path": "surfaces/vehicle_surface.surface"
-        },
-        "SurfaceVelocity": "0,0,0"
+        "OnComponentUpdate": null
       }
     ],
     "Children": [
