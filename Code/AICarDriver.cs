@@ -625,6 +625,10 @@ public sealed partial class AICarDriver : Component
 	// Name of the object the last CastWhiskerHelper call hit ("" on a miss), and per front whisker.
 	private string _lastCastHitName = "";
 	private string[] _frontHitName;
+	// While chasing, every player root (any GameObject whose root carries a DrunkCC) that the
+	// speed/brake/stop traces must ignore, so no player can slow the ram. Rebuilt once per tick
+	// by RefreshPlayerRootsHelper; empty when ChaseTarget is invalid (same as before chasing).
+	private GameObject[] _playerRoots = Array.Empty<GameObject>();
 	// v17 corridor check: min free width of the route last committed (-1 = unchecked), where it was
 	// measured, and how many candidates this pick's corridor check rejected (LegStart detail).
 	private float _legMinWidth = -1f;
@@ -2754,6 +2758,14 @@ public sealed partial class AICarDriver : Component
 
 		for ( int i = _waypointIndex; i < _path.Count && travelled < horizon; i++ )
 		{
+			// While chasing, the route's end is the chased player, not a destination to arrive
+			// at: the 90 degree destination rule below would treat it as a full corner and brake
+			// the car to CornerSpeedForAngleHelper(90) (~260 at defaults) within CornerLookDistance
+			// and start braking even earlier, the chase slow-down this fixes. Intermediate road
+			// corners still limit the speed; only the final point (the player) is skipped.
+			if ( i == _path.Count - 1 && ChaseTarget.IsValid() )
+				break;
+
 			float angle = 90f; // destination: full corner, arrive at or below CornerSpeed (v10: ~260 at defaults)
 			if ( i < _path.Count - 1 )
 			{
@@ -2827,6 +2839,10 @@ public sealed partial class AICarDriver : Component
 
 	private void ProbeFrontHelper( float forwardSpeed )
 	{
+		// Refresh the while-chasing player ignore list before anything casts: this is the first
+		// thing every fixed tick does, ahead of all front/rear/flank whisker probes below.
+		RefreshPlayerRootsHelper();
+
 		float length = WhiskerLength + MathF.Max( forwardSpeed, 0f ) * WhiskerLengthPerSpeed;
 		bool pushThrough = IsPushingThrough;
 		_dynamicAhead = float.MaxValue;
@@ -2988,6 +3004,58 @@ public sealed partial class AICarDriver : Component
 	}
 
 	/// <summary>
+	/// True when <paramref name="go"/> is part of a player: its hierarchy root carries a DrunkCC.
+	/// Reading the ROOT (not the hit object) covers a ragdolled/knocked-down body and anything
+	/// parented under a player, e.g. the bike.
+	/// </summary>
+	private static bool IsPlayerHelper( GameObject go )
+	{
+		return go.IsValid() && go.Root.GetComponent<DrunkCC>().IsValid();
+	}
+
+	/// <summary>
+	/// Rebuilds the cached player roots (every GameObject whose root carries a DrunkCC) once per
+	/// tick. Does nothing while ChaseTarget is invalid, so outside a chase the list stays empty
+	/// and every trace behaves exactly as before. Scene.GetAllComponents is the only cost and it
+	/// runs from ProbeFrontHelper, the first thing every fixed tick does.
+	/// </summary>
+	private void RefreshPlayerRootsHelper()
+	{
+		_playerRoots = Array.Empty<GameObject>();
+		if ( !ChaseTarget.IsValid() ) return;
+
+		var roots = new List<GameObject>();
+		foreach ( var cc in Scene.GetAllComponents<DrunkCC>() )
+		{
+			if ( cc is null || !cc.GameObject.IsValid() || !IsPlayerHelper( cc.GameObject ) ) continue;
+			GameObject root = cc.GameObject.Root;
+			if ( root.IsValid() && !roots.Contains( root ) ) roots.Add( root );
+		}
+
+		_playerRoots = roots.ToArray();
+	}
+
+	/// <summary>
+	/// Adds the while-chasing player ignores to a trace: the chased target's hierarchy plus every
+	/// cached player root (see RefreshPlayerRootsHelper). IgnoreGameObjectHierarchy appends to the
+	/// trace's ignore list, so the car's own hierarchy stays ignored too. Outside chase mode the
+	/// trace is returned untouched.
+	/// </summary>
+	private SceneTrace GetChaseIgnoreHelper( SceneTrace trace )
+	{
+		if ( !ChaseTarget.IsValid() ) return trace;
+
+		trace = trace.IgnoreGameObjectHierarchy( ChaseTarget.Root );
+		for ( int i = 0; i < _playerRoots.Length; i++ )
+		{
+			if ( _playerRoots[i].IsValid() )
+				trace = trace.IgnoreGameObjectHierarchy( _playerRoots[i] );
+		}
+
+		return trace;
+	}
+
+	/// <summary>
 	/// Distance to the first solid, non-ground hit along a whisker; <paramref name="length"/> on a miss.
 	/// <paramref name="ignoreDynamic"/> traces through dynamic physics bodies (cars, players, props).
 	/// </summary>
@@ -2999,16 +3067,16 @@ public sealed partial class AICarDriver : Component
 		var trace = Scene.Trace.Ray( origin, origin + direction * length )
 			.IgnoreGameObjectHierarchy( GameObject );
 
-		// While chasing a player, that player is the goal, not an obstacle: also ignore their
-		// hierarchy in the whisker trace so the car drives into them instead of braking or
-		// backing off. Only the chased player is skipped; other players, props and world
-		// geometry still block. IgnoreGameObjectHierarchy appends to the trace's ignore list
-		// (engine Scene.Trace.cs), so the car's own hierarchy stays ignored as well. This helper
-		// backs the front and rear whiskers and the flank probes, i.e. the obstacle hits that
-		// decide braking, avoidance and steering; the ledge, corner-aim and corridor traces are
-		// pure geometry and keep ignoring only this car.
-		if ( ChaseTarget.IsValid() )
-			trace = trace.IgnoreGameObjectHierarchy( ChaseTarget.Root );
+		// While chasing, players are the goal, not obstacles: ignore every player root in the
+		// whisker trace so the car drives into them instead of braking, avoiding or backing off.
+		// GetChaseIgnoreHelper adds the chased target plus every root carrying a DrunkCC (the
+		// chased player, other players, ragdolled/knocked-down bodies, the bike), so no player
+		// slows or stops the ram; other cars, props and world geometry still block exactly as
+		// before. This backs the front and rear whiskers and the flank probes, i.e. the obstacle
+		// hits that decide braking, avoidance and steering, including the _dynamicAhead
+		// push-through creep cap; the ledge, corner-aim and corridor traces are pure geometry and
+		// keep ignoring only this car.
+		trace = GetChaseIgnoreHelper( trace );
 
 		if ( ignoreDynamic )
 			trace = trace.IgnoreDynamic();
