@@ -98,7 +98,7 @@
         "OnComponentStart": null,
         "OnComponentUpdate": null,
         "SkidMark_Decal": {
-          "Id": "20aec2ad-2923-2f43-a064-fe9fc23d050a",
+          "Id": "adc2ae20-2329-432f-a064-fe9fc23d050a",
           "Path": "decals/skid_marks.decal"
         },
         "SkidMark_DistanceBetween": 6,
@@ -327,7 +327,7 @@
         "Scale": "217.274231,100,47.5527191",
         "Static": false,
         "Surface": {
-          "Id": "af7a8b7c-a226-c541-aea0-4296553cad8f",
+          "Id": "7c8b7aaf-26a2-41c5-aea0-4296553cad8f",
           "Path": "surfaces/vehicle_surface.surface"
         },
         "SurfaceVelocity": "0,0,0"
@@ -344,32 +344,34 @@
         "AggressiveCautionScale": 0.35,
         "AggressiveDriveScale": 2.5,
         "ArrivalDistance": 250,
-        "AvoidSteerAngle": 45,
+        "AvoidSteerAngle": 30,
         "BaseAggression": 0,
         "BlockedWaitTime": 1.5,
         "BrakeMargin": 50,
-        "CornerAimCorridor": 60,
+        "ChaseRepathDistance": 200,
+        "ChaseRepathInterval": 0.5,
+        "CornerAimCorridor": 30,
         "CornerAimDistance": 1500,
         "CornerAimMinAngle": 15,
         "CornerAimTraceDistance": 500,
         "CornerAimTraceRadius": 50,
-        "CornerBrakeDecel": 300,
+        "CornerBrakeDecel": 240,
         "CornerFullAngle": 45,
         "CornerLookDistance": 800,
         "CornerOutsideOffset": 150,
-        "CornerSpeed": 700,
+        "CornerSpeed": 350,
         "CorridorCheckSkip": 200,
         "CorridorSampleSpacing": 120,
         "CreepSpeed": 80,
-        "CruiseSpeed": 1200,
-        "Destination": "0,0,0",
+        "CruiseSpeed": 1800,
+        "Destination": "2896,3624,225.948715",
         "DestinationAllowDefaultArea": true,
         "DestinationAllowedAreas": [],
         "DestinationForbiddenAreas": [],
         "DestinationPickAttempts": 8,
         "DisableCornerAim": false,
         "DrawDebug": true,
-        "ExtraTestCars": 0,
+        "ExtraTestCars": 2,
         "FlankMargin": 40,
         "FlankProbeLength": 60,
         "FullSteerAngle": 70,
@@ -388,7 +390,7 @@
         "NavMeshSnapRadius": 2000,
         "NoGoEpisodeGap": 30,
         "NoGoZoneMinHits": 2,
-        "NoGoZoneRadius": 250,
+        "NoGoZoneRadius": 330,
         "ObstacleBrakingRate": 1,
         "OffPathDistance": 500,
         "OnComponentDestroy": null,
@@ -411,7 +413,7 @@
         "SharpCornerSpeed": 200,
         "SideWhiskerAngle": 45,
         "SideWhiskerScale": 0.7,
-        "State": "Idle",
+        "State": "Driving",
         "SteerDeadband": 2,
         "SteerResponse": 4,
         "SteerYawDamping": 0.3,
@@ -424,20 +426,65 @@
         "TeleportAfter": 20,
         "TeleportAttempts": 8,
         "TeleportDropHeight": 20,
-        "ThrottleResponse": 125,
+        "ThrottleResponse": 900,
         "TiltGuardUpZ": 0.9,
         "UseDevTuning": true,
         "UTurnAngle": 120,
-        "WhiskerHeight": 35,
+        "WhiskerHeight": 45,
         "WhiskerLength": 400,
         "WhiskerLengthPerSpeed": 0.5,
-        "WhiskerThickness": 10
+        "WhiskerThickness": 25
       },
       {
         "__type": "Sandbox.NavMeshCarController",
         "__guid": "b7d0a3c8-2e4f-4a9b-8c6d-1f5e7a90d2c3",
         "__enabled": true,
-        "Flags": 0
+        "Flags": 0,
+        "ArrivalDistance": 250,
+        "BrakeMargin": 50,
+        "CornerBrakeDecel": 300,
+        "CornerFullAngle": 45,
+        "CornerLookDistance": 800,
+        "CornerSpeed": 350,
+        "CruiseSpeed": 800,
+        "Destination": "0,0,0",
+        "DrawDebug": false,
+        "FollowTarget": null,
+        "FullSteerAngle": 35,
+        "LookAheadDistance": 300,
+        "LookAheadTime": 0.3,
+        "MinPathPointSpacing": 120,
+        "NavMeshSnapRadius": 500,
+        "OnComponentDestroy": null,
+        "OnComponentDisabled": null,
+        "OnComponentEnabled": null,
+        "OnComponentFixedUpdate": null,
+        "OnComponentStart": null,
+        "OnComponentUpdate": null,
+        "PathStrictness": 0,
+        "RepathDistance": 500,
+        "RepathInterval": 0.5,
+        "SharpCornerSpeed": 200,
+        "SmoothPath": true,
+        "SplineSubdivisions": 4,
+        "State": "Idle",
+        "SteerDeadband": 2,
+        "SteerResponse": 8,
+        "SteerYawDamping": 0.3,
+        "ThrottleResponse": 250
+      },
+      {
+        "__type": "Sandbox.OnCollideThrow",
+        "__guid": "755a27fe-33b7-4767-9c3d-4035d13116f4",
+        "__enabled": true,
+        "Flags": 0,
+        "_ThrowForce": 10000,
+        "OnComponentDestroy": null,
+        "OnComponentDisabled": null,
+        "OnComponentEnabled": null,
+        "OnComponentFixedUpdate": null,
+        "OnComponentStart": null,
+        "OnComponentUpdate": null
       }
     ],
     "Children": [
@@ -606,7 +653,7 @@
                 "ReverbEnabled": false,
                 "ReverbOverride": false,
                 "SoundEvent": {
-                  "Id": "92095c3b-6dfa-5642-8234-061c848ec675",
+                  "Id": "3b5c0992-fa6d-4256-8234-061c848ec675",
                   "Path": "sounds/engine_start.sound"
                 },
                 "SoundOverride": false,
@@ -677,7 +724,7 @@
                 "ReverbEnabled": false,
                 "ReverbOverride": false,
                 "SoundEvent": {
-                  "Id": "a3b2edbc-fb24-e947-abe0-efa92e3006d3",
+                  "Id": "bcedb2a3-24fb-47e9-abe0-efa92e3006d3",
                   "Path": "sounds/engine_stop.sound"
                 },
                 "SoundOverride": false,
@@ -748,7 +795,7 @@
                 "ReverbEnabled": false,
                 "ReverbOverride": false,
                 "SoundEvent": {
-                  "Id": "4acf06d2-b08e-c14b-824b-5f78c95cd7c7",
+                  "Id": "d206cf4a-8eb0-4bc1-824b-5f78c95cd7c7",
                   "Path": "sounds/engine_idle.sound"
                 },
                 "SoundOverride": true,
@@ -819,7 +866,7 @@
                 "ReverbEnabled": false,
                 "ReverbOverride": false,
                 "SoundEvent": {
-                  "Id": "647996b9-7763-184b-9a58-16d1280db7ef",
+                  "Id": "b9967964-6377-4b18-9a58-16d1280db7ef",
                   "Path": "sounds/engine_1000rpm.sound"
                 },
                 "SoundOverride": true,
@@ -890,7 +937,7 @@
                 "ReverbEnabled": false,
                 "ReverbOverride": false,
                 "SoundEvent": {
-                  "Id": "1b133bfb-5809-4e41-b568-73e532b20276",
+                  "Id": "fb3b131b-0958-414e-b568-73e532b20276",
                   "Path": "sounds/engine_2000rpm.sound"
                 },
                 "SoundOverride": true,
@@ -961,7 +1008,7 @@
                 "ReverbEnabled": false,
                 "ReverbOverride": false,
                 "SoundEvent": {
-                  "Id": "42dfb282-78be-ae4b-a20f-523673b5f87a",
+                  "Id": "82b2df42-be78-4bae-a20f-523673b5f87a",
                   "Path": "sounds/gear_switch.sound"
                 },
                 "SoundOverride": false,
@@ -1265,7 +1312,7 @@
         "__guid": "48047120-44b9-4714-a6dc-a29af2bf5f58",
         "__version": 2,
         "__Prefab": {
-          "Id": "20122f80-1f3d-4f4c-97e0-0c2e34d4b729",
+          "Id": "802f1220-3d1f-4c4f-97e0-0c2e34d4b729",
           "Path": "imported/polygoncity/prefabs/vehicles/sm_veh_car_muscle_01.prefab"
         },
         "__PrefabInstancePatch": {
