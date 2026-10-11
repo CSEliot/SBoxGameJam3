@@ -600,6 +600,8 @@ public sealed partial class GameManager : Component, Component.INetworkListener
 	/// </summary>
 	public bool IsSearchingForLobby => _isSearchingForLobby || _startGameWhenPlayerResolves;
 
+	public float ResetPlayerOnCopCatchDelay { get; set; } = 3;
+
 	// every time a player joins, they join the latest group within 30 seconds (group has a timecreated) and if there isn't a group w 
 	// timecreated within 30 seconds, make a new one.
 	// also if they join as party, they get the same startingBar (targetBarWaiting).
@@ -689,7 +691,7 @@ public sealed partial class GameManager : Component, Component.INetworkListener
 
 		if ( _localGameState != LocalGameState.InMainMenu && Input.Keyboard.Down( "R" ) )
 		{
-			 ResetPlayerHelper();
+			 ResetPlayer();
 		}
 
 		if ( _localGameState != LocalGameState.InMainMenu && Input.Keyboard.Down( "L" ) )
@@ -727,7 +729,7 @@ public sealed partial class GameManager : Component, Component.INetworkListener
 				// EndMiniGameHelper has moved _targetBarWaiting to NextBar, so the
 				// finished bar's trigger no longer matches and won't re-loop; the
 				// player must travel to the next bar to start again.
-				ResetPlayerHelper(_Bars[finishedBar].ActiveBarModule.SpawnPoint, true);
+				ResetPlayer(_Bars[finishedBar].ActiveBarModule.SpawnPoint, true);
 				// THIS is "exiting a bar": respawn at the bar exit IS the moment the walk-out
 				// happens, so bar-exit events roll here and only here (see GameEvent.cs).
 				RollBarExitEventHelper();
@@ -871,7 +873,7 @@ public sealed partial class GameManager : Component, Component.INetworkListener
 		_Bars[targetBar].SitUpPlayer( Connection.Local);
 		_LocalDrunkCC.BeerLevel += _minigameController.Beers;
 		_CCCamera.Enabled = true;
-		// No camera placement here: OnUpdate calls ResetPlayerHelper(barSpawn, true) right
+		// No camera placement here: OnUpdate calls ResetPlayer(barSpawn, true) right
 		// after this returns, and that snaps the camera behind the respawned player.
 
 		// Score & Timer Architecture - v0 plan, section 3: AddTime must run BEFORE the
@@ -1009,7 +1011,7 @@ public sealed partial class GameManager : Component, Component.INetworkListener
 	/// <summary>
 	/// Resets all physics incoming and outgoing relative to Player and also 
 	/// </summary>
-	private void ResetPlayerHelper(GameObject spawnLocation = null, bool isBarExit = false)
+	public void ResetPlayer(GameObject spawnLocation = null, bool isBarExit = false)
 	{
 		spawnLocation ??= _DefaultSpawnLocation;
 		var spawnRotation = spawnLocation.Parent.LocalRotation;
@@ -1021,7 +1023,7 @@ public sealed partial class GameManager : Component, Component.INetworkListener
 		
 		if ( _LocalPlayerRigidbody == null )
 		{
-			Log.Error( "LocalPlayer Rigidbody is null in ResetPlayerHelper(), called too early or ref lost!" );
+			Log.Error( "LocalPlayer Rigidbody is null in ResetPlayer(), called too early or ref lost!" );
 			return;
 		}
 		
@@ -1167,7 +1169,7 @@ public sealed partial class GameManager : Component, Component.INetworkListener
 
 	/// <summary>
 	/// Resets the local player's run state and respawns at the original default spawn (mirrors
-	/// SpawnPlayerHelper's own initial ResetPlayerHelper() call, not the just-finished bar used
+	/// SpawnPlayerHelper's own initial ResetPlayer() call, not the just-finished bar used
 	/// mid-run), clears drunkenness back to sober, and un-freezes the camera/player that
 	/// HandlePlayerBarTriggerEnter's End-Game freeze block disabled.
 	/// </summary>
@@ -1188,7 +1190,7 @@ public sealed partial class GameManager : Component, Component.INetworkListener
 		_targetBarWaiting = _StartingBar;
 		_localGameState = LocalGameState.WaitingToStartMinigame;
 		_CCCamera.Enabled = true;
-		ResetPlayerHelper();
+		ResetPlayer();
 	}
 
 	/// <summary>

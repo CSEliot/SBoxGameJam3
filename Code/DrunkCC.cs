@@ -873,7 +873,7 @@ public sealed class DrunkCC : Component
 		CurrentState = State.KnockedDown;
 		_knockdownEnds = _KnockdownRecoveryTime;
 
-		RagdollifyHelper();
+		Ragdollify();
 
 		// Double-knockdown pushback: falling within _DoubleKnockdownDistance of where we last
 		// fell means the recovery point we're about to pick is in the same stretch of road we
@@ -911,18 +911,18 @@ public sealed class DrunkCC : Component
 	}
 
 	[Rpc.Broadcast]
-	private void RagdollifyHelper(bool undoRagdoll = false)
+	public void Ragdollify(bool undoRagdoll = false, Vector3? ragdollDirectionForce = null)
 	{
 		if ( undoRagdoll == false)
 		{
 			_Ragdoll.Mode = RagdollMode.Enabled;
-			_Ragdoll.ApplyVelocity( _Rigidbody.Velocity );
+			var ragVelocity3D = ragdollDirectionForce ?? _Rigidbody.Velocity;
+			_Ragdoll.ApplyVelocity( ragVelocity3D );
 		}
 		else
 		{
 			_Ragdoll.Mode = RagdollMode.None;
 		}
-
 	}
 
 	/// <summary>
@@ -1144,7 +1144,7 @@ public sealed class DrunkCC : Component
 	/// </summary>
 	private void ResetFromKnockdownHelper()
 	{
-		RagdollifyHelper(true);
+		Ragdollify(true);
 		if(IsProxy)
 			return;
 		
@@ -1207,7 +1207,7 @@ public sealed class DrunkCC : Component
 
 		if ( CurrentState == State.KnockedDown )
 		{
-			RagdollifyHelper( true );
+			Ragdollify( true );
 			CurrentState = State.Running;
 			// A knockdown can interrupt a jump; same gate reset ResetFromKnockdownHelper does.
 			_isJumping = false;
