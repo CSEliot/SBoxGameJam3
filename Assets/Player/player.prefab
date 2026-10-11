@@ -26,6 +26,7 @@
         "Gravity": true,
         "GravityScale": 1,
         "ImpactDamage": 0,
+        "InertiaScale": 1,
         "LinearDamping": 0,
         "Locking": {
           "X": false,
@@ -2409,7 +2410,10 @@
             "MaterialGroup": null,
             "MaterialOverride": null,
             "Materials": null,
-            "Model": "models/dev/sphere.vmdl",
+            "Model": {
+              "Id": "00000000-0000-0000-f09f-a6f0fe7f0000",
+              "Path": "models/dev/sphere.vmdl"
+            },
             "OnComponentDestroy": null,
             "OnComponentDisabled": null,
             "OnComponentEnabled": null,
@@ -2471,7 +2475,10 @@
             "MaterialGroup": null,
             "MaterialOverride": null,
             "Materials": null,
-            "Model": "models/dev/sphere.vmdl",
+            "Model": {
+              "Id": "00000000-0000-0000-f09f-a6f0fe7f0000",
+              "Path": "models/dev/sphere.vmdl"
+            },
             "OnComponentDestroy": null,
             "OnComponentDisabled": null,
             "OnComponentEnabled": null,
@@ -2541,7 +2548,7 @@
               }
             },
             "Model": {
-              "Id": "14e9ca1d-8d5c-4c15-af89-26f533c5e905",
+              "Id": "1dcae914-5c8d-154c-af89-26f533c5e905",
               "Path": "player/bikes/low_ply_honda_50.vmdl"
             },
             "OnComponentDestroy": null,
@@ -2711,7 +2718,7 @@
                     "MaterialOverride": null,
                     "Materials": null,
                     "Model": {
-                      "Id": "cb50f694-32bb-4d9b-aaf5-37fef1a059fe",
+                      "Id": "1a15b972-5c77-cf46-813e-a8371937605c",
                       "Path": "itch/board-game-pieces/models/event-arrow.vmdl"
                     },
                     "OnComponentDestroy": null,
@@ -2739,7 +2746,7 @@
                     "Friction": null,
                     "IsTrigger": false,
                     "Model": {
-                      "Id": "cb50f694-32bb-4d9b-aaf5-37fef1a059fe",
+                      "Id": "1a15b972-5c77-cf46-813e-a8371937605c",
                       "Path": "itch/board-game-pieces/models/event-arrow.vmdl"
                     },
                     "OnComponentDestroy": null,
@@ -2768,6 +2775,7 @@
                     "Gravity": true,
                     "GravityScale": 1,
                     "ImpactDamage": 0,
+                    "InertiaScale": 1,
                     "LinearDamping": 0,
                     "Locking": {
                       "X": false,
@@ -2817,7 +2825,7 @@
         "__version": 2,
         "Flags": 0,
         "Name": "CollisionForWalls",
-        "Position": "17.7708626,0,9.44430542",
+        "Position": "17.7708626,0,20.3950119",
         "Rotation": "0,0,0,1",
         "Scale": "1,1,1",
         "Tags": "",
@@ -2839,7 +2847,10 @@
             "MaterialGroup": null,
             "MaterialOverride": null,
             "Materials": null,
-            "Model": "models/dev/box.vmdl",
+            "Model": {
+              "Id": "a0e5848a-f801-0000-f0db-b088f8010000",
+              "Path": "models/dev/box.vmdl"
+            },
             "OnComponentDestroy": null,
             "OnComponentDisabled": null,
             "OnComponentEnabled": null,
@@ -2860,7 +2871,7 @@
             "__guid": "50497146-e6e4-4e5a-8a12-3b6ff91da1e3",
             "__enabled": true,
             "Flags": 0,
-            "Center": "-3.06772208,0,12.5390615",
+            "Center": "-3.06772208,0,8.48346424",
             "ColliderFlags": 0,
             "Elasticity": null,
             "Friction": null,
@@ -2876,7 +2887,7 @@
             "OnTriggerEnter": null,
             "OnTriggerExit": null,
             "RollingResistance": null,
-            "Scale": "3.86455584,20,40.2382812",
+            "Scale": "3.86455584,20,32.1270866",
             "Static": false,
             "Surface": null,
             "SurfaceVelocity": "0,0,0"
