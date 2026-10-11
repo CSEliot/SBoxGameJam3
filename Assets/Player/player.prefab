@@ -2711,7 +2711,7 @@
                     "MaterialOverride": null,
                     "Materials": null,
                     "Model": {
-                      "Id": "2f0e9fc8-0e45-471c-af22-52a9ad5a15de",
+                      "Id": "cb50f694-32bb-4d9b-aaf5-37fef1a059fe",
                       "Path": "itch/board-game-pieces/models/event-arrow.vmdl"
                     },
                     "OnComponentDestroy": null,
@@ -2739,7 +2739,7 @@
                     "Friction": null,
                     "IsTrigger": false,
                     "Model": {
-                      "Id": "2f0e9fc8-0e45-471c-af22-52a9ad5a15de",
+                      "Id": "cb50f694-32bb-4d9b-aaf5-37fef1a059fe",
                       "Path": "itch/board-game-pieces/models/event-arrow.vmdl"
                     },
                     "OnComponentDestroy": null,
