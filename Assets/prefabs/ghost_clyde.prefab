@@ -449,7 +449,7 @@
         "CornerSpeed": 350,
         "CruiseSpeed": 800,
         "Destination": "0,0,0",
-        "DrawDebug": false,
+        "DrawDebug": true,
         "FollowTarget": null,
         "FullSteerAngle": 35,
         "LookAheadDistance": 300,
@@ -462,7 +462,7 @@
         "OnComponentFixedUpdate": null,
         "OnComponentStart": null,
         "OnComponentUpdate": null,
-        "PathStrictness": 0,
+        "PathStrictness": 0.5242424,
         "RepathDistance": 500,
         "RepathInterval": 0.5,
         "SharpCornerSpeed": 200,
@@ -527,7 +527,8 @@
         "OnComponentFixedUpdate": null,
         "OnComponentStart": null,
         "OnComponentUpdate": null,
-        "SpinDegreesPerSecond": 540
+        "SpinDegreesPerSecond": 540,
+        "TintSource": null
       },
       {
         "__type": "Sandbox.OnCollideThrow",
