@@ -8,70 +8,29 @@ Upon the completion of each task, a SUBAGENT shall write a git commit and push.
 
 Here's the next step:
 
-	Task 1: DONE? YES!
+	Task 0: DONE? NO!
+		Write meaningful commits of current git status.
 
-		In the /3-Research/ folder, there's research about how to implemeent fake beam lights in sbox. Using that info, build fake cop car lights. Ones that spin on the top, and headlamp lights. Do this for each cop car. The spinning color should match their pacman ghost tints.
-
-	Task 2: DONE? YES!
-
-		The cop car lights only turn on when the cop car SEES the player (the same moment the ai car driver logic takes over from the simpler nav mesh pathing logic).
-		EDIT: Playtesting is showing the cars not firing the lights. Validate.
-
-	Task 3: DONE? YES!
-
-		The ai car driver logic (NOT the navmesh pathing logic) shouldn't slow down for players. But it does. WE want cop cars to "ram" players.
-            
-	Task 4: DONE? YES!
-
-		/home/cseliot/1-Development/1-SBox/2-Projects/portablefakelightbeam/ <-- Build a portable code set for this fake light beam inside this project, where it is being demo'd in miniman.scene's "FakeLightSource" gameobject. All code and resources (prefabs, etc) go in /home/cseliot/1-Development/1-SBox/2-Projects/portablefakelightbeam/Assets/FakeLightBeam.
+	Task 1: DONE? NO!
+		Replace all instances of Razor with Painter. If possible. And without breaking the game.
 
 Notes:
 
 Clarification Questions and Answers:
 
-    SESSION START was already YES, so no questions were asked up front.
+    Q1 (Task 0): player.prefab (saved 2026-10-12 09:59) drops the BikeRiderPose component, which seats the rider on the bike (4af775b). Its wall-hit collider also differs from "Fixing Wall Collision" (ec38abf): the CollisionForWalls node is back at z 9.44 and the collider centre is raised to z 22.35 instead. It looks like the stale editor write-back that wiped CopCarLights before. Intended? (Options: restore BikeRiderPose and keep the new collider values / commit as is / drop the prefab change.)
+    A1: No answer (question timed out). Parent decision: player.prefab stays uncommitted until answered, so nothing is lost or guessed. Task 0 stays NO until then.
 
-    Parent decisions (change if wrong):
-        - Task 1: each ghost car gets a CopCarLights component that builds its lights at play time: a roof light bar with two back-to-back beacons spinning about the roof (ghost tint, read from the police body's own Tint so it always matches) and two warm white headlamps. Each light is a real SpotLight (shadows off) plus a fake beam cone (FakeLightBeam + new fake_light_beam.shader, design from 3-Research/sbox-fake-light-beam-cone.md). Light positions are inspector offsets with editor gizmos, so they can be tuned in the prefab without playing.
-        - The beams are additive, so they show at dusk/night and fade to nothing in bright daylight. That is how the technique works, not a bug.
-        - Task 2: "lights" means all of them, beacons and headlamps. They switch on when the car hands control to the AI car driver (line of sight) and off when it hands back to the navmesh. The on/off state is synced so every client sees it.
-        - Task 3: in chase mode the AI car driver ignores every player (the chased one, other players, knocked-down ragdolls, and the bike) for all braking, stopping and creeping. Walls, props and other cars still count as obstacles. Outside chase mode nothing changes.
-        - Order: Tasks 1 and 3 run in parallel (no shared files), Task 2 after Task 1. Each task is reviewed by a subagent, then committed and pushed on its own. Pushing also pushes the 8 commits already waiting on main.
+    Q2 (Task 0): Two untracked files: duplifinder.py (fixes case-collision filenames) and print_current.sh (scratch playtest helper, hardcoded Linux path, no .bat twin). Commit, ignore, or leave them?
+    A2: No answer (question timed out). Parent decision: both stay untracked until answered.
 
-    Status 2026-10-11: Tasks 1-3 committed and pushed (8e41991, d04a204, b00a6dc).
+    Q3 (Task 1): Painter is a 2D drawing API with no clicks, hover or cursor of its own. How far should "replace Razor" go? (Options: all 6 screens become C# Panels that draw with Painter, buttons stay real Panels for input / pure Painter on the camera HUD with hand-written hit-testing / Painter only for Hud and Minigame, menus stay Razor.)
+    A3: No answer (question timed out). Parent decision (change if wrong): all 6 screens (Hud, Minigame, MainMenu, BarMenu, EscMenu, EndGame) lose their .razor/.scss. Each becomes a plain C# PanelComponent that builds its panels in code and draws its visuals with Painter (OnDraw). Buttons stay real Panels so clicks, hover and the cursor keep working. Class names, namespaces and [Property] names stay the same, so minimal.scene needs no edits.
 
-    Q1 (Task 4): s&box compiles C# only from a project's Code/ folder (engine Project.cs:362 GetCodePath, Project.Compiling.cs:96), so .cs files in Assets/FakeLightBeam/Code would never compile. Where should the C# go?
-    A1: Make it an s&box library (Libraries/fakelightbeam with its own .sbproj, Code/ and Assets/), the engine's own drop-in package format.
+    Q4 (Task 1): How close to the current look? (Options: close match, simple transitions redone in code / functional equivalent / exact match incl. every animation.)
+    A4: No answer (question timed out). Parent decision (change if wrong): close match. Same fonts, palette and layout; simple transitions redone in code, fancy ones may be dropped.
 
-    Q2 (Task 4): portablefakelightbeam has no git repo of its own (it sits in 2-Projects/, which the workspace repo ignores). Where should the commit go?
-    A2: git init in portablefakelightbeam, create a private GitHub repo CSEliot/PortableFakeLightBeam, commit and push.
-
-    Q3 (Task 4): What should the FakeLightSource demo object in minimal.scene show?
-    A3: One static spotlight with its fake beam, aimed at the cubes (the core component only).
-
-    Q4 (Task 4): The beams are additive, so they barely show against minimal.scene's bright daylight sky. Darken the scene for the demo?
-    A4: Darken minimal.scene to dusk/night (lower the Sun, darker sky) so the beam reads.
-
-    Q5 (Task 4): Optional extras?
-    A5: All three: the beam also renders in the editor scene view (not only in play mode); a short README on dropping it into another project; switch sboxgamejam3's cop lights to use the portable copy (one source of truth).
-
-    Parent decisions for Task 4 (change if wrong):
-        - Library layout: portablefakelightbeam/Libraries/fakelightbeam/ holds fakelightbeam.sbproj, Code/ (FakeLightBeam component + shared cone model), Assets/ (the shader, a drop-in FakeLightBeam prefab: SpotLight + beam), and README.md at the library root. The empty Assets/FakeLightBeam/Assets and Assets/FakeLightBeam/Code folders you created are not used (A1 moves everything into the library); they are left in place, not deleted.
-        - sboxgamejam3 gets the same library under its own Libraries/ folder (copied, the way bugge.vehicle_controller ships), and its Code/FakeLightBeam.cs and Assets/shaders/fake_light_beam.shader are removed so only the library copy exists. CopCarLights keeps working against the library's FakeLightBeam.
-        - The demo object FakeLightSource gets the prefab's SpotLight + beam aimed down at the three cubes; the Sun is lowered and the sky darkened in that project's minimal.scene only.
-
-    Q6 (Task 4, sboxgamejam3 switch): The switch needs an editor restart (libraries are scanned only at project load). How to sequence it?
-    A6: Apply the swap, the editor is closed. The agent may restart the editor itself via the sbox-agent-playtest skill (first test of that skill).
-
-    Q7: The 14:41-14:44 editor saves of the four ghost prefabs (OnCollideThrow retuned to _ThrowForce 10000) also removed CopCarLights from all four, apparently written back from a copy older than the 10:09 edit. What to do?
-    A7: Re-add the four CopCarLights entries (same GUIDs and values as commit 8e41991), keep the OnCollideThrow edits, and commit the four prefabs with both changes.
-
-    Status 2026-10-11: Task 4 done. Portable library + dusk demo pushed to the private repo https://github.com/CSEliot/PortableFakeLightBeam (c0abbc0); beam verified rendering in the editor scene view (Dev editor screenshot). sboxgamejam3 now uses the same library from Libraries/fakelightbeam (old Code/FakeLightBeam.cs and Assets/shaders/fake_light_beam.shader removed), CopCarLights restored in the four ghost prefabs; editor relaunched on sboxgamejam3, compile green.
-
-    Status 2026-10-11 (Task 2 re-validation, after the EDIT): live playtest in the Dev editor (minimal.scene, 12 beers, 4 ghost cars). All four cars spawned with CopCarLights and their light rigs built; while no car could see the player all 16 lights stayed off; when ghost_clyde was moved next to the player its HasLineOfSight went true and beacon0, beacon1, headlamp_l and headlamp_r all switched on the same frame, while the three cars without sight stayed dark. No CopCarLights/FakeLightBeam errors in the console. Most likely cause of the failed playtest: the 14:41-14:44 editor saves show the editor held ghost prefabs WITHOUT CopCarLights (see Q7), so the cars spawned in those playtests had no lights at all; fixed by the restore in e5c377e.
-    Findings from the same playtest, not fixed (not part of Task 2):
-        - The lights are hard to see in the warm daytime/dusk haze (Clyde's orange beacons on an orange scene; the beams are additive). Brightness or colour tuning is a separate decision.
-        - The ghost cars spawned 4-5 km from the player, beyond GhostCarBrain.SightRange 3000, so with normal play they take a while to see the player at all.
-        - ghost_pinky and ghost_inky ended up at z of about -3.3M and -4.4M (fallen through / flung off the map) during the run. Separate car physics/navmesh bug.
+    Q5 (Task 1): The HUD's target-bar preview is a live 3D render (ScenePanel); Painter only draws 2D. (Options: keep it as a ScenePanel child / render to texture and draw with Painter / drop it.)
+    A5: No answer (question timed out). Parent decision (change if wrong): keep it as a ScenePanel child inside the code-built HUD panel.
 
 IGNORE: <<Update sboxgamejam3 project state according to document CURRENT_GOAL.md. If "SESSION START?" is "NO!" then consider best clarifying questions, ask them, and record them below and after that update "SESSION START?" to "YES!" >>
