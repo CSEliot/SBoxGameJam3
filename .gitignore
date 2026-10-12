@@ -39,3 +39,7 @@ Exports/
 
 # AI car feedback loop: local telemetry copy (pushed to the telemetry branch instead)
 .aicar-telemetry/
+
+# Local helper scripts
+duplifinder.py
+print_current.sh
