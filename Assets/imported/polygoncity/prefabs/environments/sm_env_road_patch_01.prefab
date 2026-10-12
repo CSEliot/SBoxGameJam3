@@ -3,10 +3,10 @@
     "__guid": "5bc251c3-4e98-3fcf-9bf5-c34da22945e5",
     "__version": 2,
     "Flags": 0,
-    "Name": "SM_Env_Road_Patch_01",
+    "Name": "sm_env_road_patch_01",
     "Position": "0,0,0",
     "Rotation": "0,0,0,1",
-    "Scale": "3.477202,2.1984446,0.2898417",
+    "Scale": "3.47720194,2.1984446,0.289841712",
     "Tags": "",
     "Enabled": true,
     "NetworkMode": 2,
@@ -26,7 +26,10 @@
         "MaterialGroup": null,
         "MaterialOverride": null,
         "Materials": null,
-        "Model": "imported/polygoncity/models/sm_env_road_patch_01.vmdl",
+        "Model": {
+          "Id": "1df1d927-b1ca-3040-9c4a-41421495b126",
+          "Path": "imported/polygoncity/models/sm_env_road_patch_01.vmdl"
+        },
         "OnComponentDestroy": null,
         "OnComponentDisabled": null,
         "OnComponentEnabled": null,
@@ -45,13 +48,16 @@
       {
         "__type": "Sandbox.ModelCollider",
         "__guid": "63fbd502-fb6a-3b67-903e-f556a974ac78",
-        "__enabled": true,
+        "__enabled": false,
         "Flags": 0,
         "ColliderFlags": 0,
         "Elasticity": null,
         "Friction": null,
         "IsTrigger": false,
-        "Model": "imported/polygoncity/models/sm_env_road_patch_01.vmdl",
+        "Model": {
+          "Id": "1df1d927-b1ca-3040-9c4a-41421495b126",
+          "Path": "imported/polygoncity/models/sm_env_road_patch_01.vmdl"
+        },
         "OnComponentDestroy": null,
         "OnComponentDisabled": null,
         "OnComponentEnabled": null,

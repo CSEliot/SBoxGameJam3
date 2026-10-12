@@ -3,7 +3,7 @@
     "__guid": "e0bdf9b7-e8e8-3fd2-8e54-70837c60101a",
     "__version": 2,
     "Flags": 0,
-    "Name": "SM_Prop_Manhole_02",
+    "Name": "sm_prop_manhole_02",
     "Position": "0,0,0",
     "Rotation": "0,0,0,1",
     "Scale": "1,1,1",
@@ -26,7 +26,10 @@
         "MaterialGroup": null,
         "MaterialOverride": null,
         "Materials": null,
-        "Model": "imported/polygoncity/models/sm_prop_manhole_02.vmdl",
+        "Model": {
+          "Id": "63cd2d08-2c77-4f42-baa2-f2ec3849afa3",
+          "Path": "imported/polygoncity/models/sm_prop_manhole_02.vmdl"
+        },
         "OnComponentDestroy": null,
         "OnComponentDisabled": null,
         "OnComponentEnabled": null,
@@ -45,13 +48,16 @@
       {
         "__type": "Sandbox.ModelCollider",
         "__guid": "b337eee0-60c4-3977-b14a-3338f492860d",
-        "__enabled": true,
+        "__enabled": false,
         "Flags": 0,
         "ColliderFlags": 0,
         "Elasticity": null,
         "Friction": null,
         "IsTrigger": false,
-        "Model": "imported/polygoncity/models/sm_prop_manhole_02.vmdl",
+        "Model": {
+          "Id": "63cd2d08-2c77-4f42-baa2-f2ec3849afa3",
+          "Path": "imported/polygoncity/models/sm_prop_manhole_02.vmdl"
+        },
         "OnComponentDestroy": null,
         "OnComponentDisabled": null,
         "OnComponentEnabled": null,
