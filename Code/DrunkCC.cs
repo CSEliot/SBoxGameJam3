@@ -84,6 +84,14 @@ public sealed class DrunkCC : Component
 	[Sync] public State CurrentState { get; set; } = State.Running;
 
 	/// <summary>
+	/// True from BeginThrow until EndThrow: a cop-car throw owns the body and its reset.
+	/// While set, the normal knockdown recovery (ResetFromKnockdownHelper) is suppressed,
+	/// roll/obstacle knockdowns cannot start, and the R-key rescue is gated off; the throw's
+	/// own timer drives GameManager.ResetPlayer() and then EndThrow().
+	/// </summary>
+	public bool IsThrowPending { get; private set; }
+
+	/// <summary>
 	/// Whether this player's pants are Up or Down. Only this STATE travels over the wire, so
 	/// proxies can mimic the pants visuals; the movement tunables never sync — the owning
 	/// client is authoritative and the only one simulating physics. Written through
@@ -106,6 +114,13 @@ public sealed class DrunkCC : Component
 	/// Counts down while knocked down. Reset happens when it reaches zero.
 	/// </summary>
 	private TimeUntil _knockdownEnds;
+
+	/// <summary>
+	/// Counts down while a cop-car throw is pending. When it expires DrunkCC calls
+	/// GameManager.ResetPlayer() itself and then EndThrow(). Deliberately separate from
+	/// _knockdownEnds so the throw never rides the normal knockdown recovery timer.
+	/// </summary>
+	private TimeUntil _throwResetEnds;
 
 	/// <summary>
 	/// Cooldown on the obstacle (wall-hit trigger) knockdown path only. Armed to
@@ -854,6 +869,21 @@ public sealed class DrunkCC : Component
 
 	private void HandleKnockedDownHelper()
 	{
+		// A cop-car throw owns the body and its reset: the normal knockdown recovery
+		// (teleport to a rewound point) must not run, and the throw's own timer is what
+		// ends the knockdown. When it expires, do the reset the throw promised and hand
+		// the body back to Running via EndThrow().
+		if ( IsThrowPending )
+		{
+			if ( _throwResetEnds )
+			{
+				_gameManager ??= Scene.GetAllComponents<GameManager>().FirstOrDefault();
+				_gameManager?.ResetPlayer();
+				EndThrow();
+			}
+			return;
+		}
+
 		// Rule 6: ragdoll. No forces, no locks, physics owns the body until the timer runs out.
 		if ( _knockdownEnds )
 		{
@@ -862,11 +892,69 @@ public sealed class DrunkCC : Component
 	}
 	
 	/// <summary>
+	/// Owner only. Ragdolls the body with throwVelocity and enters KnockedDown with the
+	/// normal knockdown recovery disabled; after resetDelay seconds DrunkCC itself calls
+	/// GameManager.ResetPlayer() and then EndThrow(). Ignored while a throw is already
+	/// pending, so several contacts in one hit cannot arm several resets.
+	/// </summary>
+	public void BeginThrow( Vector3 throwVelocity, float resetDelay )
+	{
+		if ( IsThrowPending )
+			return;
+
+		if ( IsProxy )
+			Log.Error( "BeginThrow CALLED BY PROXY! THIS IS WRONG!" );
+
+		// Proxies never tick the throw timer, so a flag set here could never clear.
+		if ( IsProxy )
+			return;
+
+		IsThrowPending = true;
+		_throwResetEnds = resetDelay;
+
+		// Same state + ragdoll entry OwnerEnterKnockedDownHelper does (state drives the
+		// knocked-down camera mode in OnUpdate, Ragdollify does the visuals), MINUS the
+		// recovery-point selection and the double-knockdown queue edit: the throw's reset
+		// goes to the GameManager default spawn, not a rewound history point.
+		CurrentState = State.KnockedDown;
+		Ragdollify( false, throwVelocity );
+	}
+
+	/// <summary>
+	/// Owner only. Ragdoll off, back to Running, same cleanup as ResetFromKnockdownHelper
+	/// (camera alt modes, jump/yaw latches, obstacle latch) WITHOUT its teleport: the
+	/// GameManager.ResetPlayer() the throw already ran owns the teleport and the velocity
+	/// zeroing.
+	/// </summary>
+	public void EndThrow()
+	{
+		IsThrowPending = false;
+		Ragdollify( true );
+		if ( IsProxy )
+			return;
+
+		// Running restores the camera alt-mode setup in OnUpdate's switch.
+		CurrentState = State.Running;
+
+		// Same gate/latch cleanup as ResetFromKnockdownHelper, minus its teleport.
+		_isJumping = false;
+		_hasLeftGround = false;
+		_wasMovingForward = false;
+		_HasHitObstacle = false;
+		_sinceLastSample = 0f;
+	}
+	
+	/// <summary>
 	/// 
 	/// </summary>
 	/// <param name="recoveryQueueIndex">Automatically calculated by RecoveryQueueIndexHelper() unless passed.</param>
 	private void OwnerEnterKnockedDownHelper(int? recoveryQueueIndex = null)
 	{
+		// A cop-car throw owns the body until it lands; a roll or obstacle knockdown must
+		// not start on top of it and fight the throw's reset.
+		if ( IsThrowPending )
+			return;
+
 		if(IsProxy)
 			Log.Error("OwnerEnterKnockedDownHelper CALLED BY PROXY! THIS IS WRONG!");
 
@@ -1200,6 +1288,13 @@ public sealed class DrunkCC : Component
 	{
 		if ( IsProxy )
 			return;
+
+		// Any teleport (ResetPlayer: Try Again, bar exit, minigame end, R) cancels a
+		// pending throw: the player root is being moved, so a flag left latched by an
+		// interrupted throw would otherwise never clear.
+		IsThrowPending = false;
+		_throwResetEnds = default;
+
 		_history.Clear();
 		_hasLastKnockdownPosition = false;
 		_sinceLastSample = 0f; // fresh post-teleport sampling window
@@ -1260,7 +1355,7 @@ public sealed class DrunkCC : Component
 		Log.Info("Istrigger: " + other.IsTrigger + "---OnWallHitColliderStayHelper + " + other.GameObject.Name);
 		Log.Info("Istrigger: " + other.IsTrigger + "---OnWallHitColliderStayHelper + " + other.GameObject.Name);
 
-		if ( other.IsTrigger || CurrentState == State.KnockedDown)
+		if ( other.IsTrigger || CurrentState == State.KnockedDown || IsThrowPending)
 			return;
 		
 		_HasHitObstacle = true;

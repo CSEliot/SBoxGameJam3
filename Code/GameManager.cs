@@ -691,7 +691,10 @@ public sealed partial class GameManager : Component, Component.INetworkListener
 
 		if ( _localGameState != LocalGameState.InMainMenu && Input.Keyboard.Down( "R" ) )
 		{
-			 ResetPlayer();
+			// A cop-car throw owns the reset until it lands; the rescue must not teleport
+			// the body out from under the pending throw's own ResetPlayer().
+			if ( _LocalDrunkCC == null || !_LocalDrunkCC.IsThrowPending )
+				ResetPlayer();
 		}
 
 		if ( _localGameState != LocalGameState.InMainMenu && Input.Keyboard.Down( "L" ) )

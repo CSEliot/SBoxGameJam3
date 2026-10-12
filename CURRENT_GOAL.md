@@ -13,7 +13,7 @@ Skills for you and subagents:
 
 Here's the next step:
 
-	Task 0: DONE? NO!
+	Task 0: DONE? YES!
 		Write meaningful commits of current git status.
 
 	Task 1: DONE? NO!

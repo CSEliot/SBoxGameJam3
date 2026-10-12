@@ -46,18 +46,27 @@ public sealed class OnCollideThrow : Component, Component.ICollisionListener
 		var drunkCC = other.GetComponentInChildren<DrunkCC>();
 		if ( isOtherAPlayer && isPlayerAProxy == false  && drunkCC != null )
 		{
-			var throwVector3 = self.WorldPosition - other.WorldPosition;
-			other.GetComponentInChildren<Rigidbody>().ApplyForce( _ThrowForce * throwVector3 );	
-			drunkCC.Ragdollify(false, _ThrowForce * throwVector3);
-			Invoke(_gameManager.ResetPlayerOnCopCatchDelay, DoResetHelper  );
-		}
-	}
+			// Already throwing: a single hit can fire OnCollisionStart for several contacts,
+			// and BeginThrow/EndThrow own the body until the throw lands. A second start here
+			// would only re-ragdoll and re-arm a duplicate reset.
+			if ( drunkCC.IsThrowPending )
+				return;
 
-	private void DoResetHelper()
-	{
-		if ( _gameManager != null )
-		{
-			_gameManager.ResetPlayer();
+			// Resolve GameManager null-safely: OnUpdate may not have run yet when the first
+			// contact arrives. Fall back to the delay's own default (GameManager
+			// .ResetPlayerOnCopCatchDelay = 3) when no GameManager is found.
+			_gameManager ??= Scene.FindAllWithTag( "gamemanager" ).FirstOrDefault()?.GetComponentInChildren<GameManager>();
+			float resetDelay = _gameManager != null ? _gameManager.ResetPlayerOnCopCatchDelay : 3f;
+
+			// The throw now owns the ragdoll AND the reset: DrunkCC.BeginThrow ragdolls with
+			// this velocity (Ragdollify applies it as the ragdoll's launch velocity) and, after
+			// resetDelay, calls GameManager.ResetPlayer() then EndThrow(). No Invoke on this
+			// component: a destroyed car can no longer strand the player ragdolled.
+			//
+			// The root gets the same push as the ragdoll.
+			var throwVector3 = self.WorldPosition - other.WorldPosition;
+			other.GetComponentInChildren<Rigidbody>().ApplyForce( _ThrowForce * throwVector3 );
+			drunkCC.BeginThrow( _ThrowForce * throwVector3, resetDelay );
 		}
 	}
 
