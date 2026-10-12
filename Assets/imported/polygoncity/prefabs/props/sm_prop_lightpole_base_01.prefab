@@ -105,7 +105,51 @@
         }
       }
     ],
-    "Children": [],
+    "Children": [
+      {
+        "__guid": "f478cedd-e784-4930-b3d1-0a4664e30803",
+        "__version": 2,
+        "Flags": 0,
+        "Name": "Spot Light",
+        "Position": "74.8330536,4.29153442E-06,243.925873",
+        "Rotation": "0,0.707106769,0,0.707106769",
+        "Scale": "1,1,1",
+        "Tags": "light_spot,light",
+        "Enabled": true,
+        "NetworkMode": 2,
+        "NetworkFlags": 0,
+        "NetworkOrphaned": 0,
+        "NetworkTransmit": true,
+        "OwnerTransfer": 1,
+        "Components": [
+          {
+            "__type": "Sandbox.SpotLight",
+            "__guid": "3040f259-e795-42b9-9d3f-6ec6c0db13a8",
+            "__enabled": true,
+            "Flags": 0,
+            "Attenuation": 5.217391,
+            "ConeInner": 15.456522,
+            "ConeOuter": 14.478261,
+            "Contribution": "Diffuse, Specular, Transmissive",
+            "Cookie": null,
+            "FogMode": "Enabled",
+            "FogStrength": 1,
+            "LightColor": "0.92512,1,0.67907,1",
+            "OnComponentDestroy": null,
+            "OnComponentDisabled": null,
+            "OnComponentEnabled": null,
+            "OnComponentFixedUpdate": null,
+            "OnComponentStart": null,
+            "OnComponentUpdate": null,
+            "Radius": 255.12997,
+            "ShadowBias": 0,
+            "ShadowHardness": 0,
+            "Shadows": true
+          }
+        ],
+        "Children": []
+      }
+    ],
     "__properties": {
       "NetworkInterpolation": true,
       "PhysicsMode": "Physics3D",
