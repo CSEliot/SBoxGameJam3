@@ -1,100 +1,41 @@
-@*
 // Project: sboxgamejam3
-// File:    EndGame.razor
+// File:    EndGame.cs
 // Author:  cseliot
-// Created: 2026.09.19
-//
+// Created: 2026.10.12
+// 
 // Copyright (c) 2026 KiteLion Games, LLC. All rights reserved.
-//
+// 
 // This source code is the property of KiteLion Games, LLC and may not be
 // copied, distributed, modified, or used in any way without prior written
 // permission from KiteLion Games, LLC.
-//
+// 
 // Description:
 // End-Game screen (Design.md Screen 4): shown once the local player's run
 // has Ended (timeout/score-wipe or voluntary cash-in). Embeds the Top 10
 // leaderboard inline (Design.md Screen 5's row spec), the local player's own
 // score beneath it (WASTED stamp on an exact-zero score), then Try Again /
-// Quit. Markup + the OnTryAgain event live here; display-formatting binding
-// lives in EndGame.razor.cs.
-//
-// OnTryAgain is declared in this file's inline @code block (not
-// EndGame.razor.cs) specifically because GameManager.cs subscribes to it
-// from outside this panel - matching BarMenu's inline-@code pattern avoids a
-// Rider project-index bug where a code-behind-only member referenced from an
-// external file fails to resolve. See
-// 3-Documentation/3-Research/sbox-rider-razor-codebehind-not-resolving.md.
-*@
+// Quit. Built entirely in code and drawn with Painter (no razor markup, no
+// scss) - see EndGame.Draw.cs for the panel tree, layout and painting.
+// OnTryAgain is a public field on this component; GameManager subscribes to
+// it from outside this panel.
 
-@namespace Sandbox.UI
+using System;
+using System.Collections.Generic;
+using System.Linq;
 
-@using System
-@using System.Linq
-@using Sandbox
-@using Sandbox.UI
+namespace Sandbox.UI;
 
-@inherits PanelComponent
-
-<root>
-	@if ( Visible )
-	{
-		<div class="backdrop"></div>
-
-		<div class="content">
-			<div class="title @( TitleColorClass )">@( TitleText )</div>
-
-			<div class="body">
-				<div class="leaderboard">
-					<div class="lb-title">@( "BEST DRUNKARDS" )</div>
-					@* <div class="lb-title">@( "\U0001F3C6 BEST DRUNKARDS \U0001F3C6" )</div> *@
-
-					@foreach ( var row in TopRows )
-					{
-						<div class="lb-row rank-@( row.Rank ) @( row.IsLocal ? "local" : "" )">
-							<div class="lb-rank">@( row.Rank ).</div>
-							<div class="lb-name">@( row.DisplayName )</div>
-							<div class="lb-score">@( ( (int)row.Value ).ToString( "D4" ) )</div>
-						</div>
-					}
-
-					@if ( LocalPinnedRow.HasValue )
-					{
-						<div class="lb-divider"></div>
-						<div class="lb-row local pinned">
-							<div class="lb-rank">@( LocalPinnedRow.Value.Rank ).</div>
-							<div class="lb-name">@( LocalPinnedRow.Value.DisplayName )</div>
-							<div class="lb-score">@( ( (int)LocalPinnedRow.Value.Value ).ToString( "D4" ) )</div>
-						</div>
-					}
-				</div>
-
-				<div class="center-column">
-					<div class="your-score-wrap">
-						<div class="your-score @( IsWasted ? "wasted" : "" )">YOUR SCORE: @( ScoreText )</div>
-						@if ( IsWasted )
-						{
-							<div class="wasted-stamp" style="transform: rotate( @( WastedRotationDeg )deg );">WASTED</div>
-						}
-					</div>
-
-					<div class="stats">
-						@* <div class="beers-drunk">Beers Drunk: @( BeersText )<span class="beer-glyph">@( "\U0001F37A" )</span></div> *@
-						<div class="beers-drunk">Beers Drunk: @( BeersText )<span class="beer-glyph">@( "" )</span></div>
-						<div class="bars-visited">Bars Visited: @( BarsVisited )</div>
-					</div>
-
-					<div class="buttons">
-						<div class="button try-again" onclick=@TryAgainClicked>@( IsSearchingForLobby ? "SEARCHING..." : "TRY AGAIN" )</div>
-						<div class="button quit" onclick=@QuitClicked>QUIT</div>
-					</div>
-				</div>
-			</div>
-		</div>
-	}
-</root>
-
-@code
+public partial class EndGame : PaintPanelComponent
 {
+	/// <summary>The root Panel instance the code tree was last built into.</summary>
+	private Panel _builtFor;
+
+	/// <summary>The fullscreen click-through surface everything is painted on.</summary>
+	private PaintCanvas _canvas;
+
+	private PaintButton _tryAgainButton;
+	private PaintButton _quitButton;
+
 	
 	/// <summary>Raised when the player clicks "TRY AGAIN". GameManager subscribes and resets
 	/// the local run (PlayerProgress.ResetRun) then respawns the player.</summary>
@@ -144,8 +85,6 @@
 	/// that re-arms the leaderboard refresh on each finished run.</summary>
 	private bool _leaderboardWasVisible;
 
-	private int _refreshKey;
-
 	protected override void OnStart()
 	{
 		if ( _GameManager is null )
@@ -168,14 +107,15 @@
 	}
 	protected override void OnUpdate()
 	{
+		EnsureTreeHelper();
+
 		_progress = _GameManager?.GetLocalPlayerProgress();
 		_drunk = _GameManager?.GetLocalDrunkCC();
 
 		// Re-arm the one-shot leaderboard refresh every time the screen becomes visible
 		// (each finished run), so the merged rows work against freshly fetched entries
 		// instead of whatever the first run's fetch returned. The engine rate-limits
-		// Board2.Refresh itself (static semaphore), and _refreshKey still forces the UI
-		// rebuild when entries arrive.
+		// Board2.Refresh itself (static semaphore).
 		bool visibleNow = Visible;
 		if ( visibleNow && !_leaderboardWasVisible && !_leaderboardLoaded && _leaderboard != null )
 		{
@@ -184,6 +124,18 @@
 		if ( !visibleNow )
 			_leaderboardLoaded = false;
 		_leaderboardWasVisible = visibleNow;
+
+		// Modal screen: fully interactive while the run has ended, hidden and inert otherwise.
+		Panel.SetVisible( visibleNow );
+		Panel.Style.PointerEvents = visibleNow ? PointerEvents.All : PointerEvents.None;
+
+		LayoutHelper( Panel.LocalSize() );
+
+		_tryAgainButton.Label = IsSearchingForLobby ? "SEARCHING..." : "TRY AGAIN";
+		_tryAgainButton.PlaceAt( _tryAgainRect );
+		_tryAgainButton.SetVisible( visibleNow );
+		_quitButton.PlaceAt( _quitRect );
+		_quitButton.SetVisible( visibleNow );
 	}
 
 	private async System.Threading.Tasks.Task RefreshLeaderboardAsync()
@@ -193,7 +145,6 @@
 
 		await _leaderboard.Refresh();
 		_leaderboardLoaded = true;
-		_refreshKey++; // Force UI rebuild when entries arrive
 	}
 
 	/// <summary>Shown once the local run has Ended (timeout/score-wipe or cash-in).</summary>
@@ -205,9 +156,6 @@
 
 	/// <summary>Design Screen 4: "GAME OVER" on timeout, "YOU CASHED IN" on voluntary cash-in.</summary>
 	private string TitleText => ( _progress?.EndedByCashOut ?? false ) ? "YOU CASHED IN" : "GAME OVER";
-
-	/// <summary>Design Screen 4: orange for game over, yellow for cash-in.</summary>
-	private string TitleColorClass => ( _progress?.EndedByCashOut ?? false ) ? "cashed-in" : "game-over";
 
 	/// <summary>Design Screen 4: frozen final score (0 on a wiped timeout run).</summary>
 	private int FinalScore => _progress?.FinalScore ?? 0;
@@ -325,15 +273,4 @@
 		// menu in retail.
 		Game.Close();
 	}
-
-	// Unlike Minigame/Hud (which rebuild every frame for live-animating bars/timers with no
-	// clickable elements), this screen has TRY AGAIN/QUIT buttons - rebuilding the whole tree
-	// every single frame via RealTime.Now tore down and recreated those button elements out
-	// from under the mouse on every tick, so hover/click could never settle on them. Throttle
-	// to once a second instead: still catches other clients' leaderboard entries arriving
-	// while this screen is up, without fighting input on every frame. Constant hash while
-	// hidden so the idle panel stays put.
-	protected override int BuildHash() => Visible
-		? HashCode.Combine( Visible, _refreshKey, (int)RealTime.Now, IsSearchingForLobby )
-		: HashCode.Combine( Visible );
 }

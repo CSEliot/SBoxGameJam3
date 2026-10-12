@@ -14,7 +14,7 @@
 // partial class. Spacebar mashing fills a progress bar that decays over
 // time. Each time the bar hits 100% it resets and one beer is added. The
 // round runs for a fixed duration; OnFinished reports the beers drunk.
-// Rendering/display-only members live in UI/Minigame.razor.cs. Both files
+// Rendering/display-only members live in UI/Minigame.cs. Both files
 // must stay in namespace Sandbox.UI so they merge into the single
 // PanelComponent-derived type wired on the UI GameObject in the scene.
 //
@@ -35,8 +35,8 @@ namespace Sandbox.UI;
 public partial class Minigame
 {
 	// GAME LOGIC: state, tunables and simulation for the mini-game. Base type
-	// (PanelComponent) and rendering-only members are declared in the .razor
-	// and .razor.cs parts of this partial class.
+	// (PanelComponent) and rendering-only members are declared in the
+	// Minigame.cs part of this partial class.
 	
 	public bool IsPlaying { get; private set; }
 

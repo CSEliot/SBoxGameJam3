@@ -23,7 +23,7 @@ Here's the next step:
 	Task 2: DONE? NO!
 		The nav mesh car controller is evaluated, tested, and improved. Current issues: No error state handling (i.e. stuck, upside down, Cars driving off cliffs and into the water, etc). 
 
-	Task 3: DONE? NO!
+	Task 3: DONE? YES!
 		Fix: When a police car hits a player, triggering the "throw" on trigger component, the body doesn't return to the player controller on reset. Also, when the player gets thrown, 3 "resets" fight each other: the knockdowner related reset, the turn/lead reset, and the throw-on-police-car-trigger reset. Disable all resets but the throw-on-police-car-trigger reset while that reset is waiting to occur.
 
 	

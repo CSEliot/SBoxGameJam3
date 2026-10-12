@@ -10,37 +10,37 @@
 // permission from KiteLion Games, LLC.
 //
 // Description:
-// Pub-crawling HUD (Design.md, Screen 1): binding + display formatting for
-// Hud.razor. Reads the local player's PlayerProgress (Timer/Score) and DrunkCC
-// (BeerLevel) through a [Property] GameManager reference - never mutates them
-// (PlayerProgress is owner-authoritative; this is a read-only view). All state
-// lives in those components, so this partial holds no game state of its own.
+// Pub-crawling HUD (Design.md, Screen 1): the local player's live readout - the Player List
+// (top-left column of the HUD row), the Timer (top-center) and Drunkenness (top-right).
+// Reads the local player's PlayerProgress (Timer/Score) and DrunkCC (BeerLevel) through a
+// [Property] GameManager reference - never mutates them (PlayerProgress is
+// owner-authoritative; this is a read-only view). All state lives in those components, so
+// this partial holds no game state of its own.
+//
+// The panel tree is built in code and every visual is drawn with Painter (Hud.Draw.cs);
+// there is no markup and no stylesheet. Text content is rebuilt at _TextRefreshRate so
+// score/beer digits tick calmly, while the timer flash and the pants blink are recomputed
+// from RealTime every frame.
 //
 // Also feeds the TOP-LEFT PLAYER LIST COLUMN (design change 09-24: the list replaced
 // the standalone center SCORE readout, now deleted): UpdatePlayerListHelper enumerates
 // every tagged "player" body each frame and rebuilds a sorted row list (name + floored
-// live [Sync] Score, local row pinned first) that Hud.razor renders. Read-only over
-// PlayerProgress/Connection - it never mutates them. The render tree repaints throttled
-// (_TextRefreshRate) so digits tick calmly; OnUpdate itself stays every-frame.
+// live [Sync] Score, local row pinned first) that the HUD paints. Read-only over
+// PlayerProgress/Connection - it never mutates them.
 //
 // Also gates the AUTOMATIC PANTS-DOWN WARNING: the right-edge readout is hidden by
 // default and appears (blinking) once the local DrunkCC has been continuously
 // pants-DOWN for _PantsDownWarnSeconds; it resets the moment the pants come back up.
 //
-// Also owns the TARGET-BAR PREVIEW: a ScenePanel (<scene> element in the markup,
-// gated on Visible) whose private RenderScene hosts a clone of the current
+// Also owns the TARGET-BAR PREVIEW: the bottom-left ScenePanel hosts a clone of the current
 // target bar's -JustModel prefab (paired by BarModule display name via the
 // _BarPreviewNames/_BarPreviewPrefabs arrays wired in the scene), spinning on a
 // slightly-kiltered turntable, camera auto-framed from the model's renderer
 // bounds. ScenePanel composites into the UI layer, so the preview always draws
 // on top of in-world models. Any leftover gameplay components (colliders,
 // NavMeshArea, particles) are stripped from the clone - it is a pure visual.
-//
-// Naming note: this file is Hud.razor.cs (longer path than Hud.razor), so the
-// engine's shortest-source-path stylesheet derivation still resolves to
-// Hud.razor.scss. Do NOT add a bare Hud.cs to this partial - it would become the
-// shortest path and make the panel look for a nonexistent Hud.cs.scss, silently
-// loading no styles (same trap documented on Minigame).
+// A red border-only frame wraps the preview with a caption crossing its
+// bottom border line.
 //
 // License:
 // This code is provided "as is," without warranty of any kind, express or
@@ -57,7 +57,7 @@ using Sandbox;
 
 namespace Sandbox.UI;
 
-public partial class Hud : PanelComponent
+public partial class Hud : PaintPanelComponent
 {
 	/// <summary>
 	/// The scene's GameManager, the source of the local player's PlayerProgress/DrunkCC.
@@ -80,11 +80,10 @@ public partial class Hud : PanelComponent
 	[Property] private string _VersionLabel { get; set; } = "v0.2.0";
 
 	/// <summary>
-	/// How many times per second the HUD text rebuilds (default 4). The visible BuildHash
-	/// branch quantizes RealTime.Now by this rate, throttling the repaint down from every
-	/// frame so score/beer digits tick calmly instead of churning. CSS animations (timer
-	/// flash, pants blink) are compositor-driven and unaffected. Values &lt;= 0 are clamped
-	/// to 1 where used.
+	/// How many times per second the HUD's text content is rebuilt (default 4). The displayed
+	/// timer/beer/score strings are refreshed at this rate instead of every frame, so the
+	/// digits tick calmly rather than churning. The timer flash and the pants blink are
+	/// computed from RealTime every frame and are unaffected. Values &lt;= 0 are clamped to 1.
 	/// </summary>
 	[Property] private float _TextRefreshRate { get; set; } = 4f;
 
@@ -154,18 +153,38 @@ public partial class Hud : PanelComponent
 	}
 
 	// Live player-list rows (top-left column), rebuilt every frame in UpdatePlayerListHelper.
-	// Initialized empty so the razor @foreach never iterates null before the first tick.
+	// Initialized empty so the draw never iterates null before the first tick. _cachedPlayerRows
+	// is the copy the HUD actually paints, swapped in at _TextRefreshRate.
 	private List<PlayerListRow> _playerRows = new();
+	private List<PlayerListRow> _cachedPlayerRows = new();
 
-	// Target-bar preview state. _previewHost is the @ref-captured <scene> element (null while
-	// the Visible gate has it unrendered - the engine nulls @refs when their block is
-	// destroyed). The rest caches what was built INTO the host's private RenderScene so a
-	// rebuild only happens when the host panel is recreated (leaving/returning to the run)
-	// or the target bar changes. The RenderScene is owned by ScenePanel and destroyed with it,
-	// so there is nothing to clean up here beyond dropping the references. _previewFramed
-	// latches the auto-frame: ModelRenderer.Bounds falls back to a 16-unit box while the
-	// model resource is still loading, so framing retries each frame until the real bounds
-	// resolve (the turntable stays still until then, keeping the measurement at rest pose).
+	// Throttled copies of the drawn strings, refreshed at _TextRefreshRate (see OnUpdate).
+	private float _nextTextRefresh;
+	private string _cachedTimerText = "";
+	private string _cachedBeersText = "";
+	private string _cachedPantsText = "";
+
+	// Code-built tree (Hud.Draw.cs): the root Panel the tree was built into, the fullscreen
+	// click-through Painter canvas, and the shared layout metrics the canvas and the preview
+	// host are both placed from.
+	private Panel _builtFor;
+	private PaintCanvas _canvas;
+	private Vector2 _layoutSize;
+	private float _rowTop;
+	private float _colWidth;
+	private float _col1X;
+	private float _col2CenterX;
+	private float _col3RightX;
+
+	// Target-bar preview state. _previewHost is the ScenePanel the tree builds into the
+	// bottom-left corner (Hud.Draw.cs), kept hidden while the Visible gate is closed. The
+	// rest caches what was built INTO its private RenderScene so a rebuild only happens
+	// when the host panel is recreated (a tree rebuild) or the target bar changes. The
+	// RenderScene is owned by ScenePanel and destroyed with it, so there is nothing to
+	// clean up here beyond dropping the references. _previewFramed latches the auto-frame:
+	// ModelRenderer.Bounds falls back to a 16-unit box while the model resource is still
+	// loading, so framing retries each frame until the real bounds resolve (the turntable
+	// stays still until then, keeping the measurement at rest pose).
 	private ScenePanel _previewHost;
 	private Scene _previewScene;
 	private GameObject _previewPivot;   // spin node (child of the kilter-tilt node)
@@ -185,6 +204,8 @@ public partial class Hud : PanelComponent
 
 	protected override void OnUpdate()
 	{
+		EnsureTreeHelper();
+
 		_progress = _GameManager?.GetLocalPlayerProgress();
 		_drunk = _GameManager?.GetLocalDrunkCC();
 
@@ -197,7 +218,33 @@ public partial class Hud : PanelComponent
 
 		UpdatePlayerListHelper();
 
-		UpdateTargetBarPreviewHelper();
+		// The preview panel now persists while hidden, so skip rebuilding/spinning it off-street.
+		if ( Visible )
+			UpdateTargetBarPreviewHelper();
+
+		// Text-throttle: the drawn strings refresh at _TextRefreshRate instead of every
+		// frame, so the score/beer/timer digits tick calmly (the old markup-only repaint
+		// throttle). The list rows are rebuilt every frame above; only the strings the
+		// HUD shows are held back to this rate.
+		if ( RealTime.Now >= _nextTextRefresh )
+		{
+			_nextTextRefresh = RealTime.Now + 1f / MathF.Max( _TextRefreshRate, 1f );
+			_cachedTimerText = TimerText;
+			_cachedBeersText = BeersText;
+			_cachedPantsText = PantsDebugText;
+			_cachedPlayerRows = _playerRows;
+		}
+
+		LayoutHelper( Panel.LocalSize() );
+
+		// The HUD is a non-interactive readout: never let it eat clicks meant for the
+		// world or another panel. The root stays visible while the individual blocks are
+		// gated inside the draw, so the pants warning and the version watermark still
+		// show while the run readout is hidden.
+		Panel.Style.PointerEvents = PointerEvents.None;
+
+		if ( _previewHost is not null )
+			_previewHost.SetVisible( Visible );
 	}
 
 	/// <summary>
@@ -209,8 +256,8 @@ public partial class Hud : PanelComponent
 	/// connection, or (solo/editor plain-clone case: no NetworkObject, so no connections at
 	/// all) when its PlayerProgress is the local one already cached in _progress.
 	/// Read-only: touches no state on PlayerProgress/Connection. Called every frame - the
-	/// throttled visible BuildHash branch (_TextRefreshRate) still repaints often enough
-	/// for the list to track live [Sync] scores without any extra invalidation logic.
+	/// throttled text refresh (_TextRefreshRate) picks the rows up often enough for the list
+	/// to track live [Sync] scores without any extra invalidation logic.
 	/// Sort: local row pinned first, then score descending, ties by name (Ordinal).
 	/// </summary>
 	private void UpdatePlayerListHelper()
@@ -275,9 +322,8 @@ public partial class Hud : PanelComponent
 
 	/// <summary>
 	/// Keeps the bottom-left target-bar preview alive: rebuilds the ScenePanel's private scene
-	/// when the &lt;scene&gt; element was recreated (run gate re-entry) or the target bar
-	/// changed, otherwise spins the turntable and keeps the camera's render size matched to the
-	/// panel. Runs every frame; all the expensive work is inside the rebuild branch, which only
+	/// when the host panel was recreated (tree rebuild) or the target bar changed, otherwise
+	/// spins the turntable and keeps the camera's render size matched to the panel. Runs every frame; all the expensive work is inside the rebuild branch, which only
 	/// fires on those transitions (at most once per transition even when the target name is
 	/// transiently null - the name mismatch flips _previewBarName in the same pass). Null-target
 	/// frames (sparse [Sync] _Bars not replicated yet, ActiveBarModule unresolved) simply retry
@@ -640,28 +686,18 @@ public partial class Hud : PanelComponent
 	/// <summary>
 	/// One full blink cycle of the pants warning in seconds (1 / _PantsDebugBlinksPerSecond,
 	/// floored at 0.1 blinks/s so a bogus property can't produce an infinite/zero duration).
-	/// Invariant-culture formatted: it lands verbatim in an inline CSS animation-duration, so
-	/// a comma-decimal locale must never leak through.
+	/// The draw uses a hard on/off step over this period.
 	/// </summary>
-	private string PantsBlinkDurationText
-	{
-		get
-		{
-			float duration = 1f / MathF.Max( _PantsDebugBlinksPerSecond, 0.1f );
-			return duration.ToString( "F3", System.Globalization.CultureInfo.InvariantCulture ) + "s";
-		}
-	}
+	private float PantsBlinkSeconds => 1f / MathF.Max( _PantsDebugBlinksPerSecond, 0.1f );
 
-	// Repaint throttled to _TextRefreshRate rebuilds/second while visible (RealTime.Now
-	// quantized to that rate) so score/beer digits tick calmly instead of churning every
-	// frame; CSS animations (timer flash, pants blink) are compositor-driven and unaffected.
-	// OnUpdate/UpdatePlayerListHelper still run every frame - only the RENDER is throttled.
-	// While hidden, the hash still tracks the pants-warning gate so its text updates while
-	// off-street are applied on the next repaint instead of freezing at first paint.
-	// IsPubCrawling is in BOTH branches so the menu/bar -> street state flip repaints the
-	// gated blocks. Hash to a constant floor while hidden so the idle panel stays put
-	// (mirrors Minigame.BuildHash).
-	protected override int BuildHash() => Visible
-		? HashCode.Combine( Visible, IsPubCrawling, PantsDebugShown, (int)( RealTime.Now * MathF.Max( _TextRefreshRate, 1f ) ) )
-		: HashCode.Combine( Visible, IsPubCrawling, PantsDebugShown );
+	/// <summary>
+	/// The local player's cached row list is refreshed at _TextRefreshRate (see OnUpdate); the
+	/// timer flash and the pants blink are recomputed from RealTime on every draw.
+	/// </summary>
+	private float TimerFlashOpacityHelper()
+	{
+		// 1 -> 0.3 -> 1 over the 0.5s critical cycle.
+		float phase = ( RealTime.Now % 0.5f ) / 0.5f;
+		return 0.3f + 0.7f * MathF.Abs( 1f - 2f * phase );
+	}
 }
