@@ -117,6 +117,7 @@ public sealed class GhostCarBrain : Component
 	private NavMeshCarController _nav;
 	private AICarDriver _ai;
 	private CopCarLights _copLights;
+	private GhostCarErrorGuard _guard;
 	private GameObject _marker;
 	private TimeSince _sinceTargetUpdate = 10f;
 	private TimeSince _sinceLastSight = 10f;
@@ -156,6 +157,10 @@ public sealed class GhostCarBrain : Component
 		// again here covers hotloads and a prefab edited while in play.
 		if ( _copLights.IsValid() )
 			_copLights.LightsOn = false;
+
+		// Shared error-state guard (stuck, flip, off-map, water), ticked by whichever driver
+		// owns the car. Created here so only ghost cars get one; ai_car.prefab stays clean.
+		_guard = Components.GetOrCreate<GhostCarErrorGuard>();
 
 		// One top-level marker for the navmesh to steer toward. Deliberately not parented to
 		// the car, so the car's own motion and physics never drag the target along with it,
@@ -364,12 +369,19 @@ public sealed class GhostCarBrain : Component
 
 		if ( seen )
 		{
+			// A stale timer from the outgoing controller must not fire under the incoming one.
+			if ( _guard.IsValid() )
+				_guard.ResetGuard();
+
 			_nav.Enabled = false;
 			_ai.ChaseTarget = TargetPlayer;
 			_ai.Enabled = true;
 		}
 		else
 		{
+			if ( _guard.IsValid() )
+				_guard.ResetGuard();
+
 			_ai.Enabled = false;
 			_ai.ChaseTarget = null;
 			_nav.Enabled = true;

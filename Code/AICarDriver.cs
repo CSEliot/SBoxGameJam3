@@ -612,6 +612,10 @@ public sealed partial class AICarDriver : Component
 	// Distance to the first missing floor behind (LedgeProbeHelper). Same 0 = not probed convention.
 	private float _ledgeBehind;
 
+	// Shared error-state guard (water, off-map, flip). GhostCarBrain adds it to the chase car;
+	// cars without it (ai_car.prefab) fall through unchanged.
+	private GhostCarErrorGuard _guard;
+
 	// Last control decisions, kept for telemetry.
 	private float _lastThrottle;
 	private bool _lastBrake;
@@ -754,7 +758,11 @@ public sealed partial class AICarDriver : Component
 			if ( _untilTeleportRetry )
 			{
 				_untilTeleportRetry = 0.25f;
-				if ( TryTeleportHelper( "spawn" ) ) _teleportPending = false;
+				if ( TryTeleportHelper( "spawn" ) )
+				{
+					ResetGuardHelper();
+					_teleportPending = false;
+				}
 			}
 			ApplyControlsHelper( 0f, 0f, true );
 			return;
@@ -769,10 +777,60 @@ public sealed partial class AICarDriver : Component
 
 		UpdateStuckAreaHelper( position );
 
+		float forwardSpeed = Vector3.Dot( _body.Velocity, WorldRotation.Forward );
+
+		// Shared error guard: water, off the map and flipped upright. GhostCarBrain adds it to the
+		// chase car only, so a car without it (ai_car.prefab) behaves exactly as before.
+		_guard ??= Components.Get<GhostCarErrorGuard>();
+		if ( _guard.IsValid() )
+		{
+			Vector3 routeAhead = _path.Count >= 2
+				? GetLookAheadPointHelper( position, LookAheadDistance )
+				: (ChaseTarget.IsValid() ? ChaseTarget.WorldPosition : position);
+
+			// Face the teleport along the chase: the route-ahead point IS the target here, so it
+			// gives no usable heading; ChaseTarget is the point further along the route.
+			_guard.RouteFacingPoint = ChaseTarget.IsValid() ? ChaseTarget.WorldPosition : (Vector3?)null;
+
+			GhostCarGuardResult guardResult = _guard.Tick( _lastThrottle, forwardSpeed, routeAhead, false );
+
+			if ( guardResult == GhostCarGuardResult.Teleported )
+			{
+				// The guard moved the car: same post-teleport bookkeeping TryTeleportHelper does,
+				// then a fresh Idle so the next tick picks a route toward ChaseTarget.
+				_steer = 0f;
+				ApplyControlsHelper( 0f, 0f, true );
+				_reverseCount = 0;
+				_pivotFails = 0;
+				_repickChain = 0;
+				_stuckAnchor = WorldPosition;
+				_sinceStuckAnchor = 0f;
+				_sinceNotLost = 0f;
+				Aggression = float.Clamp( BaseAggression, 0f, 1f );
+				_path.Clear();
+				_chaseDirectSegment = false;
+				_untilRetry = 0f;
+				SetStateHelper( DriveState.Idle );
+				return;
+			}
+
+			if ( guardResult == GhostCarGuardResult.Recovering )
+			{
+				// A reverse-out or upright flip owns the controls for this tick.
+				_steer = 0f;
+				ApplyControlsHelper( _guard.Throttle, _guard.Steer, _guard.Brake );
+				return;
+			}
+		}
+
 		if ( TeleportAfter > 0f && _sinceStuckAnchor > TeleportAfter && _untilTeleportRetry )
 		{
 			_untilTeleportRetry = MathF.Max( RetryDelay, 0.5f );
-			if ( TryTeleportHelper( "stuck" ) ) return;
+			if ( TryTeleportHelper( "stuck" ) )
+			{
+				ResetGuardHelper();
+				return;
+			}
 		}
 
 		// Flipped, or fell off the map (v1: drove off a bridge edge and dropped thousands of units,
@@ -780,10 +838,12 @@ public sealed partial class AICarDriver : Component
 		if ( LostRecoverTime > 0f && _sinceNotLost > LostRecoverTime && _untilTeleportRetry )
 		{
 			_untilTeleportRetry = MathF.Max( RetryDelay, 0.5f );
-			if ( TryTeleportHelper( "lost" ) ) return;
+			if ( TryTeleportHelper( "lost" ) )
+			{
+				ResetGuardHelper();
+				return;
+			}
 		}
-
-		float forwardSpeed = Vector3.Dot( _body.Velocity, WorldRotation.Forward );
 
 		ProbeFrontHelper( forwardSpeed );
 
@@ -954,7 +1014,11 @@ public sealed partial class AICarDriver : Component
 				if ( _untilTeleportRetry )
 				{
 					_untilTeleportRetry = MathF.Max( RetryDelay, 0.5f );
-					if ( TryTeleportHelper( "pivot" ) ) return;
+					if ( TryTeleportHelper( "pivot" ) )
+					{
+						ResetGuardHelper();
+						return;
+					}
 				}
 				// No teleport spot yet: fall through, the path-behind brake below holds the car.
 			}
@@ -1275,7 +1339,11 @@ public sealed partial class AICarDriver : Component
 						_untilTeleportRetry = MathF.Max( RetryDelay, 0.5f );
 						// TelemetryTeleportHelper inside logs the LegEnd as "teleport", like the
 						// pivot path above does, and counts the teleport.
-						if ( TryTeleportHelper( "repick-loop" ) ) return;
+						if ( TryTeleportHelper( "repick-loop" ) )
+						{
+							ResetGuardHelper();
+							return;
+						}
 					}
 					// No teleport spot yet: fall through to the normal repick below.
 				}
@@ -1614,6 +1682,17 @@ public sealed partial class AICarDriver : Component
 		}
 
 		return false;
+	}
+
+	/// <summary>
+	/// Resets the shared error guard after this driver teleports itself, so a stale stuck timer or
+	/// attempt count never fires immediately after the move. Null-safe: ai_car.prefab has no guard.
+	/// </summary>
+	private void ResetGuardHelper()
+	{
+		_guard ??= Components.Get<GhostCarErrorGuard>();
+		if ( _guard.IsValid() )
+			_guard.ResetGuard();
 	}
 
 	/// <summary>True if the car's hull fits at <paramref name="point"/> facing <paramref name="heading"/> without touching anything.</summary>

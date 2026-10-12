@@ -180,6 +180,24 @@ public sealed class NavMeshCarController : Component, IScenePhysicsEvents
 	/// </summary>
 	[Property, Group( "Strictness" ), Range( 0f, 1f )] public float PathStrictness { get; set; } = 0f;
 
+	// ------------------------------------------------------------------ Ledge
+
+	/// <summary>Base look-ahead distance for the ledge probe, before the speed term is added.</summary>
+	[Property, Group( "Ledge" )] public float LedgeProbeDistance { get; set; } = 120f;
+
+	/// <summary>Extra probe distance per unit of forward speed (seconds of travel to look ahead), so a fast car probes further.</summary>
+	[Property, Group( "Ledge" )] public float LedgeProbeTime { get; set; } = 0.35f;
+
+	/// <summary>How far below the car's floor height the probe ray reaches before it calls it a ledge.</summary>
+	[Property, Group( "Ledge" )] public float LedgeDropHeight { get; set; } = 120f;
+
+	/// <summary>
+	/// Allowed downhill grade (rise over run) before a slope reads as a ledge. The probe's
+	/// reach below the car grows with the distance ahead by this much, so a car driving down a
+	/// hill does not brake for the slope it is standing on.
+	/// </summary>
+	[Property, Group( "Ledge" )] public float LedgeMaxGrade { get; set; } = 0.5f;
+
 	// ------------------------------------------------------------------ Debug
 
 	/// <summary>Draw the smoothed path, the destination and the current state while playing.</summary>
@@ -210,7 +228,9 @@ public sealed class NavMeshCarController : Component, IScenePhysicsEvents
 	private float _steer;
 	private TimeSince _sinceRepath = 10f;
 	private TimeSince _sinceEngineRequest = 10f;
-	private TimeSince _sinceStuckMoving;
+	private GhostCarErrorGuard _guard;
+	// Set each fixed step by the ledge probe; read by DrawDebugHelper.
+	private bool _ledgeAhead;
 	private bool _warnedNoNavMesh;
 	private bool _warnedNoNavStart;
 
@@ -259,92 +279,158 @@ public sealed class NavMeshCarController : Component, IScenePhysicsEvents
 
 		ResolveTargetHelper();
 
+		float forwardSpeed = Vector3.Dot( _body.Velocity, WorldRotation.Forward );
+
+		// Controls for this tick; hold (brake) unless the driving branch fills them in.
+		float throttle = 0f;
+		float steer = 0f;
+		bool brake = true;
+
+		// Where the guard aims a teleport: the target while there is one, else the car itself.
+		Vector3 guardRouteAhead = _hasTarget ? _targetPosition : position;
+
+		// Teleport route-ahead distance along the path: grows with repeat failures so a car that
+		// keeps failing the same stretch is pushed further ahead each time.
+		float routeAheadDistance = 300f;
+
+		// Resolved lazily here so the route-ahead escalation below can read RepeatRecoveries.
+		_guard ??= Components.Get<GhostCarErrorGuard>();
+
+		// True when EnsurePathHelper already braked (it applies the brake itself on failure).
+		bool pathFailed = false;
+
 		if ( !_hasTarget )
 		{
 			_path.Clear();
-			ApplyControlsHelper( 0f, 0f, true );
 			SetStateHelper( DriveState.Idle );
-			return;
-		}
-
-		EnsureEngineRunningHelper();
-
-		float forwardSpeed = Vector3.Dot( _body.Velocity, WorldRotation.Forward );
-
-		// Arrived: hold. Resume automatically if the target moves away past ArrivalDistance.
-		if ( FlatDistance( position, _targetPosition ) < EffectiveArrivalDistance )
-		{
-			ApplyControlsHelper( 0f, 0f, true );
-			if ( State != DriveState.Arrived )
-			{
-				SetStateHelper( DriveState.Arrived );
-				OnArrived?.Invoke();
-			}
-			return;
-		}
-
-		if ( State != DriveState.Driving )
-		{
-			bool wasArrived = State == DriveState.Arrived;
-			SetStateHelper( DriveState.Driving );
-			if ( wasArrived )
-				_path.Clear(); // resuming after arrival: rebuild the route to the target's current position
-		}
-
-		// Path maintenance: rebuild when missing, when the target changed, or when off-path.
-		if ( !EnsurePathHelper( position, out float distanceFromPath ) )
-			return;
-
-		if ( distanceFromPath > EffectiveRepathDistance && _sinceRepath > EffectiveRepathInterval )
-		{
-			_sinceRepath = 0f;
-			BuildPathHelper( position );
-		}
-
-		// Steering: pure pursuit on the smoothed path, look-ahead scaled by speed.
-		Vector3 lookAhead = GetPathPointAtDistanceHelper( position,
-			EffectiveLookAheadDistance + MathF.Max( forwardSpeed, 0f ) * EffectiveLookAheadTime );
-		float pathAngle = GetPathAngleHelper( position, lookAhead );
-		float steer = SteerFromAngleHelper( DampedSteerAngleHelper( pathAngle, forwardSpeed ) );
-
-		// Speed: cruise, heading error, corners ahead (braking horizon), destination.
-		float targetSpeed = EffectiveCruiseSpeed;
-		targetSpeed = MathF.Min( targetSpeed, CornerSpeedForAngleHelper( pathAngle ) );
-		targetSpeed = MathF.Min( targetSpeed, GetCornerSpeedLimitHelper( position ) );
-
-		float throttle;
-		bool brake;
-		if ( forwardSpeed < -1f )
-		{
-			throttle = 0f; // rolling backward: stop first, then drive forward
-			brake = true;
-		}
-		else if ( forwardSpeed > targetSpeed + BrakeMargin )
-		{
-			throttle = 0f;
-			brake = true;
 		}
 		else
 		{
-			throttle = float.Clamp( (targetSpeed - forwardSpeed) / EffectiveThrottleResponse, 0f, 1f );
-			brake = false;
+			EnsureEngineRunningHelper();
+
+			// Arrived: hold. Resume automatically if the target moves away past ArrivalDistance.
+			if ( FlatDistance( position, _targetPosition ) < EffectiveArrivalDistance )
+			{
+				if ( State != DriveState.Arrived )
+				{
+					SetStateHelper( DriveState.Arrived );
+					OnArrived?.Invoke();
+				}
+			}
+			else
+			{
+				if ( State != DriveState.Driving )
+				{
+					bool wasArrived = State == DriveState.Arrived;
+					SetStateHelper( DriveState.Driving );
+					if ( wasArrived )
+						_path.Clear(); // resuming after arrival: rebuild the route to the target's current position
+				}
+
+				// Path maintenance: rebuild when missing, when the target changed, or when off-path.
+				if ( !EnsurePathHelper( position, out float distanceFromPath ) )
+				{
+					// No route right now: EnsurePathHelper holds the brakes; the guard still ticks
+					// below so water / off-map / flip are caught even with no path to drive.
+					pathFailed = true;
+				}
+				else
+				{
+					if ( distanceFromPath > EffectiveRepathDistance && _sinceRepath > EffectiveRepathInterval )
+					{
+						_sinceRepath = 0f;
+						BuildPathHelper( position );
+					}
+
+					// Steering: pure pursuit on the smoothed path, look-ahead scaled by speed.
+					Vector3 lookAhead = GetPathPointAtDistanceHelper( position,
+						EffectiveLookAheadDistance + MathF.Max( forwardSpeed, 0f ) * EffectiveLookAheadTime );
+					float pathAngle = GetPathAngleHelper( position, lookAhead );
+					steer = SteerFromAngleHelper( DampedSteerAngleHelper( pathAngle, forwardSpeed ) );
+
+					// Speed: cruise, heading error, corners ahead (braking horizon), destination.
+					float targetSpeed = EffectiveCruiseSpeed;
+					targetSpeed = MathF.Min( targetSpeed, CornerSpeedForAngleHelper( pathAngle ) );
+					targetSpeed = MathF.Min( targetSpeed, GetCornerSpeedLimitHelper( position ) );
+
+					if ( forwardSpeed < -1f )
+					{
+						throttle = 0f; // rolling backward: stop first, then drive forward
+						brake = true;
+					}
+					else if ( forwardSpeed > targetSpeed + BrakeMargin )
+					{
+						throttle = 0f;
+						brake = true;
+					}
+					else
+					{
+						throttle = float.Clamp( (targetSpeed - forwardSpeed) / EffectiveThrottleResponse, 0f, 1f );
+						brake = false;
+					}
+
+					routeAheadDistance = 300f + 600f * Math.Clamp( _guard.IsValid() ? _guard.RepeatRecoveries : 0, 0, 5 );
+					guardRouteAhead = _path.Count >= 2
+						? GetPathPointAtDistanceHelper( position, routeAheadDistance )
+						: _targetPosition;
+				}
+			}
 		}
 
-		// Minimal stuck guard: full throttle but no forward progress means the car grinds on
-		// something the navmesh path did not account for (a car is wider than the agent radius).
-		// Rebuild the path after a timeout; full stuck recovery is AICarDriver's job.
-		if ( throttle > 0.05f && MathF.Abs( forwardSpeed ) < 10f )
+		// Shared error-state guard (stuck reverse-out, on its roof, off the map, water). Ticked
+		// here, before the driver applies its controls and BEFORE the no-target / arrived /
+		// no-path holds, so a car with no route is still recovered. This driver cannot reverse,
+		// so when the guard runs a reverse window it overrides the controls computed above.
+
+		if ( _guard.IsValid() )
 		{
-			if ( _sinceStuckMoving > 4f )
+			// Aim the teleport's heading further along the route than the teleport target itself:
+			// the target is the navmesh snap of routeAheadPoint, which yields no usable heading.
+			_guard.RouteFacingPoint = _path.Count >= 2
+				? GetPathPointAtDistanceHelper( position, routeAheadDistance + 300f )
+				: ( _hasTarget ? _targetPosition : (Vector3?)null );
+
+			// Read the window before the tick, so the first tick after a reverse-out (when it
+			// has just ended) drops the path and the car re-routes from where it ended up
+			// instead of steering back toward the old line.
+			bool wasRecovering = _guard.IsRecovering;
+
+			var guardResult = _guard.Tick( throttle, forwardSpeed, guardRouteAhead, true );
+
+			if ( wasRecovering && !_guard.IsRecovering )
 			{
-				_sinceStuckMoving = 0f;
 				_path.Clear();
 				_sinceRepath = 0f;
 			}
+
+			if ( guardResult == GhostCarGuardResult.Teleported )
+			{
+				_path.Clear();
+				_sinceRepath = 0f;
+				ApplyControlsHelper( 0f, 0f, true );
+				return;
+			}
+
+			if ( guardResult == GhostCarGuardResult.Recovering )
+			{
+				ApplyControlsHelper( _guard.Throttle, _guard.Steer, _guard.Brake );
+				return;
+			}
 		}
-		else
+
+		// EnsurePathHelper already applied the brake when it could not build a route.
+		if ( pathFailed ) return;
+
+		// Ledge probe: one downward ray at the point the car reaches at its current speed. No
+		// floor there means a cliff, a quay edge or a hole in the road; cut the throttle and
+		// brake this tick rather than drive over it (the guard's stuck handling reverses the
+		// car out if it stays put).
+		_ledgeAhead = false;
+		if ( State == DriveState.Driving && IsLedgeAheadHelper( position, forwardSpeed ) )
 		{
-			_sinceStuckMoving = 0f;
+			_ledgeAhead = true;
+			throttle = 0f;
+			brake = true;
 		}
 
 		ApplyControlsHelper( throttle, steer, brake );
@@ -401,7 +487,6 @@ public sealed class NavMeshCarController : Component, IScenePhysicsEvents
 	private void SetStateHelper( DriveState state )
 	{
 		State = state;
-		_sinceStuckMoving = 0f;
 	}
 
 	// ================================================================== Navmesh path
@@ -707,6 +792,35 @@ public sealed class NavMeshCarController : Component, IScenePhysicsEvents
 		return (p - (a + ab * t)).WithZ( 0f ).Length;
 	}
 
+	/// <summary>
+	/// One downward ray on the ground line ahead of the car. Returns true (a ledge) when there is
+	/// no solid floor under the point the car would reach at <paramref name="forwardSpeed"/>: a
+	/// cliff, a quay edge or a hole in the road. The ray runs from 50 above the probe point down
+	/// to <see cref="LedgeDropHeight"/> below the car's floor height; only the car's own
+	/// hierarchy is ignored, and triggers are not hit by default so they cannot fake a floor.
+	/// </summary>
+	private bool IsLedgeAheadHelper( Vector3 position, float forwardSpeed )
+	{
+		float ahead = EffectiveLedgeProbeDistance + MathF.Max( forwardSpeed, 0f ) * EffectiveLedgeProbeTime;
+
+		Vector3 forward = WorldRotation.Forward.WithZ( 0f );
+		Vector3 probe = forward.LengthSquared > 0.0001f
+			? position + forward.Normal * ahead
+			: position;
+
+		Vector3 start = probe + Vector3.Up * 50f;
+
+		// The reach grows with the distance ahead by the allowed grade: on a downhill the
+		// ground ahead is legitimately lower than the car, and a flat reach would read its own
+		// slope as a cliff.
+		float reach = EffectiveLedgeDropHeight + ahead * EffectiveLedgeMaxGrade;
+		Vector3 end = new( probe.x, probe.y, position.z - reach );
+
+		return !Scene.Trace.Ray( start, end )
+			.IgnoreGameObjectHierarchy( GameObject )
+			.Run().Hit;
+	}
+
 	/// <summary>Projects <paramref name="p"/> onto the flat segment a-b (clamped to the span).</summary>
 	private static void ProjectFlatHelper( Vector3 p, Vector3 a, Vector3 b, out Vector3 projection )
 	{
@@ -759,7 +873,9 @@ public sealed class NavMeshCarController : Component, IScenePhysicsEvents
 				DebugOverlay.Sphere( new Sphere( _targetPosition, 40f ), Color.Magenta );
 		}
 
-		DebugOverlay.Text( WorldPosition + Vector3.Up * 120f, $"{State}  strict {PathStrictness:0.00}", 16f );
+		string guard = _guard.IsValid() ? $"  guard {_guard.LastReason ?? "-"}" : "";
+		string ledge = _ledgeAhead ? "  ledge" : "";
+		DebugOverlay.Text( WorldPosition + Vector3.Up * 120f, $"{State}  strict {PathStrictness:0.00}{guard}{ledge}", 16f );
 	}
 
 	// ================================================================== Hotload fallbacks
@@ -788,4 +904,8 @@ public sealed class NavMeshCarController : Component, IScenePhysicsEvents
 	private bool EffectiveSmoothPath => SmoothPath; // the spline needs >= 3 corners, guarded at the call site
 	private int EffectiveSplineSubdivisions => SplineSubdivisions > 0 ? SplineSubdivisions : 4;
 	private float EffectiveMinPathPointSpacing => MinPathPointSpacing > 0f ? MinPathPointSpacing : 120f;
+	private float EffectiveLedgeProbeDistance => LedgeProbeDistance > 0f ? LedgeProbeDistance : 120f;
+	private float EffectiveLedgeProbeTime => LedgeProbeTime != 0f ? LedgeProbeTime : 0.35f;
+	private float EffectiveLedgeDropHeight => LedgeDropHeight > 0f ? LedgeDropHeight : 120f;
+	private float EffectiveLedgeMaxGrade => LedgeMaxGrade != 0f ? LedgeMaxGrade : 0.5f;
 }

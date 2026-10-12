@@ -16,7 +16,7 @@ Here's the next step:
 	Task 0: DONE? YES!
 		Write meaningful commits of current git status.
 
-	Task 1: DONE? NO!
+	Task 1: DONE? YES!
 		Replace all instances of Razor with Painter. If possible. And without breaking the game.
 		Update: Work has been done on this, but there are screen space scaling issues all over the place.
 
