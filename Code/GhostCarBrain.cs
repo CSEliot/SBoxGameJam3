@@ -24,6 +24,7 @@
 // other dealings in the software.
 
 using System;
+using System.Collections.Generic;
 
 namespace Sandbox;
 
@@ -51,11 +52,12 @@ public enum GhostPersonality
 /// every ghost walks its own corner instead of chasing.
 ///
 /// The car roams on the navmesh by default (NavMeshCarController steering toward a hidden
-/// target marker placed at the current ghost target). The moment the car has line of sight
-/// to its target player, control hands over to AICarDriver, which chases the player
-/// directly with its obstacle avoidance; when sight is lost for longer than the grace
-/// window, control returns to the navmesh controller. Only the host (or solo play) runs
-/// any of this: the car is a physics proxy everywhere else.
+/// target marker placed at the current ghost target). A chase only starts when a player is
+/// inside ChaseStartDistance and inside ChaseStartConeHalfAngle of the car's nose with a
+/// clear sight ray, and the car then hands control to AICarDriver, which chases that player
+/// directly with its obstacle avoidance; when sight of the chased player is lost for longer
+/// than the grace window, control returns to the navmesh controller. Only the host (or solo
+/// play) runs any of this: the car is a physics proxy everywhere else.
 ///
 /// Unlike the arcade ghosts there is no Frightened mode, and a mode switch does not reverse
 /// the car's direction (a wheeled vehicle cannot pivot in place).
@@ -80,6 +82,12 @@ public sealed class GhostCarBrain : Component
 	/// <summary>Flat distance (units) at which the car can see its target player.</summary>
 	[Property] public float SightRange { get; set; } = 3000f;
 
+	/// <summary>Flat distance (units) a player must be within for this car to start a chase. A chase also needs the player within SightRange, so values above SightRange act as SightRange. Once chasing, only SightRange and line of sight matter.</summary>
+	[Property] public float ChaseStartDistance { get; set; } = 1500f;
+
+	/// <summary>Half-angle (degrees) of the cone in front of the car's nose a player must be inside to start a chase. 30 means a 60 degree wide cone; 180 turns the cone check off. Measured flat (top-down). Once chasing, the cone no longer applies.</summary>
+	[Property, Range( 0f, 180f )] public float ChaseStartConeHalfAngle { get; set; } = 30f;
+
 	/// <summary>Height the sight ray starts above the car origin.</summary>
 	[Property] public float SightEyeHeight { get; set; } = 60f;
 
@@ -103,10 +111,10 @@ public sealed class GhostCarBrain : Component
 	/// <summary>The live Blinky brain, used by Inky's mirror targeting only. Set by the GameManager.</summary>
 	public GhostCarBrain BlinkyPartner { get; set; }
 
-	/// <summary>True while the car currently has (or recently had) sight of its target player.</summary>
+	/// <summary>True while the car is chasing a player with the driver in control.</summary>
 	[Property, ReadOnly] public bool HasLineOfSight { get; private set; }
 
-	/// <summary>Nearest player root this car is chasing, or null when no player is available.</summary>
+	/// <summary>Nearest player root, used for Pac-Man targeting only; this is not necessarily the chased player.</summary>
 	public GameObject TargetPlayer { get; private set; }
 
 	/// <summary>The current ghost target position (chase point or scatter corner), in world space.</summary>
@@ -121,6 +129,9 @@ public sealed class GhostCarBrain : Component
 	private GameObject _marker;
 	private TimeSince _sinceTargetUpdate = 10f;
 	private TimeSince _sinceLastSight = 10f;
+
+	/// <summary>The player the driver is chasing; null while the navmesh controller owns the car.</summary>
+	private GameObject _chasedPlayer;
 
 	// ------------------------------------------------------------------ Lifecycle
 
@@ -214,8 +225,8 @@ public sealed class GhostCarBrain : Component
 
 		if ( !nearest.IsValid() )
 		{
-			// No player to chase: hold the marker where it is and let the sight update drop
-			// the car back to navmesh mode.
+			// No player to chase: hold the marker where it is. This is only Pac-Man targeting;
+			// the sight handoff does not read TargetPlayer.
 			TargetPlayer = null;
 			return;
 		}
@@ -301,60 +312,138 @@ public sealed class GhostCarBrain : Component
 	// ================================================================== Line of sight & handoff
 
 	/// <summary>
-	/// Tests sight to the current target player and drives the controller handoff. A sighting
-	/// sets <see cref="HasLineOfSight"/> at once; losing sight only drops it after
-	/// <see cref="LoseSightGraceSeconds"/> without a fresh sighting, so a car is not flipped
-	/// between controllers by a single occluded frame.
+	/// Drives the controller handoff. While chasing, it keeps sight on the chased player and
+	/// drops the car back to the navmesh only after <see cref="LoseSightGraceSeconds"/> without
+	/// a fresh sighting, so a single occluded frame does not flip the car between controllers.
+	/// While not chasing, a chase starts with the nearest player that is inside
+	/// <see cref="ChaseStartDistance"/>, inside <see cref="ChaseStartConeHalfAngle"/> and in
+	/// clear sight. A nearer player never steals a chase that is already running.
 	/// </summary>
 	private void UpdateLineOfSightHelper()
 	{
-		if ( !TargetPlayer.IsValid() )
+		if ( HasLineOfSight )
 		{
-			// Target gone: no sight to hold, so give the car straight back to the navmesh.
-			_sinceLastSight = 0f;
-			SetLineOfSightHelper( false );
+			// The GameManager disables the player root during the bar, minigames and the end
+			// screen, so a missing or disabled chased player ends the chase at once.
+			if ( !_chasedPlayer.IsValid() || !_chasedPlayer.Enabled )
+			{
+				_sinceLastSight = 0f;
+				SetLineOfSightHelper( false );
+				return;
+			}
+
+			if ( HasSightHelper( _chasedPlayer ) )
+			{
+				_sinceLastSight = 0f;
+
+				// Keep the driver aimed at the chased player while it owns the car.
+				_ai.ChaseTarget = _chasedPlayer;
+			}
+			else if ( _sinceLastSight >= MathF.Max( LoseSightGraceSeconds, 0f ) )
+			{
+				SetLineOfSightHelper( false );
+			}
+
 			return;
 		}
 
-		Vector3 playerPosition = TargetPlayer.WorldPosition;
-		bool seen = false;
-
-		if ( FlatDistanceHelper( WorldPosition, playerPosition ) <= SightRange )
+		var candidate = FindChaseStartPlayerHelper();
+		if ( candidate.IsValid() )
 		{
-			Vector3 from = WorldPosition + Vector3.Up * SightEyeHeight;
-			Vector3 to = playerPosition + Vector3.Up * SightTargetHeight;
-
-			// Ignore the whole car hierarchy so the car never blocks its own view. Anything
-			// hit whose scene root is the player counts as the player (their colliders live
-			// under the player root).
-			var trace = Scene.Trace.Ray( from, to )
-				.IgnoreGameObjectHierarchy( GameObject )
-				.Run();
-
-			seen = !trace.Hit
-				|| (trace.GameObject.IsValid() && trace.GameObject.Root == TargetPlayer.Root);
-		}
-
-		if ( seen )
-		{
+			_chasedPlayer = candidate;
 			_sinceLastSight = 0f;
 			SetLineOfSightHelper( true );
+		}
+	}
 
-			// The nearest player can change between target updates, so keep the driver aimed
-			// at the current one while it owns the car.
-			_ai.ChaseTarget = TargetPlayer;
-		}
-		else if ( HasLineOfSight && _sinceLastSight >= MathF.Max( LoseSightGraceSeconds, 0f ) )
+	/// <summary>True when the player is within <see cref="SightRange"/> and in clear sight.</summary>
+	private bool HasSightHelper( GameObject player )
+	{
+		if ( !player.IsValid() ) return false;
+
+		Vector3 playerPosition = player.WorldPosition;
+
+		if ( FlatDistanceHelper( WorldPosition, playerPosition ) > SightRange )
+			return false;
+
+		Vector3 from = WorldPosition + Vector3.Up * SightEyeHeight;
+		Vector3 to = playerPosition + Vector3.Up * SightTargetHeight;
+
+		// Ignore the whole car hierarchy so the car never blocks its own view. Anything hit
+		// whose scene root is the player counts as the player (their colliders live under the
+		// player root).
+		var trace = Scene.Trace.Ray( from, to )
+			.IgnoreGameObjectHierarchy( GameObject )
+			.Run();
+
+		return !trace.Hit
+			|| (trace.GameObject.IsValid() && trace.GameObject.Root == player.Root);
+	}
+
+	/// <summary>
+	/// True when the position sits inside the flat cone in front of the car's nose. A half-angle
+	/// of 180 or more turns the check off.
+	/// </summary>
+	private bool IsInChaseConeHelper( Vector3 playerPosition )
+	{
+		if ( ChaseStartConeHalfAngle >= 180f ) return true;
+
+		Vector3 toPlayer = (playerPosition - WorldPosition).WithZ( 0f );
+
+		// A player on top of the car counts as ahead.
+		if ( toPlayer.LengthSquared < 1f ) return true;
+
+		// Car on its side or nose-up: there is no flat forward, so no chase starts.
+		Vector3 forward = WorldRotation.Forward.WithZ( 0f );
+		if ( forward.LengthSquared < 0.0001f ) return false;
+
+		return Vector3.GetAngle( forward, toPlayer ) <= ChaseStartConeHalfAngle;
+	}
+
+	/// <summary>
+	/// Nearest player that can start a chase: inside <see cref="ChaseStartDistance"/> (capped by
+	/// <see cref="SightRange"/>), inside the nose cone and in clear sight. Candidates are ray
+	/// tested nearest first and the first clear one wins. Returns null when no player can start
+	/// a chase.
+	/// </summary>
+	private GameObject FindChaseStartPlayerHelper()
+	{
+		float maxDistance = MathF.Min( ChaseStartDistance, SightRange );
+		List<(GameObject Player, float Distance)> candidates = new();
+
+		foreach ( var drunk in Scene.GetAllComponents<DrunkCC>() )
 		{
-			SetLineOfSightHelper( false );
+			if ( !drunk.IsValid() ) continue;
+
+			var player = drunk.GameObject;
+			if ( !player.IsValid() || !player.Enabled ) continue;
+
+			Vector3 playerPosition = player.WorldPosition;
+			float distance = FlatDistanceHelper( WorldPosition, playerPosition );
+			if ( distance > maxDistance ) continue;
+			if ( !IsInChaseConeHelper( playerPosition ) ) continue;
+
+			candidates.Add( (player, distance) );
 		}
+
+		// Sort so the nearest candidate gets the sight ray first, and stop at the first clear
+		// one. The list is tiny (one entry per player).
+		candidates.Sort( ( a, b ) => a.Distance.CompareTo( b.Distance ) );
+
+		foreach ( var candidate in candidates )
+		{
+			if ( HasSightHelper( candidate.Player ) )
+				return candidate.Player;
+		}
+
+		return null;
 	}
 
 	/// <summary>
 	/// Applies a change in sight state. Handoff happens only on a change: the outgoing
 	/// controller is disabled first (both brake in OnDisabled), then the incoming one takes
-	/// over. Gaining sight points the driver at the player; losing it sends the car back to
-	/// the navmesh marker.
+	/// over. Gaining sight points the driver at the chased player; losing it clears the chased
+	/// player and sends the car back to the navmesh marker.
 	/// </summary>
 	private void SetLineOfSightHelper( bool seen )
 	{
@@ -374,7 +463,7 @@ public sealed class GhostCarBrain : Component
 				_guard.ResetGuard();
 
 			_nav.Enabled = false;
-			_ai.ChaseTarget = TargetPlayer;
+			_ai.ChaseTarget = _chasedPlayer;
 			_ai.Enabled = true;
 		}
 		else
@@ -384,6 +473,7 @@ public sealed class GhostCarBrain : Component
 
 			_ai.Enabled = false;
 			_ai.ChaseTarget = null;
+			_chasedPlayer = null;
 			_nav.Enabled = true;
 		}
 	}
