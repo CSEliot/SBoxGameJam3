@@ -2467,6 +2467,30 @@
               "_type": "gameobject",
               "go": "264f7192-4519-4521-810f-28d695f84a0e"
             }
+          },
+          {
+            "__type": "Sandbox.FollowMe",
+            "__guid": "fbd2ed88-eaa9-4bcd-8b28-aecdd7d092b3",
+            "__enabled": true,
+            "Flags": 0,
+            "FollowThis": {
+              "_type": "gameobject",
+              "go": "264f7192-4519-4521-810f-28d695f84a0e"
+            },
+            "FollowTightness": 1,
+            "FollowX": true,
+            "FollowY": true,
+            "FollowZ": true,
+            "OffsetX": 0,
+            "OffsetY": 0,
+            "OffsetZ": 79.195,
+            "OnComponentDestroy": null,
+            "OnComponentDisabled": null,
+            "OnComponentEnabled": null,
+            "OnComponentFixedUpdate": null,
+            "OnComponentStart": null,
+            "OnComponentUpdate": null,
+            "WithoutParent": true
           }
         ],
         "Children": []
@@ -2676,7 +2700,7 @@
                     "MaterialOverride": null,
                     "Materials": null,
                     "Model": {
-                      "Id": "d8c2fc25-54e9-47e6-abab-e00ef8fa9e80",
+                      "Id": "c81cb139-c468-4373-b97d-c144595d5854",
                       "Path": "itch/board-game-pieces/models/event-arrow.vmdl"
                     },
                     "OnComponentDestroy": null,
@@ -2704,7 +2728,7 @@
                     "Friction": null,
                     "IsTrigger": false,
                     "Model": {
-                      "Id": "d8c2fc25-54e9-47e6-abab-e00ef8fa9e80",
+                      "Id": "c81cb139-c468-4373-b97d-c144595d5854",
                       "Path": "itch/board-game-pieces/models/event-arrow.vmdl"
                     },
                     "OnComponentDestroy": null,
