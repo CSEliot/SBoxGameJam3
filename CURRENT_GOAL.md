@@ -15,7 +15,7 @@ Skills for you and subagents:
 
 Here's the next step:
 
-	Task 0: DONE? NO!
+	Task 0: DONE? YES!
 		Cop cars don't go into chase mode until the player is X distance in front of them and Y cone radius in front of them. (Exposed editor properties)
 	
 		
