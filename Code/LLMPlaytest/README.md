@@ -14,7 +14,7 @@ Files (`Code/LLMPlaytest/`):
 - `README.md` - this guide.
 
 ## 1. Preconditions
-- Editor running with MCP at `http://127.0.0.1:7269/mcp`, plus the `play` (`start`/`stop`) and `editor_status` tools.
+- Editor running with the project open and reachable through sbox-cli: `sbox-cli --connect /abs/path/sboxgamejam3.sbproj --call editor_status` answers (on Linux, run it with `TMPDIR=/tmp`). The `play` (`start`/`stop`) and `editor_status` tools are served through it.
 - NEVER start/stop play while the user is playing. If `editor_status` shows `IsPlaying` on arrival, that is the user's session - read telemetry only, do not stop it. Never save while playing.
 
 ## 2. The loop
@@ -76,7 +76,7 @@ Shortcuts are cheats by design: they poke local game state directly.
 - Scene lighting darkens as the leading player's beer count climbs (night falls). Do colour/visual checks at LOW beers, or reset first with `shortcut beers 0`.
 
 ## 7. Visual checks
-Screenshot over the MCP instead of inferring from telemetry. During play, create a temporary
+Screenshot through sbox-cli instead of inferring from telemetry. During play, create a temporary
 `GameObject` with a `CameraComponent` near the target (`create_game_object` / `add_component`), aim it
 with `WorldRotation`, then `camera_screenshot` with its id. It lives only in the running play scene
 and is discarded on play stop - never save the scene.

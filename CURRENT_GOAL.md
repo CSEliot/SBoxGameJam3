@@ -11,7 +11,7 @@ References to variables like X and Y automatically imply that these are to be ed
 Skills for you and subagents:
 	box-agent-playtest
 	sbox-live-play-agent-loop
-	sbox-editor-mcp-driving
+	sbox-cli-driving
 
 Here's the next step:
 

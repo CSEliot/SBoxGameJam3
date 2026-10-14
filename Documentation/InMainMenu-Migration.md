@@ -252,5 +252,5 @@ Decisions needed from you:
 6. Networking start signal (N1-N3 decisions) + late-join behavior.
 7. N4 (leave-to-menu semantics) last — it's the least defined.
 8. Gate everything behind the CodeTestPortable compile check (razorgen + dotnet build),
-   then verify wiring in the live editor (scene tree / ui_panel_dump via editor MCP), then
+   then verify wiring in the live editor (scene tree / ui_panel_dump via sbox-cli, `sbox-cli --call ...` from the project folder), then
    playtest: solo editor, host+join-in-new-instance (menu → PLAY → late join).
